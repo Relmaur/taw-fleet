@@ -1,0 +1,239 @@
+// Package render draws the pieces that the CLI and the dashboard share: a
+// site's header, its theme cards and a list of findings. Everything returns
+// styled strings; callers decide where they go.
+package render
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Relmaur/taw-fleet/internal/paths"
+	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/style"
+)
+
+// Site is the full detail of one site: header, theme cards, findings. width
+// caps the cards (0 = as wide as their content).
+func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding, now time.Time, width int) string {
+	var b strings.Builder
+	b.WriteString(Header(p, ps, s, width))
+	b.WriteString("\n")
+	b.WriteString(Cards(p, ps, s, now, width))
+	b.WriteString("\n")
+	b.WriteString(Findings(p, findings, false, width))
+	return b.String()
+}
+
+// Header is the site's title line and facts.
+func Header(p style.Palette, ps paths.Paths, s site.Site, width int) string {
+	muted := p.Fg(p.Muted)
+	var lines []string
+	lines = append(lines, " "+p.Dot(s.Status)+" "+p.Title(s.Slug)+"  "+p.Fg(p.Brand).Render(s.URL)+"  "+p.StatusText(s.Status))
+	var facts []string
+	add := func(k, v string) {
+		if v != "" {
+			facts = append(facts, k+" "+v)
+		}
+	}
+	add("PHP", s.PHPVersion)
+	add("MySQL", s.MySQLVersion)
+	if s.HTTPPort > 0 {
+		add(s.WebServer, fmt.Sprintf(":%d", s.HTTPPort))
+	}
+	if s.MultiSite != "" {
+		add("multisite", s.MultiSite)
+	}
+	add("id", s.ID)
+	lines = append(lines, "   "+muted.Render(Tilde(ps, s.Path)), "   "+muted.Render(strings.Join(facts, "  ·  ")))
+	for _, h := range s.Hosts {
+		lines = append(lines, "   "+muted.Render("connected to "+h.HostID+" "+h.Env))
+	}
+	if s.Name != "" && s.Name != s.Slug {
+		lines = append(lines, "   "+muted.Render("Local name: "+s.Name))
+	}
+	return fit(lines, width)
+}
+
+// Cards draws one bordered card per TAW theme, all the same width.
+func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width int) string {
+	muted := p.Fg(p.Muted)
+	themes := s.TAWThemes()
+	if len(themes) == 0 {
+		return " " + muted.Render("No TAW theme in this site.") + "\n"
+	}
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Faint).Padding(0, 1).MarginLeft(1)
+	key := muted.Width(10)
+	var cards []string
+	for _, t := range themes {
+		var rows []string
+		row := func(k, v string) { rows = append(rows, key.Render(k)+" "+v) }
+
+		title := lipgloss.NewStyle().Bold(true).Render(t.Dir) + "  " + p.Kind(t.Kind)
+		if t.Symlink {
+			title += "  " + muted.Render("↗ symlink")
+		}
+		rows = append(rows, title, "")
+		row("path", themePath(ps, s, t))
+		if t.Symlink {
+			row("links to", Tilde(ps, t.RealPath))
+		}
+
+		core := p.Core(t.Core)
+		var extra []string
+		if t.Core.Locked != "" && t.Core.LockMismatch {
+			extra = append(extra, "lock "+strings.TrimPrefix(t.Core.Locked, "v"))
+		}
+		if t.Core.Latest != "" && !t.Core.Behind {
+			extra = append(extra, "latest")
+		}
+		if len(extra) > 0 {
+			core += muted.Render("  (" + strings.Join(extra, ", ") + ")")
+		}
+		row("taw/core", core)
+
+		if t.Git == nil {
+			row("git", muted.Render("not its own repository"))
+		} else {
+			gi := t.Git
+			state := p.Git(gi)
+			if gi.Upstream != "" {
+				state += muted.Render("  tracking " + gi.Upstream)
+			}
+			if gi.DefaultBranch != "" && gi.Branch != gi.DefaultBranch && !gi.Detached {
+				state += muted.Render("  (default " + gi.DefaultBranch + ")")
+			}
+			row("git", state)
+			if gi.Repo != nil {
+				row("repo", p.Fg(p.Brand).Render(strings.TrimPrefix(gi.Repo.WebURL(), "https://")))
+			} else if gi.RemoteURL != "" {
+				row("remote", gi.RemoteURL)
+			}
+			ver := gi.Describe
+			if !gi.LastCommit.IsZero() {
+				ver += muted.Render("  ·  last commit " + Ago(now, gi.LastCommit))
+			}
+			row("version", ver)
+		}
+		bin := p.Fg(p.OK).Render("yes")
+		if !t.HasBinTaw {
+			bin = muted.Render("no")
+		}
+		row("bin/taw", bin)
+		cards = append(cards, strings.Join(rows, "\n"))
+	}
+
+	// One width for every card, so they line up; never wider than width.
+	inner := 0
+	for _, c := range cards {
+		inner = max(inner, lipgloss.Width(c))
+	}
+	if width > 0 {
+		inner = min(inner, max(width-5, 10)) // margin 1 + border 2 + padding 2
+	}
+	var b strings.Builder
+	for _, c := range cards {
+		lines := strings.Split(c, "\n")
+		for i, l := range lines {
+			lines[i] = ansi.Truncate(l, inner, "…")
+		}
+		b.WriteString(box.Render(lipgloss.NewStyle().Width(inner).Render(strings.Join(lines, "\n"))) + "\n")
+	}
+	return b.String()
+}
+
+// Findings lists findings: icon, message, where and code, then the fix.
+func Findings(p style.Palette, fs []site.Finding, withSite bool, width int) string {
+	muted := p.Fg(p.Muted)
+	if len(fs) == 0 {
+		return " " + p.Fg(p.OK).Render("✓ Nothing to report.") + "\n"
+	}
+	var lines []string
+	for _, f := range fs {
+		where := f.Theme
+		if withSite && f.Site != "" {
+			where = f.Site
+			if f.Theme != "" {
+				where += "/" + f.Theme
+			}
+		}
+		line := "   " + p.Severity(f.Severity) + " " + f.Message
+		if where != "" {
+			line += "  " + muted.Render(where)
+		}
+		line += "  " + p.Fg(p.Faint).Render(f.Code)
+		lines = append(lines, line)
+		if f.Fix != "" {
+			lines = append(lines, "     "+muted.Render("→ "+f.Fix))
+		}
+	}
+	return fit(lines, width)
+}
+
+// themePath is relative to the site's WordPress root when it's inside it
+// (the header already shows the site folder).
+func themePath(ps paths.Paths, s site.Site, t site.Theme) string {
+	if s.WebRoot != "" {
+		if rel, err := filepath.Rel(s.WebRoot, t.Path); err == nil && !strings.HasPrefix(rel, "..") {
+			return rel
+		}
+	}
+	return Tilde(ps, t.Path)
+}
+
+// fit joins lines, truncating each to width (0 = no limit), with a final newline.
+func fit(lines []string, width int) string {
+	if width > 0 {
+		for i, l := range lines {
+			lines[i] = ansi.Truncate(l, width, "…")
+		}
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// Tilde shortens a path under the home folder to ~/… (also when the path
+// went through symlinks, e.g. /var → /private/var on macOS).
+func Tilde(ps paths.Paths, path string) string {
+	if ps.Home == "" {
+		return path
+	}
+	homes := []string{ps.Home}
+	if resolved, err := filepath.EvalSymlinks(ps.Home); err == nil && resolved != ps.Home {
+		homes = append(homes, resolved)
+	}
+	for _, h := range homes {
+		if strings.HasPrefix(path, h+"/") {
+			return "~" + path[len(h):]
+		}
+	}
+	return path
+}
+
+// Ago is a short relative time: "just now", "5 minutes ago", "3 days ago".
+func Ago(now, then time.Time) string {
+	d := now.Sub(then)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return unit(int(d.Minutes()), "minute")
+	case d < 24*time.Hour:
+		return unit(int(d.Hours()), "hour")
+	case d < 60*24*time.Hour:
+		return unit(int(d.Hours()/24), "day")
+	case d < 365*24*time.Hour:
+		return unit(int(d.Hours()/24/30), "month")
+	}
+	return unit(int(d.Hours()/24/365), "year")
+}
+
+func unit(n int, name string) string {
+	if n == 1 {
+		return "1 " + name + " ago"
+	}
+	return fmt.Sprintf("%d %ss ago", n, name)
+}

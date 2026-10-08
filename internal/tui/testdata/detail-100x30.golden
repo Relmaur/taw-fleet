@@ -1,0 +1,30 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+ ○ bistro  http://bistro.local  halted                                                              
+   ~/Local Sites/bistro                                                                             
+   PHP 8.2.29  ·  id b2                                                                             
+                                                                                                    
+ ╭────────────────────────────────────────────────────────────╮                                     
+ │ bistro-theme   CLASSIC                                     │                                     
+ │                                                            │                                     
+ │ path       wp-content/themes/bistro-theme                  │                                     
+ │ taw/core   1.59.2 ▲ 1.76.1                                 │                                     
+ │ git        chore/update-core ±5 ◇ unpushed  (default main) │                                     
+ │ repo       github.com/Relmaur/client--theme                │                                     
+ │ version    abc1234  ·  last commit 2 days ago              │                                     
+ │ bin/taw    yes                                             │                                     
+ ╰────────────────────────────────────────────────────────────╯                                     
+                                                                                                    
+   ▲ taw/core v1.59.2, latest is v1.76.1  bistro-theme  core.behind                                 
+     → composer update taw/core, then read vendor/taw/core/UPGRADING.md                             
+   ▲ branch chore/update-core isn't pushed (no upstream)  bistro-theme  git.no-upstream             
+     → git push -u origin chore/update-core                                                         
+   • 5 uncommitted changes  bistro-theme  git.dirty                                                 
+     → commit or stash                                                                              
+   • on chore/update-core, not main  bistro-theme  git.off-default                                  
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+
+ ↑/↓ scroll • pgdn page down • esc back • ? help • q quit

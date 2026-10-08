@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/github"
@@ -183,7 +182,7 @@ func TestShow(t *testing.T) {
 	}
 	for _, want := range []string{
 		"acme", "http://acme.local", "running", "PHP 8.2.30", "id a1",
-		"acme-theme", "CLASSIC", "taw-gutenberg", "BLOCK", "↗ symlink", "links to   ~/umbrella/taw-gutenberg",
+		"acme-theme", "CLASSIC", "taw-gutenberg", "BLOCK", "↗ symlink", "links to   ~/umbrella/taw-gutenberg", "wp-content/themes/acme-theme",
 		"1.59.2 ▲ 1.76.1", "1.76.1  (latest)", "not its own repository",
 		"taw/core v1.59.2, latest is v1.76.1", "core.behind", "→ composer update taw/core",
 	} {
@@ -274,18 +273,5 @@ func TestDoctorJSONAndOffline(t *testing.T) {
 	}
 	if behind != 0 || github == 0 {
 		t.Errorf("offline findings = %+v", v.Findings)
-	}
-}
-
-func TestAgo(t *testing.T) {
-	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	cases := map[time.Duration]string{
-		10 * time.Second: "just now", 5 * time.Minute: "5 minutes ago", time.Hour: "1 hour ago",
-		3 * 24 * time.Hour: "3 days ago", 90 * 24 * time.Hour: "3 months ago", 800 * 24 * time.Hour: "2 years ago",
-	}
-	for d, want := range cases {
-		if got := ago(now, now.Add(-d)); got != want {
-			t.Errorf("ago(%v) = %q, want %q", d, got, want)
-		}
 	}
 }

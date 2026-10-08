@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/Relmaur/taw-fleet/internal/doctor"
@@ -15,7 +17,9 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
+	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
+	"github.com/Relmaur/taw-fleet/internal/tui"
 )
 
 // BuildInfo is what the release build stamps into the binary.
@@ -33,6 +37,10 @@ type Deps struct {
 	Err    io.Writer
 	Dark   bool           // the terminal has a dark background
 	GitHub *github.Client // newest-release lookups; nil = built from Paths
+
+	// Interactive is true when stdin and stdout are a terminal: only then
+	// does `taw-fleet` alone open the dashboard.
+	Interactive bool
 }
 
 func (d Deps) palette() style.Palette { return style.New(d.Dark) }
@@ -75,6 +83,22 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		SilenceErrors: true,
 	}
 	g := &globals{}
+	// No subcommand: the dashboard in a terminal, the list table otherwise
+	// (piped, redirected, CI).
+	root.Args = cobra.NoArgs
+	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		if !d.Interactive {
+			return runList(cmd, d, g, false, false)
+		}
+		return tui.Run(cmd.Context(), tui.Deps{
+			Scan:    d.scanner(g).Run,
+			Doctor:  func(rep scan.Report) []site.Finding { return doctor.Run(rep, d.doctorOptions()) },
+			Paths:   d.Paths,
+			Version: info.Version,
+			Dark:    d.Dark,
+			Refresh: time.Minute,
+		})
+	}
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
@@ -102,7 +126,10 @@ func Execute(info BuildInfo) int {
 		return 1
 	}
 	dark := style.IsDark(os.Getenv)
-	d := Deps{Paths: p, Runner: exec.OSRunner{}, Out: os.Stdout, Err: os.Stderr, Dark: dark}
+	d := Deps{
+		Paths: p, Runner: exec.OSRunner{}, Out: os.Stdout, Err: os.Stderr, Dark: dark,
+		Interactive: term.IsTerminal(os.Stdout.Fd()) && term.IsTerminal(os.Stdin.Fd()),
+	}
 	if err := NewRoot(info, d).Execute(); err != nil {
 		pal := style.New(dark)
 		_, _ = lipgloss.Fprintln(os.Stderr, pal.Fg(pal.Err).Render("taw-fleet:"), err)

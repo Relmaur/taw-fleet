@@ -6,10 +6,27 @@
 one's status, taw/core version and git state, and opens the theme in your editor, the site in your
 browser or the repo on GitHub.
 
-> **Status: early development (v0.2).** `list`, `show` and `doctor` work; the full-screen
-> dashboard and the shortcuts come next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+![taw-fleet dashboard](docs/images/dashboard.png)
+
+> **Status: early development (v0.3).** The dashboard, `list`, `show` and `doctor` work; the
+> shortcuts (editor, browser, GitHub, start/stop) come next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
 
 ## Use
+
+Run `taw-fleet` on its own for the dashboard:
+
+| Key | Does |
+|---|---|
+| `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
+| `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
+| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running` |
+| `r` | refresh now (it also refreshes every minute) |
+| `?` | keys and symbols |
+| `q` | quit |
+
+At 120 columns and wider, the selected site's details sit beside the table. The colors follow
+your terminal's light or dark background. When the output isn't a terminal (piped, CI),
+`taw-fleet` prints the `list` table instead.
 
 ```bash
 taw-fleet list            # every TAW site: status, themes, taw/core, git
@@ -29,7 +46,7 @@ GitHub; use the cached newest versions).
     SITE                 THEME            KIND      TAW/CORE         GIT
  ●  ch-capital---taw     chcapital        CLASSIC   1.76.1           master
  ○  eme-lambda-taw       emelambda        CLASSIC   1.59.2 ▲ 1.76.1  main
- ●  fsspx-taw            fsspx--theme     CLASSIC   1.76.1           chore/taw-core-1.76.1 ±5 ⇡ unpushed
+ ●  fsspx-taw            fsspx--theme     CLASSIC   1.76.1           chore/taw-core-1.76.1 ±5 ◇ unpushed
  ○  parallel-plus        parallelplus     CLASSIC   1.59.2 ▲ 1.76.1  staging
  ●  taw                  taw-gutenberg ↗  BLOCK     1.76.1           main
                          taw-theme ↗      CLASSIC   1.76.1           main
