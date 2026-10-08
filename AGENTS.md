@@ -10,7 +10,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 
 | Path | Purpose |
 |---|---|
-| `cmd/taw-fleet/main.go` | Entry point; `version`/`commit` are set by the release build |
+| `cmd/taw-fleet/main.go` | Entry point; `version`/`commit` are set by the release build, else read from Go's build info (`go install`) |
 | `internal/cli` | cobra commands (`list`, `show`, `doctor`, `version`); table or `--json`; global `--offline` |
 | `internal/paths` | Every filesystem root (`Home`, `LocalSupport`, `LocalApp`, …); `$TAW_FLEET_HOME` overrides `~` |
 | `internal/exec` | `Runner` (argument lists + context timeout), `OSRunner`, `FakeRunner` |
@@ -28,9 +28,15 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes); unknown keys are errors |
 | `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
+| `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
-Still to come (see the plan): `selfupdate` and the release workflow.
+Releases: `.goreleaser.yaml` + `.github/workflows/release.yml` on `v*` tags. The archive names
+(`taw-fleet_<version>_darwin_<arch>.tar.gz`) and `checksums.txt` are a contract with
+`selfupdate.ArchiveName`; change both together. The cask goes to `Relmaur/homebrew-tap` with the
+`HOMEBREW_TAP_GITHUB_TOKEN` secret. Create the release notes (`gh release create`) first: GoReleaser
+runs with `mode: keep-existing` and only adds the files. Check a config change with
+`goreleaser release --snapshot --clean`.
 
 Local's API (probed on Local 10.1.2): `Authorization: Bearer <authToken>` from
 `graphql-connection-info.json`; introspection is disabled, so operations come from Local's

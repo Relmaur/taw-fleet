@@ -19,6 +19,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
+	"github.com/Relmaur/taw-fleet/internal/selfupdate"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
 	"github.com/Relmaur/taw-fleet/internal/tui"
@@ -40,6 +41,9 @@ type Deps struct {
 	Err    io.Writer
 	Dark   bool           // the terminal has a dark background
 	GitHub *github.Client // newest-release lookups; nil = built from Paths
+
+	Updater    *selfupdate.Updater    // self-update; nil = the real one
+	Executable func() (string, error) // the running binary; nil = os.Executable
 
 	// Interactive is true when stdin and stdout are a terminal: only then
 	// does `taw-fleet` alone open the dashboard, and only then are y/N
@@ -132,7 +136,8 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
-		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g))
+		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
+		newSelfUpdateCmd(info, d))
 	return root
 }
 

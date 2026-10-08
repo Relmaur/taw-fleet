@@ -70,6 +70,7 @@ const (
 	LatestCore      = "taw/core"
 	LatestTheme     = "taw-theme"
 	LatestGutenberg = "taw-gutenberg"
+	LatestFleet     = "taw-fleet" // this tool: the dashboard says when a newer release is out
 )
 
 // Lookup answers once per scan (not per theme), e.g. the newest releases.
@@ -78,7 +79,8 @@ type Lookup interface {
 	Lookup(ctx context.Context) (map[string]string, []error)
 }
 
-// GitHubLookup finds the newest taw-core, taw-theme and taw-gutenberg tags.
+// GitHubLookup finds the newest taw-core, taw-theme, taw-gutenberg and
+// taw-fleet tags.
 type GitHubLookup struct{ Client *github.Client }
 
 // Name implements Lookup.
@@ -86,7 +88,7 @@ func (GitHubLookup) Name() string { return "github" }
 
 // Lookup implements Lookup.
 func (l GitHubLookup) Lookup(ctx context.Context) (map[string]string, []error) {
-	repos := map[string]string{LatestCore: "taw-core", LatestTheme: "taw-theme", LatestGutenberg: "taw-gutenberg"}
+	repos := map[string]string{LatestCore: "taw-core", LatestTheme: "taw-theme", LatestGutenberg: "taw-gutenberg", LatestFleet: "taw-fleet"}
 	var (
 		mu     sync.Mutex
 		wg     sync.WaitGroup

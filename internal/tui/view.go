@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Relmaur/taw-fleet/internal/render"
+	"github.com/Relmaur/taw-fleet/internal/scan"
+	"github.com/Relmaur/taw-fleet/internal/selfupdate"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -58,6 +60,9 @@ func (m Model) header() string {
 	left := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("◆ taw-fleet")
 	if m.deps.Version != "" {
 		left += " " + muted.Render(m.deps.Version)
+		if tag := m.rep.Latest[scan.LatestFleet]; tag != "" && m.deps.Version != "dev" && selfupdate.Newer(m.deps.Version, tag) {
+			left += " " + p.Fg(p.Warn).Render("▲ "+strings.TrimPrefix(tag, "v"))
+		}
 	}
 
 	var right string

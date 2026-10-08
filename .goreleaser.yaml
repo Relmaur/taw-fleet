@@ -1,0 +1,68 @@
+# Release build: `git tag vX.Y.Z && git push origin vX.Y.Z` runs
+# .github/workflows/release.yml, which runs this. Local dry run:
+#   goreleaser release --snapshot --clean
+version: 2
+
+project_name: taw-fleet
+
+before:
+  hooks:
+    - go mod tidy -diff
+
+builds:
+  - main: ./cmd/taw-fleet
+    binary: taw-fleet
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  # taw-fleet_0.7.0_darwin_arm64.tar.gz: the name self-update looks for.
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md, LICENSE*]
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude: ["^Merge branch"]
+
+release:
+  github:
+    owner: Relmaur
+    name: taw-fleet
+  # Steps keep their hand-written notes: an existing release is left alone.
+  mode: keep-existing
+
+homebrew_casks:
+  - name: taw-fleet
+    repository:
+      owner: Relmaur
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+    # Without the token secret the release still ships; only the cask is skipped.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    directory: Casks
+    homepage: https://github.com/Relmaur/taw-fleet
+    description: The TAW sites on this Mac (Local by Flywheel) in one terminal dashboard
+    commit_author:
+      name: taw-fleet release
+      email: noreply@github.com
+    commit_msg_template: "taw-fleet {{ .Tag }}"
+    # Not notarized: drop the quarantine flag Homebrew sets on the download.
+    hooks:
+      post:
+        install: |
+          if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/taw-fleet"]
+          end

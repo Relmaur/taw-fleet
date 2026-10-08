@@ -8,8 +8,29 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: v0.6.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
-> start/stop, `wp`, `sync`, `update` and `inspect` work. Release binaries and `self-update` come next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+> **Status: v0.7.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
+> start/stop, `wp`, `sync`, `update`, `inspect`, release binaries and `self-update` work. The plan
+> is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+
+## Install
+
+On any Mac (Apple silicon or Intel):
+
+```bash
+brew install Relmaur/tap/taw-fleet     # update with: brew upgrade taw-fleet
+```
+
+Without Homebrew, download `taw-fleet_<version>_darwin_<arm64|amd64>.tar.gz` from the
+[releases](https://github.com/Relmaur/taw-fleet/releases), put `taw-fleet` on your `PATH`
+(e.g. `~/.local/bin`), and keep it current with `taw-fleet self-update`. With Go installed,
+`go install github.com/Relmaur/taw-fleet/cmd/taw-fleet@latest` works too.
+
+Then run `taw-fleet`. There is nothing to set up: it finds the sites from Local's own files.
+
+`taw-fleet self-update` downloads the newest release for this Mac, checks it against the
+release's `checksums.txt` and replaces the binary (`--check` only says whether there is one). It
+leaves a Homebrew install to `brew upgrade`. The dashboard shows `▲ <version>` next to its own
+version when a newer release is out.
 
 ## Use
 
@@ -168,7 +189,7 @@ anything.
 
 ### Newest versions
 
-The newest taw-core, taw-theme and taw-gutenberg releases come from GitHub's tag list and are
+The newest taw-core, taw-theme, taw-gutenberg and taw-fleet releases come from GitHub's tag list and are
 cached for an hour in `~/Library/Caches/taw-fleet/github/`. Without a token GitHub allows 60
 requests an hour, plenty with the cache. If `GITHUB_TOKEN`/`GH_TOKEN` is set, or the `gh` CLI is
 signed in, that token is used (sent only to api.github.com). When GitHub can't be reached, the
@@ -205,11 +226,16 @@ A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.j
 ## Develop
 
 ```bash
-brew install go golangci-lint
+brew install go golangci-lint goreleaser
 go test -race ./...
 golangci-lint run
 go run ./cmd/taw-fleet list
+goreleaser release --snapshot --clean   # the release build, locally, into dist/
 ```
+
+A `v*` tag runs `.github/workflows/release.yml`: GoReleaser builds both architectures, attaches
+the archives and `checksums.txt` to the GitHub release and publishes the cask to
+[Relmaur/homebrew-tap](https://github.com/Relmaur/homebrew-tap).
 
 See [AGENTS.md](AGENTS.md) for the rules and
 [ADR-0001](docs/adr/0001-go-tui-for-the-local-taw-fleet.md) for why it's built this way.
