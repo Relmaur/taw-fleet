@@ -8,9 +8,8 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: v0.8.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
-> start/stop, `wp`, `sync`, `update`, `inspect`, `create`, release binaries and `self-update` work. The plan
-> is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+> **v1.0.** Stable: the `--json` output and the `doctor` codes are a contract. Docs: the
+> [taw-fleet page](https://github.com/Relmaur/taw-docs/blob/main/taw-fleet.mdx) in taw-docs.
 
 ## Install
 
