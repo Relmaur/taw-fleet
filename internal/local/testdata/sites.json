@@ -1,0 +1,37 @@
+{
+  "aaa111": {
+    "id": "aaa111",
+    "name": "Alpha Theme Site",
+    "path": "~/Local Sites/alpha",
+    "domain": "alpha.local",
+    "localVersion": "10.1.1+6939",
+    "mysql": { "database": "local", "user": "root", "password": "fixture" },
+    "services": {
+      "nginx": { "name": "nginx", "version": "1.26.1", "role": "http", "ports": { "HTTP": [10003] } },
+      "mysql": { "name": "mysql", "version": "8.4.0", "role": "db", "ports": { "MYSQL": [10004] } },
+      "php": { "name": "php", "version": "8.2.30", "role": "php", "ports": { "cgi": [10002] } },
+      "mailpit": { "name": "mailpit", "version": "1.24.1", "ports": { "WEB": [10000] } }
+    },
+    "workspace": null,
+    "multiSite": "",
+    "xdebugEnabled": false,
+    "hostConnections": [
+      { "hostId": "wpe", "remoteSiteEnv": "staging", "userId": "x" }
+    ]
+  },
+  "bbb222": {
+    "id": "bbb222",
+    "name": "beta",
+    "path": "/abs/Local Sites/beta",
+    "domain": "beta.local",
+    "webServer": "nginx",
+    "multiSite": "ms-subdir",
+    "xdebugEnabled": true,
+    "services": {
+      "php": { "name": "php", "version": "8.5.3" },
+      "mariadb": { "name": "mariadb", "version": "10.11.18", "ports": { "MYSQL": [10014] } }
+    }
+  },
+  "ccc333": { "id": "ccc333", "name": "Broken", "path": 42 },
+  "ddd444": { "id": "ddd444", "name": "No path", "domain": "nopath.local", "webServer": { "odd": true } }
+}

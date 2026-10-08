@@ -11,10 +11,20 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | Path | Purpose |
 |---|---|
 | `cmd/taw-fleet/main.go` | Entry point; `version`/`commit` are set by the release build |
-| `internal/cli` | cobra commands; no subcommand opens the dashboard |
+| `internal/cli` | cobra commands (`list`, `version`); table or `--json` output |
+| `internal/paths` | Every filesystem root (`Home`, `LocalSupport`, `LocalApp`, …); `$TAW_FLEET_HOME` overrides `~` |
+| `internal/exec` | `Runner` (argument lists + context timeout), `OSRunner`, `FakeRunner` |
+| `internal/local` | Local's `sites.json`, `site-statuses.json`, MySQL sockets, bundled PHP/Composer |
+| `internal/composer` | `Detect`: is a theme folder TAW, and CLASSIC or BLOCK |
+| `internal/site` | The model: `Site`, `Theme`, `Status`, `ThemeKind`, `SourceError` |
+| `internal/scan` | `Source` (Local today), theme discovery, `Scanner` with `Enricher`s, `Resolve` |
+| `internal/style` | Palette (light/dark), status dots, badges; shared by CLI and dashboard |
 
-More packages arrive step by step (see the plan): `paths`, `exec`, `local`, `site`, `scan`, `git`,
-`composer`, `github`, `tools`, `taw`, `doctor`, `config`, `tui`, `selfupdate`.
+Still to come (see the plan): `git`, `github`, `doctor`, `tools`, `config`, `taw`, `tui`,
+`selfupdate`.
+
+`--json` output uses snake_case keys and is the scripting contract: add fields freely, don't
+rename or remove them without a major version.
 
 ## Commands
 
