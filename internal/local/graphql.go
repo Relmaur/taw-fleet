@@ -176,11 +176,16 @@ func (g *GraphQL) Wait(ctx context.Context, id string, want site.Status) error {
 	if poll <= 0 {
 		poll = 500 * time.Millisecond
 	}
+	last := site.StatusBusy
 	for {
 		st, err := g.Status(ctx, id)
 		if err != nil {
+			if ctx.Err() != nil { // the deadline hit mid-request
+				return fmt.Errorf("still %s after waiting: %w", last, ctx.Err())
+			}
 			return err
 		}
+		last = st
 		if st == want {
 			return nil
 		}
