@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/composer"
 	"github.com/Relmaur/taw-fleet/internal/local"
@@ -27,6 +28,9 @@ type Source interface {
 // LocalSource reads Local by Flywheel's registry.
 type LocalSource struct {
 	Paths paths.Paths
+	// Live, when set, gives running states straight from the Local app. If
+	// it fails (Local closed), site-statuses.json is used.
+	Live func(ctx context.Context) (map[string]site.Status, error)
 }
 
 // NewLocalSource returns the Local source for these paths.
@@ -42,6 +46,13 @@ func (l *LocalSource) Sites(ctx context.Context) ([]site.Site, error) {
 		return nil, err
 	}
 	statuses, statusErr := local.LoadStatuses(l.Paths)
+	if l.Live != nil {
+		lctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		if live, err := l.Live(lctx); err == nil {
+			statuses, statusErr = live, nil
+		}
+		cancel()
+	}
 
 	sites := make([]site.Site, 0, len(raws))
 	for _, r := range raws {

@@ -77,6 +77,8 @@ type Site struct {
 	MultiSite    string `json:"multisite,omitempty"`
 	Xdebug       bool   `json:"xdebug"`
 
+	ActiveTheme string `json:"active_theme,omitempty"` // the theme WordPress uses; known only while the site runs
+
 	Hosts  []HostConnection `json:"hosts,omitempty"`
 	Themes []Theme          `json:"themes"`
 	Errors []SourceError    `json:"errors,omitempty"`

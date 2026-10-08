@@ -1,30 +1,30 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
                                                                                                     
-                                                                                                    
-           ╭───────────────────────────────────────────────────────────────────────────╮            
-           │                                                                           │            
-           │  Keys                                                                     │            
-           │                                                                           │            
-           │  ↑/k  up           enter details    e editor        g GitHub              │            
-           │  ↓/j  down         esc   back       f Finder        G pull requests       │            
-           │  pgup page up      /     filter     t terminal      h hand off update     │            
-           │  pgdn page down    r     refresh    b site          c copy prompt         │            
-           │  home first        ?     help       B wp-admin      l launch Claude Code  │            
-           │  end  last         q     quit       P production                          │            
-           │                                                                           │            
-           │  Symbols                                                                  │            
-           │                                                                           │            
-           │  ● running   ○ halted   ◐ starting/stopping                               │            
-           │  ↗ theme is a symlink (the umbrella's taw-theme / taw-gutenberg)          │            
-           │  1.59.2 ▲ 1.76.1  taw/core installed ▲ newest                             │            
-           │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓                       │            
-           │  feature ◇ unpushed  not the default branch, not pushed                   │            
-           │                                                                           │            
-           │  esc or ? to go back                                                      │            
-           │                                                                           │            
-           ╰───────────────────────────────────────────────────────────────────────────╯            
-                                                                                                    
+       ╭───────────────────────────────────────────────────────────────────────────────────╮        
+       │                                                                                   │        
+       │  Keys                                                                             │        
+       │                                                                                   │        
+       │  ↑/k  up           enter details            e editor        g GitHub              │        
+       │  ↓/j  down         esc   back               f Finder        G pull requests       │        
+       │  pgup page up      /     filter             t terminal      h hand off update     │        
+       │  pgdn page down    r     refresh            b site          c copy prompt         │        
+       │  home first        s     start/stop site    B wp-admin      l launch Claude Code  │        
+       │  end  last         R     restart site       P production                          │        
+       │                    ?     help                                                     │        
+       │                    q     quit                                                     │        
+       │                                                                                   │        
+       │  Symbols                                                                          │        
+       │                                                                                   │        
+       │  ● running   ○ halted   ◐ starting/stopping                                       │        
+       │  ↗ theme is a symlink (the umbrella's taw-theme / taw-gutenberg)                  │        
+       │  1.59.2 ▲ 1.76.1  taw/core installed ▲ newest                                     │        
+       │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓                               │        
+       │  feature ◇ unpushed  not the default branch, not pushed                           │        
+       │                                                                                   │        
+       │  esc or ? to go back                                                              │        
+       │                                                                                   │        
+       ╰───────────────────────────────────────────────────────────────────────────────────╯        
                                                                                                     
 
- enter details • e editor • g GitHub • b site • h hand off update • / filter • ? help • q quit
+ enter details • e editor • g GitHub • b site • s start/stop site • h hand off update • / filter …

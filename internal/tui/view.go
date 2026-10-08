@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -224,6 +225,9 @@ func (m Model) table(width int) string {
 		dot, name := " ", ""
 		if first {
 			dot, name = p.Dot(s.Status), s.Slug
+			if _, busy := m.busy[s.ID]; busy {
+				dot = p.Dot(site.StatusBusy)
+			}
 		}
 		theme := t.Dir
 		marker := " "
@@ -235,6 +239,9 @@ func (m Model) table(width int) string {
 		themeCell := nameStyle.Render(theme)
 		if t.Symlink {
 			themeCell += p.Fg(p.Muted).Render(" ↗")
+		}
+		if s.ActiveTheme == t.Dir && len(s.TAWThemes()) > 1 {
+			themeCell += p.Fg(p.OK).Render(" ✓") // the one WordPress uses
 		}
 		line := marker + " " + dot + " " +
 			pad(nameStyle.Render(name), c.site) + "  " +
@@ -339,8 +346,21 @@ func (m Model) footer() string {
 	muted := p.Fg(p.Muted)
 	var status string
 	switch {
-	case m.flash != "" && m.flashErr:
+	case m.confirm != "":
+		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render("  y yes · n no")
+	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
+	case len(m.busy) > 0:
+		var parts []string
+		for id, op := range m.busy {
+			for _, s := range m.rep.Sites {
+				if s.ID == id {
+					parts = append(parts, strings.TrimSuffix(string(op), "Site")+" "+s.Slug)
+				}
+			}
+		}
+		sort.Strings(parts)
+		status = " " + m.spin.View() + " " + muted.Render("Local is working: "+strings.Join(parts, ", ")+"…")
 	case m.flash != "":
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.filtering:
@@ -353,10 +373,12 @@ func (m Model) footer() string {
 		status = " " + p.Fg(p.Warn).Render("▲ "+m.rep.Errors[0].Err)
 	}
 	var keys help.KeyMap = m.keys
-	switch m.mode {
-	case modeDetail:
+	switch {
+	case m.confirm != "":
+		keys = confirmKeys{m.keys}
+	case m.mode == modeDetail:
 		keys = detailKeys{m.keys}
-	case modeHandoff:
+	case m.mode == modeHandoff:
 		keys = handoffKeys{m.keys}
 	}
 	return ansi.Truncate(status, m.width, "…") + "\n" + " " + m.help.View(keys)

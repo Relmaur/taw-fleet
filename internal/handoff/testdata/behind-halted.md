@@ -29,7 +29,7 @@ cd '/Users/me/Local Sites/ls-mxico/app/public/wp-content/themes/ls-mexico'
 '/Users/me/Library/Application Support/Local/lightning-services/php-8.2.30+1/bin/darwin-arm64/bin/php' /Applications/Local.app/Contents/Resources/extraResources/bin/composer/composer.phar update taw/core
 ```
 
-The site isn't running, so wp-cli and anything that boots WordPress won't work. When a check needs WordPress, ask me to start the site in Local (Local by Flywheel → LS Mexico - TAW → Start site).
+The site isn't running, so wp-cli and anything that boots WordPress won't work. When a check needs WordPress, ask me to start the site (`taw-fleet start ls-mxico`, or in Local).
 
 ## What taw-fleet found
 

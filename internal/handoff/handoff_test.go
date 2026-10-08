@@ -73,7 +73,7 @@ func TestBehindHaltedClean(t *testing.T) {
 	for _, want := range []string{
 		"update-theme", "**You have my approval**", "1.59.2 → 1.76.1", "every section newer than 1.59.2",
 		"'/Users/me/Local Sites/ls-mxico/app/public/wp-content/themes/ls-mexico'", // quoted: has a space
-		"composer.phar update taw/core", "**not running**", "Local by Flywheel → LS Mexico - TAW → Start site",
+		"composer.phar update taw/core", "**not running**", "taw-fleet start ls-mxico",
 		"https://lsmexico.mx (don't touch it)", "ask me before pushing", "chore/taw-core-1.76.1",
 	} {
 		if !strings.Contains(p.Text, want) {

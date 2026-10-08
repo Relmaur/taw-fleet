@@ -74,6 +74,9 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 		row := func(k, v string) { rows = append(rows, key.Render(k)+" "+v) }
 
 		title := lipgloss.NewStyle().Bold(true).Render(t.Dir) + "  " + p.Kind(t.Kind)
+		if s.ActiveTheme == t.Dir {
+			title += "  " + p.Fg(p.OK).Render("✓ active")
+		}
 		if t.Symlink {
 			title += "  " + muted.Render("↗ symlink")
 		}

@@ -50,6 +50,14 @@ func TestOSRunnerAddsEnv(t *testing.T) {
 	}
 }
 
+func TestOSRunnerStreams(t *testing.T) {
+	var out, errOut strings.Builder
+	res, err := OSRunner{}.Run(context.Background(), Spec{Name: "/bin/sh", Args: []string{"-c", "echo hi; echo oops >&2; exit 2"}, Stdout: &out, Stderr: &errOut})
+	if err != nil || res.Code != 2 || out.String() != "hi\n" || errOut.String() != "oops\n" || len(res.Stdout) != 0 {
+		t.Errorf("res=%+v out=%q err=%q %v", res, out.String(), errOut.String(), err)
+	}
+}
+
 func TestFakeRunnerRecords(t *testing.T) {
 	f := &FakeRunner{Script: func(s Spec) (Result, error) {
 		return Result{Stdout: []byte(s.Name)}, nil

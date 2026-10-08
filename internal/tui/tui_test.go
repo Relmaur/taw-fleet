@@ -17,6 +17,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
+	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -423,5 +424,76 @@ func TestHandoffRefusedAndNoActions(t *testing.T) {
 	m = press(t, m, "e")
 	if !strings.Contains(screen(m), "shortcuts unavailable: config.toml: unknown keys: edtor") {
 		t.Errorf("broken config:\n%s", screen(m))
+	}
+}
+
+func TestStartStopFlow(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 100, 24, &rep)
+	var gotOp local.Op
+	var gotSite string
+	release := make(chan struct{})
+	m.deps.SiteOp = func(_ context.Context, op local.Op, s site.Site) (time.Duration, error) {
+		<-release
+		gotOp, gotSite = op, s.Slug
+		return 12 * time.Second, nil
+	}
+
+	// acme-shop is running: s asks to stop it; n cancels.
+	m = press(t, m, "s")
+	if !strings.Contains(screen(m), "Stop acme-shop?") {
+		t.Fatalf("question missing:\n%s", screen(m))
+	}
+	m = press(t, m, "n")
+	if m.confirm != "" || !strings.Contains(screen(m), "Nothing changed.") {
+		t.Error("n cancels")
+	}
+
+	// bistro is halted: s asks to start it; y runs it.
+	m = press(t, m, "j", "s")
+	if !strings.Contains(screen(m), "Start bistro?") {
+		t.Fatalf("question missing:\n%s", screen(m))
+	}
+	next, cmd := m.Update(keyMsg("y"))
+	m = next.(Model)
+	if _, busy := m.busy["b2"]; !busy || !strings.Contains(screen(m), "Local is working: start bistro…") {
+		t.Errorf("busy state:\n%s", screen(m))
+	}
+	// A second s while busy is refused.
+	m = press(t, m, "s")
+	if !strings.Contains(screen(m), "bistro is busy") {
+		t.Error("busy refusal")
+	}
+	close(release)
+	msgs := cmd()
+	if batch, ok := msgs.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c == nil {
+				continue
+			}
+			if done, ok := c().(siteOpDoneMsg); ok {
+				m = step(t, m, done)
+			}
+		}
+	}
+	if gotOp != local.Start || gotSite != "bistro" {
+		t.Errorf("op = %s %s", gotOp, gotSite)
+	}
+	if len(m.busy) != 0 || !strings.Contains(screen(m), "✓ bistro is running (12s)") || !m.scanning {
+		t.Errorf("after: busy=%v scanning=%v\n%s", m.busy, m.scanning, screen(m))
+	}
+
+	// R restarts.
+	m = press(t, m, "k", "R")
+	if m.pendingOp != local.Restart || !strings.Contains(screen(m), "Restart acme-shop?") {
+		t.Error("R asks to restart")
+	}
+}
+
+func TestStartStopUnavailable(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 100, 24, &rep), "s")
+	if m.confirm != "" || !strings.Contains(screen(m), "isn't available") {
+		t.Error("no SiteOp: no question, a message instead")
 	}
 }

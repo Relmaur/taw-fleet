@@ -14,7 +14,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/cli` | cobra commands (`list`, `show`, `doctor`, `version`); table or `--json`; global `--offline` |
 | `internal/paths` | Every filesystem root (`Home`, `LocalSupport`, `LocalApp`, …); `$TAW_FLEET_HOME` overrides `~` |
 | `internal/exec` | `Runner` (argument lists + context timeout), `OSRunner`, `FakeRunner` |
-| `internal/local` | Local's `sites.json`, `site-statuses.json`, MySQL sockets, bundled PHP/Composer |
+| `internal/local` | Local's `sites.json`, `site-statuses.json`, MySQL sockets, bundled PHP/Composer/wp-cli; `GraphQL` (Local app API: live statuses, start/stop/restart); `WPSpec` |
 | `internal/composer` | `Detect` (TAW? CLASSIC or BLOCK?), installed/locked versions, semver helpers |
 | `internal/site` | The model: `Site`, `Theme`, `Status`, `ThemeKind`, `SourceError` |
 | `internal/scan` | `Source` (Local today), theme discovery, `Scanner` with `Enricher`s (git, core) and `Lookup`s (GitHub), `Resolve` |
@@ -29,7 +29,14 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 
-Still to come (see the plan): `taw` (bin/taw runners), Local's GraphQL (start/stop), `selfupdate`.
+Still to come (see the plan): `taw` (bin/taw runners), `selfupdate`.
+
+Local's API (probed on Local 10.1.2): `Authorization: Bearer <authToken>` from
+`graphql-connection-info.json`; introspection is disabled, so operations come from Local's
+bundled schema (`startSite/stopSite/restartSite(id: ID!): Site`, `site(id)`, `sites`). The client
+refuses a non-localhost URL so the token never leaves the machine. Test against the fake in
+`internal/local/graphql_test.go`; on a real Mac, only start/stop sites nobody is working on, and
+put them back the way they were.
 
 Dashboard rules: `View` is a pure function of the model (no I/O); work happens in `tea.Cmd`s.
 Golden screens: `go test ./internal/tui -update` rewrites `internal/tui/testdata/*.golden`; read
