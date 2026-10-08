@@ -24,8 +24,12 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/style` | Palette (light/dark), status dots, badges, `Core`/`GitFit` cells; shared by CLI and dashboard |
 | `internal/render` | Site header, theme cards, findings: the `show` output and the dashboard's detail pane |
 | `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/` |
+| `internal/tools` | Installed editors/terminals (`Detect`, `Pick`) and `Opener` (`/usr/bin/open` with argument lists) |
+| `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes); unknown keys are errors |
+| `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
+| `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 
-Still to come (see the plan): `tools`, `config`, `taw`, `selfupdate`.
+Still to come (see the plan): `taw` (bin/taw runners), Local's GraphQL (start/stop), `selfupdate`.
 
 Dashboard rules: `View` is a pure function of the model (no I/O); work happens in `tea.Cmd`s.
 Golden screens: `go test ./internal/tui -update` rewrites `internal/tui/testdata/*.golden`; read
@@ -54,7 +58,14 @@ go run ./cmd/taw-fleet version
 - **Tests never touch the real `~/Library`, `~/Local Sites`, GitHub or Local's API.** Use
   `t.TempDir()`, `testdata/`, `FakeRunner` and `httptest`. CI runs on a clean macOS runner, which
   would catch it.
-- **Every subprocess gets an argument list and a context timeout. Never a shell string.**
+- **Every subprocess gets an argument list and a context timeout. Never a shell string.** The one
+  exception is the handoff launcher (`actions.LauncherScript`): a terminal can only run a script, so
+  it's a three-line `sh` file in which every value is single-quoted, and a test runs it with a
+  prompt full of quotes, `$( )` and backticks.
+- **The handoff prompt is a contract with the owner** (docs/plans § Step 4): branch + commit, ask
+  before push; taw/core update approved; Tier 2 needs confirmation; dirty tree or unexpected
+  branch = stop and ask. Change those rules only when the owner asks. Review the golden prompts in
+  `internal/handoff/testdata/` whenever the template changes.
 - **Read-only by default.** Anything that changes a site, a theme or a file asks first in the
   dashboard and needs `--yes` on the command line.
 - **Never use `style.css` `Version:` as a theme's version.** It is stale in every TAW theme. Use

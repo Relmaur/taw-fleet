@@ -1,8 +1,13 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
-    SITE       THEME            KIND       TAW/CORE         GIT                                     
+ Hand off to an agent  ·  Update bistro-theme (bistro)  ·  branch chore/taw-core-1.76.1             
+ c copies the prompt  ·  l opens a terminal running Claude Code in the theme folder with it         
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-▌ ○ bistro     bistro-theme      CLASSIC   1.59.2 ▲ 1.76.1  chore/update-core ±5 ◇ unpushed         
+  Update the TAW theme `bistro-theme`                                                               
+                                                                                                    
+  The task                                                                                          
+                                                                                                    
+  Run the **update-theme** skill.                                                                   
                                                                                                     
                                                                                                     
                                                                                                     
@@ -11,10 +16,5 @@
                                                                                                     
                                                                                                     
                                                                                                     
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
- / behind 
- enter details • e editor • g GitHub • b site • h hand off update • / filter • ? help • q quit
+
+ c copy prompt • l launch Claude Code • ↑/↓ scroll • esc back

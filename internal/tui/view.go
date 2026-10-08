@@ -134,6 +134,8 @@ func (m Model) body() string {
 		return block(m.emptyState(), m.width, h)
 	case m.mode == modeDetail:
 		return m.detailScreen(h)
+	case m.mode == modeHandoff:
+		return m.handoffScreen(h)
 	}
 
 	if !m.wide() {
@@ -276,6 +278,38 @@ func (m Model) detailScreen(height int) string {
 	return block(strings.Join(lines[from:min(from+height, len(lines))], "\n"), m.width, height)
 }
 
+// --- handoff ----------------------------------------------------------------
+
+// handoffScreen shows the agent prompt, with Markdown headings accented.
+func (m Model) handoffScreen(height int) string {
+	p := m.pal
+	muted := p.Fg(p.Muted)
+	head := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Hand off to an agent") +
+		muted.Render("  ·  "+m.prompt.Title+"  ·  branch "+m.prompt.Branch)
+	sub := " " + muted.Render("c copies the prompt  ·  l opens a terminal running Claude Code in the theme folder with it")
+	rule := p.Fg(p.Faint).Render(strings.Repeat("─", m.width))
+
+	var lines []string
+	for _, l := range strings.Split(strings.TrimRight(m.prompt.Text, "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(l, "# "):
+			l = lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render(strings.TrimPrefix(l, "# "))
+		case strings.HasPrefix(l, "## "):
+			l = lipgloss.NewStyle().Bold(true).Foreground(p.Brand).Render(strings.TrimPrefix(l, "## "))
+		case strings.HasPrefix(l, "```"):
+			l = p.Fg(p.Faint).Render(l)
+		}
+		// Wrap rather than cut: the prompt should be readable before it's sent.
+		for _, w := range strings.Split(lipgloss.Wrap(l, max(m.width-4, 20), " /"), "\n") {
+			lines = append(lines, "  "+w)
+		}
+	}
+	bodyH := max(height-3, 1)
+	from := min(m.scroll, max(len(lines)-bodyH, 0))
+	body := strings.Join(lines[from:min(from+bodyH, len(lines))], "\n")
+	return block(head+"\n"+sub+"\n"+rule+"\n"+body, m.width, height)
+}
+
 // --- help -------------------------------------------------------------------
 
 func (m Model) helpScreen() string {
@@ -305,6 +339,10 @@ func (m Model) footer() string {
 	muted := p.Fg(p.Muted)
 	var status string
 	switch {
+	case m.flash != "" && m.flashErr:
+		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
+	case m.flash != "":
+		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.filtering:
 		status = " " + m.filter.View()
 	case m.filter.Value() != "":
@@ -315,8 +353,11 @@ func (m Model) footer() string {
 		status = " " + p.Fg(p.Warn).Render("▲ "+m.rep.Errors[0].Err)
 	}
 	var keys help.KeyMap = m.keys
-	if m.mode == modeDetail {
+	switch m.mode {
+	case modeDetail:
 		keys = detailKeys{m.keys}
+	case modeHandoff:
+		keys = handoffKeys{m.keys}
 	}
 	return ansi.Truncate(status, m.width, "…") + "\n" + " " + m.help.View(keys)
 }

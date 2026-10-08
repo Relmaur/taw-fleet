@@ -185,3 +185,42 @@ func Resolve(sites []site.Site, q string) (*site.Site, error) {
 	sort.Strings(names)
 	return nil, fmt.Errorf("%q matches several sites: %s", q, strings.Join(names, ", "))
 }
+
+// ResolveTheme finds a site and one of its TAW themes. theme picks by folder
+// name; otherwise a query that names a theme folder picks that theme, and a
+// site with a single TAW theme needs nothing more.
+func ResolveTheme(sites []site.Site, q, theme string) (*site.Site, site.Theme, error) {
+	s, err := Resolve(sites, q)
+	if err != nil {
+		return nil, site.Theme{}, err
+	}
+	themes := s.TAWThemes()
+	pick := func(name string) (site.Theme, bool) {
+		for _, t := range themes {
+			if strings.EqualFold(t.Dir, name) {
+				return t, true
+			}
+		}
+		return site.Theme{}, false
+	}
+	var names []string
+	for _, t := range themes {
+		names = append(names, t.Dir)
+	}
+	switch {
+	case theme != "":
+		if t, ok := pick(theme); ok {
+			return s, t, nil
+		}
+		return nil, site.Theme{}, fmt.Errorf("%s has no TAW theme %q (themes: %s)", s.Slug, theme, strings.Join(names, ", "))
+	case len(themes) == 0:
+		return nil, site.Theme{}, fmt.Errorf("%s has no TAW theme", s.Slug)
+	}
+	if t, ok := pick(strings.TrimSpace(q)); ok {
+		return s, t, nil
+	}
+	if len(themes) == 1 {
+		return s, themes[0], nil
+	}
+	return nil, site.Theme{}, fmt.Errorf("%s has several TAW themes (%s): add --theme <name>", s.Slug, strings.Join(names, ", "))
+}

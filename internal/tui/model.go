@@ -16,21 +16,33 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
 )
 
+// Actions are the shortcuts and the agent handoff (internal/actions).
+type Actions interface {
+	Do(ctx context.Context, k actions.Kind, s site.Site, t site.Theme) (string, error)
+	Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error)
+	Copy(ctx context.Context, text string) error
+	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error)
+}
+
 // Deps is what the dashboard needs from the outside.
 type Deps struct {
-	Scan    func(ctx context.Context) (scan.Report, error)
-	Doctor  func(scan.Report) []site.Finding
-	Paths   paths.Paths
-	Version string
-	Dark    bool             // first guess; the terminal's answer replaces it
-	Now     func() time.Time // nil = time.Now
-	Refresh time.Duration    // re-scan this often; 0 = only on `r`
+	Actions    Actions // nil = shortcuts unavailable (e.g. a broken config)
+	ActionsErr error   // why Actions is nil
+	Scan       func(ctx context.Context) (scan.Report, error)
+	Doctor     func(scan.Report) []site.Finding
+	Paths      paths.Paths
+	Version    string
+	Dark       bool             // first guess; the terminal's answer replaces it
+	Now        func() time.Time // nil = time.Now
+	Refresh    time.Duration    // re-scan this often; 0 = only on `r`
 }
 
 type mode int
@@ -39,6 +51,7 @@ const (
 	modeTable mode = iota
 	modeDetail
 	modeHelp
+	modeHandoff
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -67,6 +80,14 @@ type Model struct {
 	offset  int   // first visible row on screen
 	mode    mode
 	scroll  int // detail screen scroll
+
+	flash    string // last action's result, shown in the footer
+	flashErr bool
+	flashAt  time.Time
+
+	prompt handoff.Prompt // the handoff on screen (modeHandoff)
+	hsite  site.Site
+	htheme site.Theme
 
 	filtering bool
 	filter    textinput.Model
@@ -106,6 +127,84 @@ type scanDoneMsg struct {
 
 type tickMsg time.Time
 
+type actionDoneMsg struct {
+	msg string
+	err error
+}
+
+// flashFor is how long an action's message stays in the footer.
+const flashFor = 6 * time.Second
+
+func (m *Model) setFlash(msg string, isErr bool) {
+	m.flash, m.flashErr, m.flashAt = msg, isErr, m.deps.Now()
+}
+
+// run does an action in the background and reports back.
+func (m Model) run(f func() (string, error)) tea.Cmd {
+	return func() tea.Msg {
+		msg, err := f()
+		return actionDoneMsg{msg, err}
+	}
+}
+
+// shortcut maps a key to an action kind.
+func (m Model) shortcut(msg tea.KeyPressMsg) (actions.Kind, bool) {
+	k := m.keys
+	for _, s := range []struct {
+		b    key.Binding
+		kind actions.Kind
+	}{
+		{k.Editor, actions.Editor}, {k.Finder, actions.Finder}, {k.Browser, actions.Browser}, {k.Admin, actions.Admin},
+		{k.GitHub, actions.GitHub}, {k.PRs, actions.PRs}, {k.Terminal, actions.Terminal}, {k.Production, actions.Production},
+	} {
+		if key.Matches(msg, s.b) {
+			return s.kind, true
+		}
+	}
+	return "", false
+}
+
+// act runs a shortcut on the selected theme.
+func (m Model) act(kind actions.Kind) (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("shortcuts unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	a, ctx := m.deps.Actions, m.ctx
+	return m, m.run(func() (string, error) { return a.Do(ctx, kind, s, t) })
+}
+
+// openHandoff builds the prompt for the selected theme and shows it.
+func (m Model) openHandoff() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("handoff unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	p, err := m.deps.Actions.Handoff(s, t, m.findings[s.ID])
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	m.prompt, m.hsite, m.htheme = p, s, t
+	m.mode, m.scroll = modeHandoff, 0
+	return m, nil
+}
+
+func errText(err error) string {
+	if err == nil {
+		return "unknown error"
+	}
+	return err.Error()
+}
+
 func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
@@ -141,8 +240,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyScan(msg.rep, msg.err)
 		return m, nil
 
+	case actionDoneMsg:
+		if msg.err != nil {
+			m.setFlash(msg.err.Error(), true)
+		} else {
+			m.setFlash(msg.msg, false)
+		}
+		return m, nil
+
 	case tickMsg:
 		m.now = time.Time(msg)
+		if m.flash != "" && m.now.Sub(m.flashAt) > flashFor {
+			m.flash = ""
+		}
 		if m.deps.Refresh > 0 && !m.scanning && m.loaded && m.now.Sub(m.rep.ScannedAt) >= m.deps.Refresh {
 			return m, tea.Batch(tick(), m.startScan())
 		}
@@ -187,6 +297,32 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	k := m.keys
 	switch m.mode {
+	case modeHandoff:
+		switch {
+		case key.Matches(msg, k.Back) || msg.String() == "q":
+			m.mode, m.scroll = modeTable, 0
+		case key.Matches(msg, k.Copy):
+			a, ctx, text, dir := m.deps.Actions, m.ctx, m.prompt.Text, m.htheme.Dir
+			return m, m.run(func() (string, error) {
+				if err := a.Copy(ctx, text); err != nil {
+					return "", err
+				}
+				return "Copied the handoff prompt for " + dir + ". Paste it into your agent.", nil
+			})
+		case key.Matches(msg, k.Launch):
+			a, ctx, s, t, p := m.deps.Actions, m.ctx, m.hsite, m.htheme, m.prompt
+			m.mode, m.scroll = modeTable, 0
+			return m, m.run(func() (string, error) { return a.Launch(ctx, s, t, p) })
+		case key.Matches(msg, k.Up):
+			m.scroll = max(0, m.scroll-1)
+		case key.Matches(msg, k.Down):
+			m.scroll++
+		case key.Matches(msg, k.PageUp):
+			m.scroll = max(0, m.scroll-m.bodyHeight())
+		case key.Matches(msg, k.PageDown):
+			m.scroll += m.bodyHeight()
+		}
+		return m, nil
 	case modeHelp:
 		if key.Matches(msg, k.Quit) && msg.String() == "q" || key.Matches(msg, k.Help, k.Back) {
 			m.mode = modeTable
@@ -208,6 +344,12 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.scroll += m.bodyHeight()
 		case key.Matches(msg, k.Help):
 			m.mode = modeHelp
+		case key.Matches(msg, k.Handoff):
+			return m.openHandoff()
+		default:
+			if kind, ok := m.shortcut(msg); ok {
+				return m.act(kind)
+			}
 		}
 		return m, nil
 	}
@@ -245,6 +387,12 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, k.Help):
 		m.mode = modeHelp
+	case key.Matches(msg, k.Handoff):
+		return m.openHandoff()
+	default:
+		if kind, ok := m.shortcut(msg); ok {
+			return m.act(kind)
+		}
 	}
 	return m, nil
 }

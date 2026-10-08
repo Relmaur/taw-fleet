@@ -245,3 +245,31 @@ func TestResolve(t *testing.T) {
 		t.Error("want an error for an empty query")
 	}
 }
+
+func TestResolveTheme(t *testing.T) {
+	sites := []site.Site{
+		{ID: "a", Slug: "acme", Themes: []site.Theme{{Dir: "acme-theme", IsTAW: true}, {Dir: "tt5"}}},
+		{ID: "t", Slug: "taw", Themes: []site.Theme{{Dir: "taw-gutenberg", IsTAW: true}, {Dir: "taw-theme", IsTAW: true}}},
+		{ID: "p", Slug: "plain", Themes: []site.Theme{{Dir: "tt5"}}},
+	}
+	ok := []struct{ q, theme, want string }{
+		{"acme", "", "acme-theme"},
+		{"taw-gutenberg", "", "taw-gutenberg"},
+		{"taw", "TAW-THEME", "taw-theme"},
+	}
+	for _, c := range ok {
+		_, th, err := ResolveTheme(sites, c.q, c.theme)
+		if err != nil || th.Dir != c.want {
+			t.Errorf("ResolveTheme(%q, %q) = %s, %v", c.q, c.theme, th.Dir, err)
+		}
+	}
+	for _, c := range []struct{ q, theme, msg string }{
+		{"taw", "", "add --theme"},
+		{"taw", "nope", "no TAW theme \"nope\""},
+		{"plain", "", "has no TAW theme"},
+	} {
+		if _, _, err := ResolveTheme(sites, c.q, c.theme); err == nil || !strings.Contains(err.Error(), c.msg) {
+			t.Errorf("ResolveTheme(%q, %q): %v", c.q, c.theme, err)
+		}
+	}
+}

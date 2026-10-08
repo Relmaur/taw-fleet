@@ -14,7 +14,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
+	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -310,5 +312,116 @@ func TestBackgroundColorSwitchesPalette(t *testing.T) {
 	m = step(t, m, tea.BackgroundColorMsg{Color: color.Black})
 	if !m.dark {
 		t.Error("a black background means the dark palette")
+	}
+}
+
+type fakeActions struct {
+	did      []actions.Kind
+	copied   string
+	launched string
+	refuse   error
+}
+
+func (f *fakeActions) Do(_ context.Context, k actions.Kind, _ site.Site, t site.Theme) (string, error) {
+	f.did = append(f.did, k)
+	if k == actions.Production {
+		return "", errors.New("no production URL")
+	}
+	return "did " + string(k) + " on " + t.Dir, nil
+}
+
+func (f *fakeActions) Handoff(s site.Site, t site.Theme, _ []site.Finding) (handoff.Prompt, error) {
+	if f.refuse != nil {
+		return handoff.Prompt{}, f.refuse
+	}
+	return handoff.Prompt{Title: "Update " + t.Dir + " (" + s.Slug + ")", Branch: "chore/taw-core-1.76.1",
+		Text: "# Update the TAW theme `" + t.Dir + "`\n\n## The task\n\nRun the **update-theme** skill.\n"}, nil
+}
+
+func (f *fakeActions) Copy(_ context.Context, text string) error { f.copied = text; return nil }
+
+func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ handoff.Prompt) (string, error) {
+	f.launched = t.Dir
+	return "Started Claude Code for " + t.Dir, nil
+}
+
+// runCmd executes a command returned by Update and feeds its message back.
+func runCmd(t *testing.T, m Model, msg tea.Msg) Model {
+	t.Helper()
+	next, cmd := m.Update(msg)
+	m = next.(Model)
+	if cmd != nil {
+		m = step(t, m, cmd())
+	}
+	return m
+}
+
+func withActions(t *testing.T, w, h int, f *fakeActions) Model {
+	rep := fixtureReport()
+	m := newModel(t, w, h, &rep)
+	m.deps.Actions = f
+	return m
+}
+
+func TestShortcutKeys(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 100, 24, f)
+	m = runCmd(t, m, keyMsg("e"))
+	if !strings.Contains(screen(m), "✓ did editor on acme") {
+		t.Errorf("flash missing:\n%s", screen(m))
+	}
+	m = press(t, m, "j")
+	for _, k := range []string{"f", "b", "B", "g", "G", "t"} {
+		m = runCmd(t, m, keyMsg(k))
+	}
+	want := []actions.Kind{actions.Editor, actions.Finder, actions.Browser, actions.Admin, actions.GitHub, actions.PRs, actions.Terminal}
+	if len(f.did) != len(want) {
+		t.Fatalf("did = %v", f.did)
+	}
+	m = runCmd(t, m, keyMsg("P"))
+	if !strings.Contains(screen(m), "✗ no production URL") {
+		t.Errorf("error flash missing:\n%s", screen(m))
+	}
+	// The message goes away after a while.
+	m = step(t, m, tickMsg(now.Add(flashFor+time.Second)))
+	if strings.Contains(screen(m), "no production URL") {
+		t.Error("flash should expire")
+	}
+}
+
+func TestHandoffScreen(t *testing.T) {
+	f := &fakeActions{}
+	m := press(t, withActions(t, 100, 20, f), "j", "h")
+	if m.mode != modeHandoff {
+		t.Fatal("h opens the handoff")
+	}
+	golden(t, "handoff-100x20", screen(m))
+
+	m = runCmd(t, m, keyMsg("c"))
+	if !strings.Contains(f.copied, "update-theme") || !strings.Contains(screen(m), "Copied the handoff prompt for bistro-theme") {
+		t.Errorf("copy: %q\n%s", f.copied, screen(m))
+	}
+	m = runCmd(t, m, keyMsg("l"))
+	if f.launched != "bistro-theme" || m.mode != modeTable || !strings.Contains(screen(m), "Started Claude Code for bistro-theme") {
+		t.Errorf("launch: %q mode=%v", f.launched, m.mode)
+	}
+	m = press(t, m, "h", "esc")
+	if m.mode != modeTable {
+		t.Error("esc closes the handoff")
+	}
+}
+
+func TestHandoffRefusedAndNoActions(t *testing.T) {
+	f := &fakeActions{refuse: handoff.ErrUmbrella}
+	m := press(t, withActions(t, 100, 20, f), "h")
+	if m.mode != modeTable || !strings.Contains(screen(m), "canonical scaffold") {
+		t.Errorf("refusal:\n%s", screen(m))
+	}
+	rep := fixtureReport()
+	m = newModel(t, 100, 20, &rep)
+	m.deps.ActionsErr = errors.New("config.toml: unknown keys: edtor")
+	m = press(t, m, "e")
+	if !strings.Contains(screen(m), "shortcuts unavailable: config.toml: unknown keys: edtor") {
+		t.Errorf("broken config:\n%s", screen(m))
 	}
 }
