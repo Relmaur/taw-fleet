@@ -10,6 +10,7 @@ type keyMap struct {
 	// Shortcuts on the selected theme.
 	Editor, Finder, Browser, Admin, GitHub, PRs, Terminal, Production key.Binding
 	Handoff, Copy, Launch                                             key.Binding
+	StartStop, Restart, Yes, No                                       key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -38,6 +39,10 @@ func newKeyMap() keyMap {
 		Handoff:    key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off update")),
 		Copy:       key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
 		Launch:     key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "launch Claude Code")),
+		StartStop:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop site")),
+		Restart:    key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart site")),
+		Yes:        key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y", "yes")),
+		No:         key.NewBinding(key.WithKeys("n", "esc"), key.WithHelp("n", "no")),
 	}
 }
 
@@ -61,16 +66,22 @@ func (h handoffKeys) ShortHelp() []key.Binding {
 
 func (h handoffKeys) FullHelp() [][]key.Binding { return h.k.FullHelp() }
 
+// confirmKeys is the help bar while a question is open.
+type confirmKeys struct{ k keyMap }
+
+func (c confirmKeys) ShortHelp() []key.Binding  { return []key.Binding{c.k.Yes, c.k.No} }
+func (c confirmKeys) FullHelp() [][]key.Binding { return c.k.FullHelp() }
+
 // ShortHelp is the one-line help bar.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.Browser, k.Handoff, k.Filter, k.Help, k.Quit}
+	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.Browser, k.StartStop, k.Handoff, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom},
-		{k.Detail, k.Back, k.Filter, k.Refresh, k.Help, k.Quit},
+		{k.Detail, k.Back, k.Filter, k.Refresh, k.StartStop, k.Restart, k.Help, k.Quit},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production},
 		{k.GitHub, k.PRs, k.Handoff, k.Copy, k.Launch},
 	}

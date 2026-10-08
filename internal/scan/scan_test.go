@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
@@ -271,5 +272,58 @@ func TestResolveTheme(t *testing.T) {
 		if _, _, err := ResolveTheme(sites, c.q, c.theme); err == nil || !strings.Contains(err.Error(), c.msg) {
 			t.Errorf("ResolveTheme(%q, %q): %v", c.q, c.theme, err)
 		}
+	}
+}
+
+func TestLiveStatusesWinAndFallBack(t *testing.T) {
+	p := fleet(t)
+	src := NewLocalSource(p)
+	src.Live = func(context.Context) (map[string]site.Status, error) {
+		return map[string]site.Status{"id1": site.StatusHalted, "id2": site.StatusRunning}, nil
+	}
+	sites, _ := src.Sites(context.Background())
+	if find(t, sites, "id1").Status != site.StatusHalted || find(t, sites, "id2").Status != site.StatusRunning {
+		t.Error("live statuses should replace site-statuses.json")
+	}
+	src.Live = func(context.Context) (map[string]site.Status, error) { return nil, errors.New("Local closed") }
+	sites, _ = src.Sites(context.Background())
+	if find(t, sites, "id1").Status != site.StatusRunning {
+		t.Error("fall back to site-statuses.json")
+	}
+}
+
+func TestActiveThemeCachesAndSkipsHalted(t *testing.T) {
+	calls := 0
+	r := &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) {
+		calls++
+		return exec.Result{Stdout: []byte("taw-theme\n")}, nil
+	}}
+	p := paths.ForHome(t.TempDir(), nil)
+	p.LookPath = func(n string) (string, error) { return "/usr/bin/" + n, nil }
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	a := &ActiveTheme{Paths: p, Runner: r, TTL: time.Minute, Now: func() time.Time { return now }}
+
+	halted := site.Site{ID: "h", Themes: []site.Theme{{IsTAW: true}}}
+	if err := a.EnrichSite(context.Background(), &halted); err != nil || halted.ActiveTheme != "" || calls != 0 {
+		t.Errorf("halted: %v %q %d", err, halted.ActiveTheme, calls)
+	}
+	s := site.Site{ID: "r", SockLive: true, Socket: "/s.sock", WebRoot: "/w"}
+	for range 3 {
+		if err := a.EnrichSite(context.Background(), &s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.ActiveTheme != "taw-theme" || calls != 1 {
+		t.Errorf("active=%q calls=%d (cached)", s.ActiveTheme, calls)
+	}
+	now = now.Add(2 * time.Minute)
+	_ = a.EnrichSite(context.Background(), &s)
+	a.Forget("r")
+	_ = a.EnrichSite(context.Background(), &s)
+	if calls != 3 {
+		t.Errorf("calls = %d after expiry and Forget", calls)
+	}
+	if c := r.Calls()[0]; !strings.Contains(strings.Join(c.Args, " "), "option get stylesheet") {
+		t.Errorf("args = %v", c.Args)
 	}
 }

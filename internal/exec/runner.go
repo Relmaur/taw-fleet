@@ -18,6 +18,12 @@ type Spec struct {
 	Args  []string  // arguments, passed as-is
 	Env   []string  // extra KEY=VALUE pairs, added to the current environment
 	Stdin io.Reader // optional
+
+	// Stdout and Stderr, when set, receive the output as it's written
+	// (Result then has no Stdout/Stderr). Pass os.Stdout/os.Stderr together
+	// with os.Stdin to hand the terminal to the command.
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // Result is what a finished command produced. A non-zero exit is a Result
@@ -46,6 +52,12 @@ func (OSRunner) Run(ctx context.Context, s Spec) (Result, error) {
 	cmd.Stdin = s.Stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if s.Stdout != nil {
+		cmd.Stdout = s.Stdout
+	}
+	if s.Stderr != nil {
+		cmd.Stderr = s.Stderr
+	}
 
 	err := cmd.Run()
 	res := Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}

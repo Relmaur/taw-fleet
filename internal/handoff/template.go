@@ -50,7 +50,7 @@ wp-cli for this site (Local's MySQL socket; only while the site runs):
 {{.WP}} option get stylesheet
 ` + "```" + `
 {{else}}
-The site isn't running, so wp-cli and anything that boots WordPress won't work. When a check needs WordPress, ask me to start the site in Local (Local by Flywheel → {{.Site.Name}} → Start site).
+The site isn't running, so wp-cli and anything that boots WordPress won't work. When a check needs WordPress, ask me to start the site (` + "`taw-fleet start {{.Site.Slug}}`" + `, or in Local).
 {{end}}
 ## What taw-fleet found
 

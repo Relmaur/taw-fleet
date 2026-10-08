@@ -363,3 +363,36 @@ func TestConfigCommands(t *testing.T) {
 		t.Errorf("a broken config is reported: %v", err)
 	}
 }
+
+func TestSiteOpsRefuseAndExplain(t *testing.T) {
+	p := fixture(t)
+	r := &exec.FakeRunner{}
+	if out, err := runWith(t, p, r, "start", "acme"); err != nil || !strings.Contains(out, "acme is already running") {
+		t.Errorf("already running: %q %v", out, err)
+	}
+	if _, err := runWith(t, p, r, "stop", "acme"); err == nil || !strings.Contains(err.Error(), "add --yes") {
+		t.Errorf("no terminal, no --yes: %v", err)
+	}
+	if _, err := runWith(t, p, r, "stop", "acme", "--yes"); err == nil || !strings.Contains(err.Error(), "isn't open") {
+		t.Errorf("Local closed: %v", err)
+	}
+}
+
+func TestConfirmReadsAnswer(t *testing.T) {
+	var out bytes.Buffer
+	d := Deps{Interactive: true, In: strings.NewReader("y\n")}
+	if ok, err := d.confirm(&out, "Stop acme?"); !ok || err != nil || out.String() != "Stop acme? [y/N] " {
+		t.Errorf("ok=%v err=%v out=%q", ok, err, out.String())
+	}
+	d.In = strings.NewReader("\n")
+	if ok, _ := d.confirm(&out, "Stop?"); ok {
+		t.Error("enter means no")
+	}
+}
+
+func TestWPRefusesHaltedSite(t *testing.T) {
+	_, err := runWith(t, fixture(t), &exec.FakeRunner{}, "wp", "acme", "option", "get", "stylesheet", "--format=json")
+	if err == nil || !strings.Contains(err.Error(), "taw-fleet start acme") {
+		t.Errorf("err = %v (flags after the site go to wp-cli, not to cobra)", err)
+	}
+}

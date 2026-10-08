@@ -20,6 +20,13 @@ type Enricher interface {
 	Enrich(ctx context.Context, s *site.Site, t *site.Theme) error
 }
 
+// SiteEnricher fills in a detail about a whole site (once per site, not per
+// theme), e.g. its active theme.
+type SiteEnricher interface {
+	Name() string
+	EnrichSite(ctx context.Context, s *site.Site) error
+}
+
 // Report is the result of a scan.
 type Report struct {
 	Sites     []site.Site        `json:"sites"`
@@ -32,6 +39,7 @@ type Report struct {
 type Scanner struct {
 	Sources   []Source
 	Enrichers []Enricher
+	Sites     []SiteEnricher
 	Lookups   []Lookup
 	Limit     int           // concurrent enrichers; default 8
 	Timeout   time.Duration // per enricher call; default 5s
@@ -71,6 +79,9 @@ func (sc *Scanner) Run(ctx context.Context) (Report, error) {
 		}()
 	}
 	enrichErr := sc.enrich(ctx, rep.Sites)
+	if enrichErr == nil {
+		enrichErr = sc.enrichSites(ctx, rep.Sites)
+	}
 	for range sc.Lookups {
 		r := <-results
 		for k, v := range r.latest {
@@ -141,6 +152,44 @@ func (sc *Scanner) enrich(ctx context.Context, sites []site.Site) error {
 		if j.err != nil {
 			s := &sites[j.site]
 			s.AddError(j.enricher.Name(), fmt.Errorf("%s: %w", s.Themes[j.theme].Dir, j.err))
+		}
+	}
+	return nil
+}
+
+func (sc *Scanner) enrichSites(ctx context.Context, sites []site.Site) error {
+	if len(sc.Sites) == 0 {
+		return nil
+	}
+	timeout := sc.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	errs := make([][]error, len(sites))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(4)
+	for i := range sites {
+		if !sites[i].IsTAW() {
+			continue
+		}
+		g.Go(func() error {
+			for _, e := range sc.Sites {
+				cctx, cancel := context.WithTimeout(gctx, timeout)
+				if err := e.EnrichSite(cctx, &sites[i]); err != nil {
+					errs[i] = append(errs[i], fmt.Errorf("%s: %w", e.Name(), err))
+				}
+				cancel()
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	for i, es := range errs {
+		for _, e := range es {
+			sites[i].AddError("site", e)
 		}
 	}
 	return nil

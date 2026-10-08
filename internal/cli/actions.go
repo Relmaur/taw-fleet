@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -258,7 +259,13 @@ func renderConfig(cmd *cobra.Command, d Deps, a *actions.Actions) error {
 	b.WriteString(" " + key.Render("claude") + " " + claude + "\n")
 	if len(a.Config.Sites) > 0 {
 		b.WriteString("\n " + muted.Render("sites") + "\n")
-		for slug, s := range a.Config.Sites {
+		slugs := make([]string, 0, len(a.Config.Sites))
+		for slug := range a.Config.Sites {
+			slugs = append(slugs, slug)
+		}
+		sort.Strings(slugs)
+		for _, slug := range slugs {
+			s := a.Config.Sites[slug]
 			line := "   " + slug
 			if s.ProductionURL != "" {
 				line += "  " + p.Fg(p.Brand).Render(s.ProductionURL)

@@ -8,8 +8,9 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: early development (v0.4).** The dashboard, `list`, `show`, `doctor`, the shortcuts and
-> the agent handoff work; starting and stopping sites comes next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+> **Status: early development (v0.5).** The dashboard, `list`, `show`, `doctor`, the shortcuts, the
+> agent handoff, starting/stopping sites and `wp` work; running `bin/taw sync` and `composer update`
+> from taw-fleet comes next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
 
 ## Use
 
@@ -24,6 +25,7 @@ Run `taw-fleet` on its own for the dashboard:
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
 | `h` | hand the theme's update to an agent (see below); then `c` copies the prompt, `l` launches Claude Code |
+| `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -40,6 +42,7 @@ taw-fleet doctor ls-mxico # the same for one site
 taw-fleet list --all      # also sites and themes that aren't TAW
 taw-fleet open <site>     # theme in your editor (see Shortcuts)
 taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
+taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet version
 ```
 
@@ -57,6 +60,22 @@ GitHub; use the cached newest versions).
  ●  taw                  taw-gutenberg ↗  BLOCK     1.76.1           main
                          taw-theme ↗      CLASSIC   1.76.1           main
 ```
+
+### Start, stop and wp-cli
+
+```bash
+taw-fleet start ls-mxico          # asks first; --yes in scripts
+taw-fleet stop fsspx              # also: restart
+taw-fleet wp chcapital option get stylesheet
+taw-fleet wp taw plugin list --format=json
+```
+
+Starting and stopping goes through the Local app's own API (Local must be open), and waits until
+the site is up or down. `wp` picks the site's PHP, Local's wp-cli and the site's MySQL socket;
+everything after the site goes to wp-cli, PHP notices go to stderr so `--format=json` stays
+clean, and wp-cli's exit code is kept. While Local is open, statuses come live from it; the
+active theme of each running site is read too (cached ten minutes) and marked ✓ when a site has
+more than one TAW theme.
 
 ### Shortcuts
 

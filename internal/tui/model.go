@@ -6,6 +6,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
+	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -34,8 +36,10 @@ type Actions interface {
 
 // Deps is what the dashboard needs from the outside.
 type Deps struct {
-	Actions    Actions // nil = shortcuts unavailable (e.g. a broken config)
-	ActionsErr error   // why Actions is nil
+	Actions Actions // nil = shortcuts unavailable (e.g. a broken config)
+	// SiteOp starts, stops or restarts a site through Local and waits.
+	SiteOp     func(ctx context.Context, op local.Op, s site.Site) (time.Duration, error)
+	ActionsErr error // why Actions is nil
 	Scan       func(ctx context.Context) (scan.Report, error)
 	Doctor     func(scan.Report) []site.Finding
 	Paths      paths.Paths
@@ -85,6 +89,11 @@ type Model struct {
 	flashErr bool
 	flashAt  time.Time
 
+	confirm   string   // question on screen; "" = none
+	pendingOp local.Op // what "yes" does
+	pendingAt site.Site
+	busy      map[string]local.Op // site ID → operation in progress
+
 	prompt handoff.Prompt // the handoff on screen (modeHandoff)
 	hsite  site.Site
 	htheme site.Theme
@@ -130,6 +139,54 @@ type tickMsg time.Time
 type actionDoneMsg struct {
 	msg string
 	err error
+}
+
+type siteOpDoneMsg struct {
+	id, slug string
+	op       local.Op
+	took     time.Duration
+	err      error
+}
+
+// askSiteOp opens the y/N question for start/stop/restart.
+func (m Model) askSiteOp(restart bool) (tea.Model, tea.Cmd) {
+	s, _, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.SiteOp == nil {
+		m.setFlash("starting and stopping sites isn't available here", true)
+		return m, nil
+	}
+	if _, busy := m.busy[s.ID]; busy {
+		m.setFlash(s.Slug+" is busy; wait for it to finish", true)
+		return m, nil
+	}
+	op, verb := local.Start, "Start"
+	switch {
+	case restart:
+		op, verb = local.Restart, "Restart"
+	case s.Status == site.StatusRunning:
+		op, verb = local.Stop, "Stop"
+	}
+	m.confirm, m.pendingOp, m.pendingAt = verb+" "+s.Slug+"?", op, s
+	return m, nil
+}
+
+// doSiteOp runs the confirmed operation in the background.
+func (m Model) doSiteOp() (tea.Model, tea.Cmd) {
+	s, op := m.pendingAt, m.pendingOp
+	m.confirm = ""
+	busy := map[string]local.Op{s.ID: op}
+	for id, o := range m.busy {
+		busy[id] = o
+	}
+	m.busy = busy
+	fn, ctx := m.deps.SiteOp, m.ctx
+	return m, tea.Batch(m.spin.Tick, func() tea.Msg {
+		took, err := fn(ctx, op, s)
+		return siteOpDoneMsg{s.ID, s.Slug, op, took, err}
+	})
 }
 
 // flashFor is how long an action's message stays in the footer.
@@ -240,6 +297,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyScan(msg.rep, msg.err)
 		return m, nil
 
+	case siteOpDoneMsg:
+		busy := map[string]local.Op{}
+		for id, o := range m.busy {
+			if id != msg.id {
+				busy[id] = o
+			}
+		}
+		m.busy = busy
+		if msg.err != nil {
+			m.setFlash(msg.slug+": "+msg.err.Error(), true)
+		} else {
+			m.setFlash(fmt.Sprintf("%s is %s (%s)", msg.slug, msg.op.Target(), msg.took.Round(time.Second)), false)
+		}
+		if !m.scanning {
+			return m, m.startScan()
+		}
+		return m, nil
+
 	case actionDoneMsg:
 		if msg.err != nil {
 			m.setFlash(msg.err.Error(), true)
@@ -259,7 +334,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 
 	case spinner.TickMsg:
-		if !m.scanning {
+		if !m.scanning && len(m.busy) == 0 {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -296,6 +371,16 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	k := m.keys
+	if m.confirm != "" {
+		switch {
+		case key.Matches(msg, k.Yes):
+			return m.doSiteOp()
+		case key.Matches(msg, k.No) || msg.String() == "q":
+			m.confirm = ""
+			m.setFlash("Nothing changed.", false)
+		}
+		return m, nil
+	}
 	switch m.mode {
 	case modeHandoff:
 		switch {
@@ -346,6 +431,10 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeHelp
 		case key.Matches(msg, k.Handoff):
 			return m.openHandoff()
+		case key.Matches(msg, k.StartStop):
+			return m.askSiteOp(false)
+		case key.Matches(msg, k.Restart):
+			return m.askSiteOp(true)
 		default:
 			if kind, ok := m.shortcut(msg); ok {
 				return m.act(kind)
@@ -389,6 +478,10 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeHelp
 	case key.Matches(msg, k.Handoff):
 		return m.openHandoff()
+	case key.Matches(msg, k.StartStop):
+		return m.askSiteOp(false)
+	case key.Matches(msg, k.Restart):
+		return m.askSiteOp(true)
 	default:
 		if kind, ok := m.shortcut(msg); ok {
 			return m.act(kind)
