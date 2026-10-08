@@ -110,6 +110,17 @@ func checkCore(s site.Site, t site.Theme) []site.Finding {
 			fmt.Sprintf("vendor/ has taw/core %s but composer.lock pins %s", c.Installed, c.Locked),
 			"composer install"))
 	}
+	if d := t.Drift; d != nil {
+		when := d.At.Format("2006-01-02")
+		switch {
+		case len(d.Errors) > 0:
+			out = append(out, f(site.Warn, "scaffold.check-failed", "the last sync check failed ("+when+"): "+d.Errors[0], "taw-fleet sync "+s.Slug))
+		case len(d.Tier1) > 0:
+			out = append(out, f(site.Info, "scaffold.drift",
+				fmt.Sprintf("%d framework %s from taw-theme (checked %s): %s", len(d.Tier1), plural(len(d.Tier1), "path differs", "paths differ"), when, strings.Join(d.Tier1, ", ")),
+				"taw-fleet sync "+s.Slug+" --apply, or hand the update off: taw-fleet handoff "+s.Slug))
+		}
+	}
 	if isUmbrellaScaffold(t) && t.Git.LastTag != "" && t.Scaffold.Latest != "" &&
 		t.Git.LastTag != t.Scaffold.Latest {
 		out = append(out, f(site.Info, "scaffold.behind",

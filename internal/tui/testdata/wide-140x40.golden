@@ -1,11 +1,11 @@
  ◆ taw-fleet v0.3.0  ·  3 sites  ·  4 TAW themes  ·  2 running  ·  1 behind on taw/core                                    updated just now 
 
-    SITE       THEME            KIND       TAW/CORE         GIT                         │  ● acme-shop  http://acme.local  running          
+    SITE       THEME            KIND       TAW/CORE         SYNC  GIT                   │  ● acme-shop  http://acme.local  running          
 ─────────────────────────────────────────────────────────────────────────────────────── │    ~/Local Sites/acme-shop                        
-▌ ● acme-shop  acme              CLASSIC   1.76.1           main                        │    PHP 8.2.30  ·  id a1                           
-  ○ bistro     bistro-theme      CLASSIC   1.59.2 ▲ 1.76.1  chore/update… ±5 ◇ unpushed │    Local name: Acme                               
-  ● taw        taw-gutenberg ↗   BLOCK     1.76.1           main                        │                                                   
-               taw-theme         CLASSIC   1.76.1           main                        │  ╭───────────────────────────────────────────────╮
+▌ ● acme-shop  acme              CLASSIC   1.76.1           —     main                  │    PHP 8.2.30  ·  id a1                           
+  ○ bistro     bistro-theme      CLASSIC   1.59.2 ▲ 1.76.1  —     chore/… ±5 ◇ unpushed │    Local name: Acme                               
+  ● taw        taw-gutenberg ↗   BLOCK     1.76.1           —     main                  │                                                   
+               taw-theme         CLASSIC   1.76.1           —     main                  │  ╭───────────────────────────────────────────────╮
                                                                                         │  │ acme   CLASSIC                                │
                                                                                         │  │                                               │
                                                                                         │  │ path       wp-content/themes/acme             │
@@ -37,4 +37,4 @@
                                                                                         │                                                   
                                                                                         │                                                   
 
- enter details • e editor • g GitHub • b site • s start/stop site • h hand off update • / filter • ? help • q quit
+ enter details • e editor • g GitHub • s start/stop • u update taw/core • h hand off • / filter • ? help • q quit

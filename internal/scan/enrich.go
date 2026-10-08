@@ -13,6 +13,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/git"
 	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/taw"
 )
 
 // GitEnricher reads the theme's repository state.
@@ -132,4 +133,16 @@ func applyLatest(sites []site.Site, latest map[string]string) {
 			}
 		}
 	}
+}
+
+// DriftEnricher loads each theme's last `bin/taw sync` result from the cache.
+type DriftEnricher struct{ CacheDir string }
+
+// Name implements Enricher.
+func (DriftEnricher) Name() string { return "drift" }
+
+// Enrich implements Enricher.
+func (d DriftEnricher) Enrich(_ context.Context, s *site.Site, t *site.Theme) error {
+	t.Drift = taw.LoadDrift(d.CacheDir, s.Slug, t.Dir)
+	return nil
 }

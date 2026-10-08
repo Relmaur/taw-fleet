@@ -137,6 +137,8 @@ func (m Model) body() string {
 		return m.detailScreen(h)
 	case m.mode == modeHandoff:
 		return m.handoffScreen(h)
+	case m.mode == modeOutput:
+		return m.outputScreen(h)
 	}
 
 	if !m.wide() {
@@ -165,10 +167,10 @@ func (m Model) emptyState() string {
 
 // --- table ------------------------------------------------------------------
 
-type columns struct{ site, theme, kind, core, git int }
+type columns struct{ site, theme, kind, core, sync, git int }
 
 func (m Model) columns(width int) columns {
-	c := columns{site: 4, theme: 5, kind: 7, core: 8}
+	c := columns{site: 4, theme: 5, kind: 7, core: 8, sync: 4}
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
@@ -179,8 +181,8 @@ func (m Model) columns(width int) columns {
 	}
 	c.site = min(c.site, 24)
 	c.theme = min(c.theme, 20)
-	// marker + dot + spaces + four gaps of two.
-	fixed := 4 + c.site + c.theme + c.kind + c.core + 8
+	// marker + dot + spaces + five gaps of two.
+	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + 10
 	c.git = width - fixed
 	if c.git < 8 { // squeeze the names before the git column vanishes
 		over := 8 - c.git
@@ -188,7 +190,7 @@ func (m Model) columns(width int) columns {
 		c.site -= max(cut, 0)
 		over -= max(cut, 0)
 		c.theme -= min(max(over, 0), c.theme-10)
-		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+8), 4)
+		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+10), 4)
 	}
 	return c
 }
@@ -205,7 +207,7 @@ func (m Model) table(width int) string {
 	c := m.columns(width)
 	head := p.Fg(p.Muted).Bold(true)
 	lines := []string{
-		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  GIT"),
+		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  GIT"),
 		p.Fg(p.Faint).Render(strings.Repeat("─", width)),
 	}
 	if len(m.visible) == 0 {
@@ -248,6 +250,7 @@ func (m Model) table(width int) string {
 			pad(themeCell, c.theme) + "  " +
 			pad(p.Kind(t.Kind), c.kind) + "  " +
 			pad(p.Core(t.Core), c.core) + "  " +
+			pad(p.Sync(t.Drift), c.sync) + "  " +
 			ansi.Truncate(p.GitFit(t.Git, c.git), c.git, "…")
 		lines = append(lines, line)
 	}
@@ -331,6 +334,8 @@ func (m Model) helpScreen() string {
 		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "main", Upstream: "origin/main", Dirty: 3, Ahead: 1, Behind: 2}) +
 			"  uncommitted ±, to push ↑, to pull ↓",
 		p.Git(&site.GitInfo{Branch: "feature", DefaultBranch: "main"}) + "  not the default branch, not pushed",
+		p.Sync(nil) + " " + p.Sync(&site.Drift{}) + " " + p.Sync(&site.Drift{Tier1: []string{"a", "b"}}) + " " + p.Sync(&site.Drift{Errors: []string{"x"}}) +
+			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
 	}
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Faint).Padding(1, 2)
 	content := lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Keys") + "\n\n" + h.View(m.keys) +
@@ -350,6 +355,8 @@ func (m Model) footer() string {
 		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render("  y yes · n no")
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
+	case m.task != nil && m.task.running && m.mode != modeOutput:
+		status = " " + m.spin.View() + " " + muted.Render(m.task.title+"…  (o shows the output)")
 	case len(m.busy) > 0:
 		var parts []string
 		for id, op := range m.busy {
@@ -361,7 +368,7 @@ func (m Model) footer() string {
 		}
 		sort.Strings(parts)
 		status = " " + m.spin.View() + " " + muted.Render("Local is working: "+strings.Join(parts, ", ")+"…")
-	case m.flash != "":
+	case m.flash != "" && m.mode != modeOutput: // the output view shows the result itself
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.filtering:
 		status = " " + m.filter.View()
@@ -380,6 +387,8 @@ func (m Model) footer() string {
 		keys = detailKeys{m.keys}
 	case m.mode == modeHandoff:
 		keys = handoffKeys{m.keys}
+	case m.mode == modeOutput:
+		keys = outputKeys{m.keys, m.task != nil && m.task.running}
 	}
 	return ansi.Truncate(status, m.width, "…") + "\n" + " " + m.help.View(keys)
 }

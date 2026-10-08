@@ -93,6 +93,20 @@ func (p Palette) gitMarkers(g *site.GitInfo, compact bool) string {
 	return strings.Join(parts, " ")
 }
 
+// Sync is the last scaffold sync check: — never run, ✓ framework files
+// match, ▲N that many Tier 1 paths differ, ✗ the check failed.
+func (p Palette) Sync(d *site.Drift) string {
+	switch {
+	case d == nil:
+		return p.Fg(p.Faint).Render("—")
+	case len(d.Errors) > 0:
+		return p.Fg(p.Err).Render("✗")
+	case len(d.Tier1) > 0:
+		return p.Fg(p.Warn).Render(fmt.Sprintf("▲%d", len(d.Tier1)))
+	}
+	return p.Fg(p.OK).Render("✓")
+}
+
 // Severity is the icon for a finding: ✗ error, ▲ warning, • info.
 func (p Palette) Severity(s site.Severity) string {
 	switch s {

@@ -8,9 +8,8 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: early development (v0.5).** The dashboard, `list`, `show`, `doctor`, the shortcuts, the
-> agent handoff, starting/stopping sites and `wp` work; running `bin/taw sync` and `composer update`
-> from taw-fleet comes next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+> **Status: v0.6.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
+> start/stop, `wp`, `sync`, `update` and `inspect` work. Release binaries and `self-update` come next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
 
 ## Use
 
@@ -26,6 +25,9 @@ Run `taw-fleet` on its own for the dashboard:
 | `g` `G` | open the theme's GitHub repository, its pull requests |
 | `h` | hand the theme's update to an agent (see below); then `c` copies the prompt, `l` launches Claude Code |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
+| `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
+| `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
+| `o` | show the last sync/update output again (`esc` leaves a running one in the background) |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -43,6 +45,7 @@ taw-fleet list --all      # also sites and themes that aren't TAW
 taw-fleet open <site>     # theme in your editor (see Shortcuts)
 taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
+taw-fleet sync <site>     # also update, inspect (see below)
 taw-fleet version
 ```
 
@@ -76,6 +79,23 @@ everything after the site goes to wp-cli, PHP notices go to stderr so `--format=
 clean, and wp-cli's exit code is kept. While Local is open, statuses come live from it; the
 active theme of each running site is read too (cached ten minutes) and marked ✓ when a site has
 more than one TAW theme.
+
+### Sync, update, inspect
+
+```bash
+taw-fleet sync chcapital          # read-only: Tier 1 / Tier 2 differences from taw-theme, taw/core status
+taw-fleet sync ls-mxico --apply   # write Tier 1 (asks first); Tier 2 is never written
+taw-fleet update ls-mxico         # composer update taw/core (asks first), then the UPGRADING.md sections to work through
+taw-fleet inspect chcapital       # blocks, fields and forms of a running site (bin/taw inspect)
+```
+
+These run the theme's own tools (`bin/taw`, from taw/core) with the site's PHP and Local's
+Composer; progress streams to stderr, the summary goes to stdout (`sync --json` prints the raw
+report). The dashboard's **SYNC** column shows the last check: `—` never run, `✓` framework files
+match, `▲N` N Tier 1 paths differ, `✗` the check failed; `doctor` reports `scaffold.drift`.
+Refused on the umbrella's own taw-theme/taw-gutenberg (they change through the taw-core release
+flow); `sync` is for classic themes only. For the whole upgrade (branch, sync, Tier 2 review,
+UPGRADING checks, commit), hand it to an agent instead: `taw-fleet handoff <site>`.
 
 ### Shortcuts
 
@@ -139,6 +159,7 @@ notes = "Deploys from main."   # included in the handoff prompt
 | `git.dirty`, `git.ahead`, `git.off-default`, `git.none` | note | uncommitted changes, commits to push, not on the default branch, not a repo |
 | `theme.symlink-broken` | error | a symlinked theme points at a folder that's gone |
 | `scaffold.behind` | note | an umbrella checkout of taw-theme/taw-gutenberg is behind its own release |
+| `scaffold.drift`, `scaffold.check-failed` | note, warning | the last `sync` check found Tier 1 differences, or failed |
 | `tools.php-missing` | warning | Local doesn't have the PHP build the site uses |
 | `scan.local`, `scan.github`, `site.read-error` | warning | Local not found, newest versions unknown, a site couldn't be fully read |
 

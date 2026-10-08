@@ -206,3 +206,76 @@ func mustWrite(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+func TestSyncTaskSummaryAndCache(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	s, th := fixture()
+	th.HasBinTaw = true
+	a.Exec = &exec.FakeRunner{Script: func(sp exec.Spec) (exec.Result, error) {
+		_, _ = sp.Stderr.Write([]byte("cloning\n"))
+		return exec.Result{Stdout: []byte(`{"taw_core":{"installed":"v1.59.2","latest":"v1.76.1","behind":true,"error":null},
+			"tier1":[{"path":"bin/","type":"dir","changed":true},{"path":".claude/skills/","type":"skills-dir","changed":false,"reconcile":{"warn":["old-skill"]}}],
+			"tier2":[{"path":"composer.json","type":"file","changed":true}],"applied":[],"errors":[],"clean":false}`)}, nil
+	}}
+	task, err := a.SyncTask(s, th, false)
+	if err != nil || task.Writes {
+		t.Fatalf("task=%+v err=%v", task, err)
+	}
+	var out strings.Builder
+	sum, err := task.Run(context.Background(), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Headline != "ls-mexico: 1 Tier 1 path differs" {
+		t.Errorf("headline = %q", sum.Headline)
+	}
+	joined := strings.Join(sum.Lines, "\n")
+	for _, want := range []string{"newest 1.76.1", "path differs: bin/", "unmarked skills old-skill", "usually just this site's own dependencies"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in:\n%s", want, joined)
+		}
+	}
+	if d := a.Paths.CacheDir; d == "" {
+		t.Fatal("no cache dir")
+	}
+	if got := strings.TrimSpace(out.String()); got != "cloning" {
+		t.Errorf("out = %q", got)
+	}
+
+	th.Git.Repo = &site.Repo{Owner: "Relmaur", Name: "taw-gutenberg"}
+	if _, err := a.SyncTask(s, th, false); err == nil {
+		t.Error("umbrella refused")
+	}
+}
+
+func TestUpdateTaskSummary(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	s, th := fixture()
+	th.RealPath = t.TempDir()
+	a.Exec = &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) {
+		mustWriteBody(t, filepath.Join(th.RealPath, "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.76.1"}]}`)
+		mustWriteBody(t, filepath.Join(th.RealPath, "vendor", "taw", "core", "UPGRADING.md"), "### v1.60.0: a\n### v1.76.1: b\n")
+		return exec.Result{}, nil
+	}}
+	task, err := a.UpdateTask(s, th)
+	if err != nil || !task.Writes {
+		t.Fatalf("task=%+v err=%v", task, err)
+	}
+	sum, err := task.Run(context.Background(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Headline != "ls-mexico: taw/core 1.59.2 → 1.76.1; 2 UPGRADING.md sections to check" || !strings.Contains(strings.Join(sum.Lines, "\n"), "• v1.60.0: a") {
+		t.Errorf("sum = %+v", sum)
+	}
+}
+
+func mustWriteBody(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

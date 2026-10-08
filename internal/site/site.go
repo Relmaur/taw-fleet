@@ -102,7 +102,16 @@ type Theme struct {
 	Version  string       `json:"version,omitempty"`
 	Core     CoreInfo     `json:"core"`
 	Scaffold ScaffoldInfo `json:"scaffold"`
-	Git      *GitInfo     `json:"git,omitempty"` // nil when the folder isn't its own git repo
+	Git      *GitInfo     `json:"git,omitempty"`   // nil when the folder isn't its own git repo
+	Drift    *Drift       `json:"drift,omitempty"` // the last `bin/taw sync` taw-fleet ran; nil = never
+}
+
+// Drift is what the last scaffold sync check found.
+type Drift struct {
+	Tier1  []string  `json:"tier1"` // framework files that differ (applied without asking)
+	Tier2  []string  `json:"tier2"` // files to review (often just the site's own dependencies)
+	Errors []string  `json:"errors,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 // CoreInfo is the theme's taw/core.

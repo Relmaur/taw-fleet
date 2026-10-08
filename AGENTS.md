@@ -28,8 +28,9 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes); unknown keys are errors |
 | `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
+| `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
-Still to come (see the plan): `taw` (bin/taw runners), `selfupdate`.
+Still to come (see the plan): `selfupdate` and the release workflow.
 
 Local's API (probed on Local 10.1.2): `Authorization: Bearer <authToken>` from
 `graphql-connection-info.json`; introspection is disabled, so operations come from Local's
@@ -69,6 +70,9 @@ go run ./cmd/taw-fleet version
   exception is the handoff launcher (`actions.LauncherScript`): a terminal can only run a script, so
   it's a three-line `sh` file in which every value is single-quoted, and a test runs it with a
   prompt full of quotes, `$( )` and backticks.
+- **Never run `update`/`sync --apply` on a real site to test.** They change a client repo. Test on a
+  copy of the theme (`rsync -a --exclude node_modules --exclude .git <theme>/ <scratch>/`) through
+  `taw.Runner` directly; read-only `sync` and `inspect` are fine on real sites.
 - **The handoff prompt is a contract with the owner** (docs/plans § Step 4): branch + commit, ask
   before push; taw/core update approved; Tier 2 needs confirmation; dirty tree or unexpected
   branch = stop and ask. Change those rules only when the owner asks. Review the golden prompts in
