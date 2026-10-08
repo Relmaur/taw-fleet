@@ -98,6 +98,9 @@ func TestOpenerArgs(t *testing.T) {
 		if c.Name != "/usr/bin/open" || !reflect.DeepEqual(c.Args, s.want) {
 			t.Errorf("step %d: %s %v, want %v", i, c.Name, c.Args, s.want)
 		}
+		if !reflect.DeepEqual(c.Unset, []string{"ELECTRON_RUN_AS_NODE"}) {
+			t.Errorf("step %d: unset %v (Electron editors exit at once with it)", i, c.Unset)
+		}
 	}
 	if err := o.URL(ctx, "file:///etc/passwd"); err == nil {
 		t.Error("only web addresses")

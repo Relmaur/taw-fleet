@@ -50,6 +50,18 @@ func TestOSRunnerAddsEnv(t *testing.T) {
 	}
 }
 
+func TestOSRunnerUnsets(t *testing.T) {
+	t.Setenv("ELECTRON_RUN_AS_NODE", "1")
+	t.Setenv("TAW_KEEP", "kept")
+	res, err := OSRunner{}.Run(context.Background(), Spec{Name: "/bin/sh", Args: []string{"-c", "printf %s \"${ELECTRON_RUN_AS_NODE-unset} $TAW_KEEP\""}, Unset: []string{"ELECTRON_RUN_AS_NODE"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(res.Stdout) != "unset kept" {
+		t.Errorf("stdout = %q", res.Stdout)
+	}
+}
+
 func TestOSRunnerStreams(t *testing.T) {
 	var out, errOut strings.Builder
 	res, err := OSRunner{}.Run(context.Background(), Spec{Name: "/bin/sh", Args: []string{"-c", "echo hi; echo oops >&2; exit 2"}, Stdout: &out, Stderr: &errOut})

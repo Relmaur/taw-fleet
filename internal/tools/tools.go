@@ -111,10 +111,16 @@ const openTimeout = 10 * time.Second
 // Opener runs `open`.
 type Opener struct{ Exec exec.Runner }
 
+// launchUnset is removed from the environment of apps taw-fleet opens:
+// `open` passes its environment to the app, and inside a VS Code terminal
+// ELECTRON_RUN_AS_NODE=1 makes Electron editors (Cursor, VS Code) start as
+// plain Node and exit without a window.
+var launchUnset = []string{"ELECTRON_RUN_AS_NODE"}
+
 func (o Opener) open(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
-	res, err := o.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/open", Args: args})
+	res, err := o.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/open", Args: args, Unset: launchUnset})
 	if err != nil {
 		return err
 	}
