@@ -8,8 +8,8 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: early development (v0.3).** The dashboard, `list`, `show` and `doctor` work; the
-> shortcuts (editor, browser, GitHub, start/stop) come next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
+> **Status: early development (v0.4).** The dashboard, `list`, `show`, `doctor`, the shortcuts and
+> the agent handoff work; starting and stopping sites comes next. The plan is in the TAW umbrella at `docs/plans/taw-fleet.md`.
 
 ## Use
 
@@ -20,6 +20,10 @@ Run `taw-fleet` on its own for the dashboard:
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
 | `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running` |
+| `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
+| `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
+| `g` `G` | open the theme's GitHub repository, its pull requests |
+| `h` | hand the theme's update to an agent (see below); then `c` copies the prompt, `l` launches Claude Code |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -34,6 +38,8 @@ taw-fleet show chcapital  # one site in detail (folder, name, domain, Local id o
 taw-fleet doctor          # what needs attention, most serious first, with the fix
 taw-fleet doctor ls-mxico # the same for one site
 taw-fleet list --all      # also sites and themes that aren't TAW
+taw-fleet open <site>     # theme in your editor (see Shortcuts)
+taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet version
 ```
 
@@ -50,6 +56,57 @@ GitHub; use the cached newest versions).
  ○  parallel-plus        parallelplus     CLASSIC   1.59.2 ▲ 1.76.1  staging
  ●  taw                  taw-gutenberg ↗  BLOCK     1.76.1           main
                          taw-theme ↗      CLASSIC   1.76.1           main
+```
+
+### Shortcuts
+
+```bash
+taw-fleet open chcapital              # the theme in your editor
+taw-fleet open ls-mxico --github      # also --finder --terminal --browser --admin --prs --production
+taw-fleet open taw --theme taw-gutenberg --terminal
+```
+
+Editors (Cursor, Visual Studio Code, PhpStorm, Zed, Sublime Text, Nova) and terminals (Ghostty,
+iTerm2, Warp, kitty, Terminal) are found in `/Applications` and `~/Applications`; the first one
+installed is used unless the config names another.
+
+### Hand an update to an agent
+
+```bash
+taw-fleet handoff ls-mxico            # print the prompt
+taw-fleet handoff ls-mxico --copy     # put it on the clipboard
+taw-fleet handoff ls-mxico --launch   # a new terminal running Claude Code in the theme, with the prompt
+```
+
+The prompt asks the agent to run the theme's **update-theme** skill, with everything it needs to
+know about this Mac: the theme, site and WordPress folders, the site URL and whether it's running,
+the site's own PHP, Local's Composer, a wp-cli command with the site's MySQL socket, taw/core
+installed vs newest, the git state and `doctor`'s findings. It also states the rules:
+
+- work on `chore/taw-core-<version>` (or `chore/update-theme-<date>`), commit there, and **ask
+  before pushing** or opening a PR;
+- `composer update taw/core` is approved when the theme is behind, followed by every check in
+  `vendor/taw/core/UPGRADING.md` newer than the installed version;
+- Tier 2 files still need your OK, and uncommitted work or an unexpected branch means *stop and ask*;
+- never touch `Blocks/`, `inc/`, templates, content, production or other sites.
+
+The umbrella's own taw-theme and taw-gutenberg checkouts are refused: they're updated by the
+taw-core release flow. `--launch` writes the prompt and a small launcher to
+`~/Library/Caches/taw-fleet/handoff/` and opens your terminal with it (Warp can't run a script, so
+Terminal is used instead).
+
+### Settings
+
+Optional, in `~/.config/taw-fleet/config.toml` (`taw-fleet config init` writes a commented
+starter; `taw-fleet config show` shows what's in effect and which apps were found):
+
+```toml
+editor = "Cursor"        # or "code", "PhpStorm"…
+terminal = "Ghostty"
+
+[sites.ls-mxico]         # keyed by the site's folder in ~/Local Sites
+production_url = "https://lsmexico.mx"
+notes = "Deploys from main."   # included in the handoff prompt
 ```
 
 ### What `doctor` checks

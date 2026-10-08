@@ -56,6 +56,12 @@ func ComposerPhar(p paths.Paths) (string, bool) {
 	return f, isFile(f)
 }
 
+// WPCliPhar is the wp-cli that ships with Local.
+func WPCliPhar(p paths.Paths) (string, bool) {
+	f := filepath.Join(p.LocalApp, "Contents", "Resources", "extraResources", "bin", "wp-cli", "wp-cli.phar")
+	return f, isFile(f)
+}
+
 func isFile(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && st.Mode().IsRegular()

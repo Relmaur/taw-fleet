@@ -90,19 +90,27 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		if !d.Interactive {
 			return runList(cmd, d, g, false, false)
 		}
-		return tui.Run(cmd.Context(), tui.Deps{
+		deps := tui.Deps{
 			Scan:    d.scanner(g).Run,
 			Doctor:  func(rep scan.Report) []site.Finding { return doctor.Run(rep, d.doctorOptions()) },
 			Paths:   d.Paths,
 			Version: info.Version,
 			Dark:    d.Dark,
 			Refresh: time.Minute,
-		})
+		}
+		// A broken config only disables the shortcuts; the dashboard still opens.
+		if a, err := d.actions(); err != nil {
+			deps.ActionsErr = err
+		} else {
+			deps.Actions = a
+		}
+		return tui.Run(cmd.Context(), deps)
 	}
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
-	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g))
+	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
+		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d))
 	return root
 }
 

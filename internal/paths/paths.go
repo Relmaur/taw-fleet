@@ -16,11 +16,12 @@ const HomeEnv = "TAW_FLEET_HOME"
 
 // Paths are the roots taw-fleet reads from.
 type Paths struct {
-	Home         string // the user's home directory
-	LocalSupport string // ~/Library/Application Support/Local
-	LocalApp     string // /Applications/Local.app
-	CacheDir     string // ~/Library/Caches/taw-fleet
-	ConfigDir    string // $XDG_CONFIG_HOME/taw-fleet or ~/.config/taw-fleet
+	Home         string   // the user's home directory
+	LocalSupport string   // ~/Library/Application Support/Local
+	LocalApp     string   // /Applications/Local.app
+	CacheDir     string   // ~/Library/Caches/taw-fleet
+	ConfigDir    string   // $XDG_CONFIG_HOME/taw-fleet or ~/.config/taw-fleet
+	Applications []string // where apps are installed, searched in order
 
 	Getenv   func(string) string
 	LookPath func(string) (string, error)
@@ -61,6 +62,7 @@ func ForHome(home string, getenv func(string) string) Paths {
 		LocalApp:     "/Applications/Local.app",
 		CacheDir:     filepath.Join(home, "Library", "Caches", "taw-fleet"),
 		ConfigDir:    config,
+		Applications: []string{"/Applications", filepath.Join(home, "Applications"), "/System/Applications/Utilities"},
 		Getenv:       getenv,
 		LookPath:     func(string) (string, error) { return "", exec.ErrNotFound },
 	}

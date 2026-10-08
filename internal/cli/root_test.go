@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -273,5 +274,92 @@ func TestDoctorJSONAndOffline(t *testing.T) {
 	}
 	if behind != 0 || github == 0 {
 		t.Errorf("offline findings = %+v", v.Findings)
+	}
+}
+
+func runWith(t *testing.T, p paths.Paths, r *exec.FakeRunner, args ...string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	p.Applications = []string{filepath.Join(p.Home, "Applications")} // no real apps in tests
+	d := Deps{Paths: p, Runner: r, Out: &out, Err: &out, Dark: true, GitHub: fakeGitHub(t)}
+	root := NewRoot(BuildInfo{Version: "1.2.3", Commit: "abc123"}, d)
+	root.SetArgs(args)
+	err := root.Execute()
+	return out.String(), err
+}
+
+func TestOpenFinderAndErrors(t *testing.T) {
+	p := fixture(t)
+	r := &exec.FakeRunner{}
+	out, err := runWith(t, p, r, "open", "acme-theme", "--finder")
+	if err != nil || !strings.Contains(out, "Showed acme-theme in Finder") {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	var opened bool
+	for _, c := range r.Calls() {
+		if c.Name == "/usr/bin/open" && c.Args[0] == "-R" && strings.HasSuffix(c.Args[1], "acme-theme") {
+			opened = true
+		}
+	}
+	if !opened {
+		t.Errorf("calls = %+v", r.Calls())
+	}
+	if _, err := runWith(t, p, r, "open", "acme"); err == nil || !strings.Contains(err.Error(), "add --theme") {
+		t.Errorf("two TAW themes need --theme: %v", err)
+	}
+	if _, err := runWith(t, p, r, "open", "acme", "--theme", "acme-theme"); err == nil || !strings.Contains(err.Error(), "editor") {
+		t.Errorf("no editor installed: %v", err)
+	}
+}
+
+func TestHandoffPrintsPrompt(t *testing.T) {
+	out, err := runWith(t, fixture(t), &exec.FakeRunner{}, "handoff", "acme", "--theme", "acme-theme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"# Update the TAW theme `acme-theme` (site `acme`)", "update-theme",
+		"installed `1.59.2`, newest `1.76.1` → **behind**", "**You have my approval**", "isn't its own git repository"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestHandoffCopy(t *testing.T) {
+	var copied string
+	r := &exec.FakeRunner{Script: func(s exec.Spec) (exec.Result, error) {
+		if s.Name == "/usr/bin/pbcopy" {
+			b, _ := io.ReadAll(s.Stdin)
+			copied = string(b)
+		}
+		return exec.Result{}, nil
+	}}
+	out, err := runWith(t, fixture(t), r, "handoff", "taw-gutenberg", "--copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "Copied the prompt for taw-gutenberg") || !strings.Contains(copied, "block theme") {
+		t.Errorf("out=%q copied=%q", out, copied)
+	}
+}
+
+func TestConfigCommands(t *testing.T) {
+	p := fixture(t)
+	out, err := runWith(t, p, &exec.FakeRunner{}, "config", "path")
+	if err != nil || strings.TrimSpace(out) != filepath.Join(p.ConfigDir, "config.toml") {
+		t.Errorf("path: %q %v", out, err)
+	}
+	if out, err = runWith(t, p, &exec.FakeRunner{}, "config", "init"); err != nil || !strings.Contains(out, "Wrote") {
+		t.Errorf("init: %q %v", out, err)
+	}
+	if _, err = runWith(t, p, &exec.FakeRunner{}, "config", "init"); err == nil {
+		t.Error("init twice must refuse")
+	}
+	if out, err = runWith(t, p, &exec.FakeRunner{}, "config", "show"); err != nil || !strings.Contains(out, "(loaded)") || !strings.Contains(out, "none installed") {
+		t.Errorf("show: %q %v", out, err)
+	}
+	write(t, filepath.Join(p.ConfigDir, "config.toml"), `edtor = "x"`)
+	if _, err = runWith(t, p, &exec.FakeRunner{}, "open", "acme-theme"); err == nil || !strings.Contains(err.Error(), "unknown keys") {
+		t.Errorf("a broken config is reported: %v", err)
 	}
 }
