@@ -3,6 +3,7 @@ package doctor
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -59,6 +60,15 @@ func TestRules(t *testing.T) {
 		{"no remote", func(th *site.Theme) { th.Git.RemoteURL, th.Git.Repo = "", nil }, []string{"git.no-remote"}},
 		{"not a repo", func(th *site.Theme) { th.Git = nil }, []string{"git.none"}},
 		{"fork with an old inherited tag is fine", func(th *site.Theme) { th.Git.LastTag = "v1.2.5" }, nil},
+		{"scaffold drift from the last sync", func(th *site.Theme) {
+			th.Drift = &site.Drift{Tier1: []string{"bin/"}, Tier2: []string{"composer.json"}, At: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)}
+		}, []string{"scaffold.drift"}},
+		{"only Tier 2 after a sync is fine", func(th *site.Theme) {
+			th.Drift = &site.Drift{Tier2: []string{"composer.json"}, At: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)}
+		}, nil},
+		{"failed sync check", func(th *site.Theme) {
+			th.Drift = &site.Drift{Errors: []string{"could not clone"}, At: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)}
+		}, []string{"scaffold.check-failed"}},
 		{"umbrella checkout behind its release", func(th *site.Theme) {
 			th.Git.Repo = &site.Repo{Host: "github.com", Owner: "Relmaur", Name: "taw-theme"}
 			th.Git.LastTag = "v1.12.40"

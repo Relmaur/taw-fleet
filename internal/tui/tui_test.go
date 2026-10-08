@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -341,6 +342,22 @@ func (f *fakeActions) Handoff(s site.Site, t site.Theme, _ []site.Finding) (hand
 
 func (f *fakeActions) Copy(_ context.Context, text string) error { f.copied = text; return nil }
 
+func (f *fakeActions) SyncTask(_ site.Site, t site.Theme, apply bool) (actions.Task, error) {
+	if f.refuse != nil {
+		return actions.Task{}, f.refuse
+	}
+	return actions.Task{Title: "Sync check: " + t.Dir, Writes: apply, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		_, _ = out.Write([]byte("Cloning taw-theme…\nComparing 9 paths\n"))
+		return actions.Summary{Headline: t.Dir + ": 1 Tier 1 path differs", Lines: []string{"Tier 1: bin/"}}, nil
+	}}, nil
+}
+
+func (f *fakeActions) UpdateTask(_ site.Site, t site.Theme) (actions.Task, error) {
+	return actions.Task{Title: "Update taw/core: " + t.Dir, Writes: true, Run: func(context.Context, io.Writer) (actions.Summary, error) {
+		return actions.Summary{}, errors.New("composer exited 2 (output above)")
+	}}, nil
+}
+
 func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ handoff.Prompt) (string, error) {
 	f.launched = t.Dir
 	return "Started Claude Code for " + t.Dir, nil
@@ -357,16 +374,16 @@ func runCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	return m
 }
 
-func withActions(t *testing.T, w, h int, f *fakeActions) Model {
+func withActions(t *testing.T, h int, f *fakeActions) Model {
 	rep := fixtureReport()
-	m := newModel(t, w, h, &rep)
+	m := newModel(t, 100, h, &rep)
 	m.deps.Actions = f
 	return m
 }
 
 func TestShortcutKeys(t *testing.T) {
 	f := &fakeActions{}
-	m := withActions(t, 100, 24, f)
+	m := withActions(t, 24, f)
 	m = runCmd(t, m, keyMsg("e"))
 	if !strings.Contains(screen(m), "✓ did editor on acme") {
 		t.Errorf("flash missing:\n%s", screen(m))
@@ -392,7 +409,7 @@ func TestShortcutKeys(t *testing.T) {
 
 func TestHandoffScreen(t *testing.T) {
 	f := &fakeActions{}
-	m := press(t, withActions(t, 100, 20, f), "j", "h")
+	m := press(t, withActions(t, 20, f), "j", "h")
 	if m.mode != modeHandoff {
 		t.Fatal("h opens the handoff")
 	}
@@ -414,7 +431,7 @@ func TestHandoffScreen(t *testing.T) {
 
 func TestHandoffRefusedAndNoActions(t *testing.T) {
 	f := &fakeActions{refuse: handoff.ErrUmbrella}
-	m := press(t, withActions(t, 100, 20, f), "h")
+	m := press(t, withActions(t, 20, f), "h")
 	if m.mode != modeTable || !strings.Contains(screen(m), "canonical scaffold") {
 		t.Errorf("refusal:\n%s", screen(m))
 	}
@@ -485,7 +502,7 @@ func TestStartStopFlow(t *testing.T) {
 
 	// R restarts.
 	m = press(t, m, "k", "R")
-	if m.pendingOp != local.Restart || !strings.Contains(screen(m), "Restart acme-shop?") {
+	if m.pending != local.Restart || !strings.Contains(screen(m), "Restart acme-shop?") {
 		t.Error("R asks to restart")
 	}
 }
@@ -495,5 +512,114 @@ func TestStartStopUnavailable(t *testing.T) {
 	m := press(t, newModel(t, 100, 24, &rep), "s")
 	if m.confirm != "" || !strings.Contains(screen(m), "isn't available") {
 		t.Error("no SiteOp: no question, a message instead")
+	}
+}
+
+// drain runs a task's commands until it finishes, feeding events back.
+func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	for i := 0; cmd != nil && i < 50; i++ {
+		msg := cmd()
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			cmd = nil
+			for _, c := range batch {
+				if c == nil {
+					continue
+				}
+				if ev, ok := c().(taskEventMsg); ok {
+					next, nc := m.Update(ev)
+					m, cmd = next.(Model), nc
+				}
+			}
+			continue
+		}
+		ev, ok := msg.(taskEventMsg)
+		if !ok {
+			return m
+		}
+		next, nc := m.Update(ev)
+		m = next.(Model)
+		if ev.done {
+			return m
+		}
+		cmd = nc
+	}
+	return m
+}
+
+func TestSyncCheckRunsAtOnceAndShowsOutput(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 24, f)
+	next, cmd := m.Update(keyMsg("y"))
+	m = next.(Model)
+	if m.mode != modeOutput || m.task == nil || !m.task.running {
+		t.Fatalf("y opens the output view: mode=%v", m.mode)
+	}
+	m = drain(t, m, cmd)
+	out := screen(m)
+	for _, want := range []string{"Sync check: acme", "✓ done", "Cloning taw-theme…", "Comparing 9 paths", "acme: 1 Tier 1 path differs", "Tier 1: bin/"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	golden(t, "output-100x24", out)
+	if !m.scanning {
+		t.Error("a finished task refreshes the dashboard")
+	}
+	m = press(t, m, "esc")
+	if m.mode != modeTable || !strings.Contains(screen(m), "acme: 1 Tier 1 path differs") {
+		t.Error("esc goes back; the headline stays in the footer")
+	}
+	m = press(t, m, "o")
+	if m.mode != modeOutput {
+		t.Error("o shows the last output again")
+	}
+}
+
+func TestApplyAndUpdateAskFirst(t *testing.T) {
+	f := &fakeActions{}
+	m := press(t, withActions(t, 24, f), "j", "S")
+	if !strings.Contains(screen(m), "Write the Tier 1 framework files in bistro-theme? It has 5 uncommitted changes.") {
+		t.Fatalf("question:\n%s", screen(m))
+	}
+	m = press(t, m, "n")
+	if m.task != nil {
+		t.Error("n runs nothing")
+	}
+	m = press(t, m, "u")
+	if !strings.Contains(screen(m), "Update taw/core in bistro-theme from 1.59.2 to 1.76.1?") {
+		t.Fatalf("question:\n%s", screen(m))
+	}
+	next, cmd := m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	if !strings.Contains(screen(m), "✗ failed") || !strings.Contains(screen(m), "composer exited 2") {
+		t.Errorf("failure shown:\n%s", screen(m))
+	}
+	// acme is current: u says so instead of asking.
+	m = press(t, m, "esc", "k", "u")
+	if m.confirm != "" || !strings.Contains(screen(m), "acme already has the newest taw/core") {
+		t.Errorf("current theme:\n%s", screen(m))
+	}
+}
+
+func TestOnlyOneTaskAtATime(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 24, f)
+	block := make(chan struct{})
+	m.task = &taskState{title: "Sync check: acme", running: true, ch: make(chan taskEvent)}
+	_ = block
+	m = press(t, m, "j", "y")
+	if !strings.Contains(screen(m), "Sync check: acme is still running (o shows it)") {
+		t.Errorf("busy:\n%s", screen(m))
+	}
+}
+
+func TestSyncColumn(t *testing.T) {
+	rep := fixtureReport()
+	rep.Sites[0].Themes[0].Drift = &site.Drift{Tier1: []string{"bin/", "functions.php"}, At: now}
+	rep.Sites[1].Themes[0].Drift = &site.Drift{Tier2: []string{"composer.json"}, At: now}
+	out := screen(newModel(t, 120, 20, &rep))
+	if !strings.Contains(out, "SYNC") || !strings.Contains(out, "▲2") || !strings.Contains(out, "✓") || !strings.Contains(out, "—") {
+		t.Errorf("sync column:\n%s", out)
 	}
 }

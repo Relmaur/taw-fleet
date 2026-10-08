@@ -1,0 +1,228 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/taw"
+)
+
+// maxTaskLines bounds the output kept in memory.
+const maxTaskLines = 2000
+
+// taskState is a sync or update in progress (or finished), and its output.
+type taskState struct {
+	title    string
+	lines    []string
+	running  bool
+	summary  actions.Summary
+	err      error
+	started  time.Time
+	finished time.Time
+	ch       chan taskEvent
+	scroll   int  // first line on screen when not following
+	follow   bool // stick to the newest output
+}
+
+type taskEvent struct {
+	line string
+	done bool
+	sum  actions.Summary
+	err  error
+}
+
+// taskEventMsg carries one event of the current task.
+type taskEventMsg taskEvent
+
+func listen(ch <-chan taskEvent) tea.Cmd {
+	return func() tea.Msg { return taskEventMsg(<-ch) }
+}
+
+// startTask runs a task in the background and opens the output view.
+func (m Model) startTask(task actions.Task) (tea.Model, tea.Cmd) {
+	if m.task != nil && m.task.running {
+		m.setFlash(m.task.title+" is still running (o shows it)", true)
+		return m, nil
+	}
+	ch := make(chan taskEvent, 256)
+	m.task = &taskState{title: task.Title, running: true, started: m.deps.Now(), ch: ch, follow: true}
+	m.mode = modeOutput
+	ctx := m.ctx
+	go func() {
+		w := taw.NewLineWriter(func(l string) { ch <- taskEvent{line: l} })
+		sum, err := task.Run(ctx, w)
+		w.Flush()
+		ch <- taskEvent{done: true, sum: sum, err: err}
+	}()
+	return m, tea.Batch(listen(ch), m.spin.Tick)
+}
+
+// onTaskEvent appends output or finishes the task.
+func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
+	t := m.task
+	if t == nil {
+		return m, nil
+	}
+	if !ev.done {
+		t.lines = append(t.lines, ev.line)
+		if len(t.lines) > maxTaskLines {
+			t.lines = t.lines[len(t.lines)-maxTaskLines:]
+		}
+		return m, listen(t.ch)
+	}
+	t.running, t.summary, t.err, t.finished = false, ev.sum, ev.err, m.deps.Now()
+	if ev.err != nil {
+		m.setFlash(t.title+": "+ev.err.Error(), true)
+	} else {
+		m.setFlash(ev.sum.Headline, false)
+	}
+	if !m.scanning {
+		return m, m.startScan()
+	}
+	return m, nil
+}
+
+// askTask asks before a task that writes; read-only tasks start at once.
+func (m Model) askTask(task actions.Task, question string) (tea.Model, tea.Cmd) {
+	if !task.Writes {
+		return m.startTask(task)
+	}
+	m.confirm = question
+	m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startTask(task) }
+	return m, nil
+}
+
+// syncOrUpdate builds the task for y (sync check), S (apply) or u (update).
+func (m Model) syncOrUpdate(which string) (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	dirty := ""
+	if t.Git != nil && t.Git.Dirty > 0 {
+		dirty = fmt.Sprintf(" It has %d uncommitted %s.", t.Git.Dirty, plural(t.Git.Dirty, "change", "changes"))
+	}
+	var (
+		task     actions.Task
+		err      error
+		question string
+	)
+	switch which {
+	case "check":
+		task, err = m.deps.Actions.SyncTask(s, t, false)
+	case "apply":
+		task, err = m.deps.Actions.SyncTask(s, t, true)
+		question = "Write the Tier 1 framework files in " + t.Dir + "?" + dirty
+	case "update":
+		if !t.Core.Behind && t.Core.Latest != "" {
+			m.setFlash(t.Dir+" already has the newest taw/core", false)
+			return m, nil
+		}
+		task, err = m.deps.Actions.UpdateTask(s, t)
+		question = fmt.Sprintf("Update taw/core in %s from %s to %s?%s", t.Dir, strings.TrimPrefix(t.Core.Installed, "v"), strings.TrimPrefix(t.Core.Latest, "v"), dirty)
+	}
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, question)
+}
+
+// onOutputKey handles keys in the output view.
+func (m Model) onOutputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	t := m.task
+	if t == nil {
+		m.mode = modeTable
+		return m, nil
+	}
+	page := max(m.bodyHeight()-4, 1)
+	switch {
+	case msg.String() == "esc" || msg.String() == "q":
+		m.mode = modeTable // the task keeps running; o comes back
+	case msg.String() == "up" || msg.String() == "k":
+		t.follow = false
+		t.scroll = max(0, t.scroll-1)
+	case msg.String() == "down" || msg.String() == "j":
+		t.scroll++
+	case msg.String() == "pgup":
+		t.follow = false
+		t.scroll = max(0, t.scroll-page)
+	case msg.String() == "pgdown":
+		t.scroll += page
+	case msg.String() == "end":
+		t.follow = true
+	case msg.String() == "home":
+		t.follow, t.scroll = false, 0
+	case msg.String() == "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// outputScreen is the live output of the current task, then its summary.
+func (m Model) outputScreen(height int) string {
+	p, t := m.pal, m.task
+	muted := p.Fg(p.Muted)
+	if t == nil {
+		return block("", m.width, height)
+	}
+	var state string
+	switch {
+	case t.running:
+		state = m.spin.View() + " " + muted.Render("running for "+m.deps.Now().Sub(t.started).Round(time.Second).String())
+	case t.err != nil:
+		state = p.Fg(p.Err).Render("✗ failed")
+	default:
+		state = p.Fg(p.OK).Render("✓ done") + muted.Render(" in "+t.finished.Sub(t.started).Round(time.Second).String())
+	}
+	head := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render(t.title) + "  " + state
+	rule := p.Fg(p.Faint).Render(strings.Repeat("─", m.width))
+
+	// The summary (when done) sits under the output and always shows.
+	var foot []string
+	if !t.running {
+		foot = append(foot, rule)
+		if t.err != nil {
+			foot = append(foot, " "+p.Fg(p.Err).Render("✗ "+t.err.Error()))
+		} else {
+			foot = append(foot, " "+p.Fg(p.OK).Render("✓ ")+lipgloss.NewStyle().Bold(true).Render(t.summary.Headline))
+			for _, l := range t.summary.Lines {
+				foot = append(foot, "   "+l)
+			}
+		}
+	}
+	outH := max(height-2-len(foot), 1)
+	lines := t.lines
+	if len(lines) == 0 {
+		empty := "(no output yet)"
+		if !t.running {
+			empty = "(the command printed nothing)"
+		}
+		lines = []string{muted.Render(empty)}
+	}
+	maxScroll := max(len(lines)-outH, 0)
+	from := maxScroll
+	if !t.follow {
+		from = min(t.scroll, maxScroll)
+	}
+	shown := make([]string, 0, outH)
+	for _, l := range lines[from:min(from+outH, len(lines))] {
+		shown = append(shown, "  "+p.Fg(p.Muted).Render(ansi.Strip(l)))
+	}
+	for len(shown) < outH {
+		shown = append(shown, "")
+	}
+	all := append([]string{head, rule}, shown...)
+	all = append(all, foot...)
+	return block(strings.Join(all, "\n"), m.width, height)
+}

@@ -1,8 +1,9 @@
- ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                         ⠋ scanning… 
 
-    SITE       THEME            KIND       TAW/CORE         SYNC  GIT                               
+ Sync check: acme  ✓ done in 0s                                                                     
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-▌ ○ bistro     bistro-theme      CLASSIC   1.59.2 ▲ 1.76.1  —     chore/update-core ±5 ◇ unpushed   
+  Cloning taw-theme…                                                                                
+  Comparing 9 paths                                                                                 
                                                                                                     
                                                                                                     
                                                                                                     
@@ -16,5 +17,8 @@
                                                                                                     
                                                                                                     
                                                                                                     
- / behind 
- enter details • e editor • g GitHub • s start/stop • u update taw/core • h hand off • / filter …
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ ✓ acme: 1 Tier 1 path differs                                                                      
+   Tier 1: bin/                                                                                     
+
+ ↑/↓ scroll • end follow • esc back

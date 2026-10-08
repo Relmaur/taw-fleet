@@ -32,6 +32,8 @@ type Actions interface {
 	Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error)
 	Copy(ctx context.Context, text string) error
 	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error)
+	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
+	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -56,6 +58,7 @@ const (
 	modeDetail
 	modeHelp
 	modeHandoff
+	modeOutput
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -89,10 +92,12 @@ type Model struct {
 	flashErr bool
 	flashAt  time.Time
 
-	confirm   string   // question on screen; "" = none
-	pendingOp local.Op // what "yes" does
-	pendingAt site.Site
-	busy      map[string]local.Op // site ID → operation in progress
+	confirm string                           // question on screen; "" = none
+	onYes   func(Model) (tea.Model, tea.Cmd) // what "yes" does
+	pending local.Op                         // the site operation asked about, if any
+
+	task *taskState          // the running or last task (sync, update)
+	busy map[string]local.Op // site ID → operation in progress
 
 	prompt handoff.Prompt // the handoff on screen (modeHandoff)
 	hsite  site.Site
@@ -169,14 +174,13 @@ func (m Model) askSiteOp(restart bool) (tea.Model, tea.Cmd) {
 	case s.Status == site.StatusRunning:
 		op, verb = local.Stop, "Stop"
 	}
-	m.confirm, m.pendingOp, m.pendingAt = verb+" "+s.Slug+"?", op, s
+	m.confirm, m.pending = verb+" "+s.Slug+"?", op
+	m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.doSiteOp(s, op) }
 	return m, nil
 }
 
-// doSiteOp runs the confirmed operation in the background.
-func (m Model) doSiteOp() (tea.Model, tea.Cmd) {
-	s, op := m.pendingAt, m.pendingOp
-	m.confirm = ""
+// doSiteOp runs a confirmed site operation in the background.
+func (m Model) doSiteOp(s site.Site, op local.Op) (tea.Model, tea.Cmd) {
 	busy := map[string]local.Op{s.ID: op}
 	for id, o := range m.busy {
 		busy[id] = o
@@ -315,6 +319,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case taskEventMsg:
+		return m.onTaskEvent(msg)
+
 	case actionDoneMsg:
 		if msg.err != nil {
 			m.setFlash(msg.err.Error(), true)
@@ -334,7 +341,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 
 	case spinner.TickMsg:
-		if !m.scanning && len(m.busy) == 0 {
+		if !m.scanning && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -374,14 +381,20 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.confirm != "" {
 		switch {
 		case key.Matches(msg, k.Yes):
-			return m.doSiteOp()
+			yes := m.onYes
+			m.confirm, m.onYes, m.pending = "", nil, ""
+			if yes != nil {
+				return yes(m)
+			}
 		case key.Matches(msg, k.No) || msg.String() == "q":
-			m.confirm = ""
+			m.confirm, m.onYes, m.pending = "", nil, ""
 			m.setFlash("Nothing changed.", false)
 		}
 		return m, nil
 	}
 	switch m.mode {
+	case modeOutput:
+		return m.onOutputKey(msg)
 	case modeHandoff:
 		switch {
 		case key.Matches(msg, k.Back) || msg.String() == "q":
@@ -436,6 +449,9 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, k.Restart):
 			return m.askSiteOp(true)
 		default:
+			if model, cmd, ok := m.taskKey(msg); ok {
+				return model, cmd
+			}
 			if kind, ok := m.shortcut(msg); ok {
 				return m.act(kind)
 			}
@@ -483,11 +499,38 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Restart):
 		return m.askSiteOp(true)
 	default:
+		if model, cmd, ok := m.taskKey(msg); ok {
+			return model, cmd
+		}
 		if kind, ok := m.shortcut(msg); ok {
 			return m.act(kind)
 		}
 	}
 	return m, nil
+}
+
+// taskKey handles y, S, u and o in the table and detail views.
+func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	k := m.keys
+	switch {
+	case key.Matches(msg, k.SyncCheck):
+		model, cmd := m.syncOrUpdate("check")
+		return model, cmd, true
+	case key.Matches(msg, k.SyncApply):
+		model, cmd := m.syncOrUpdate("apply")
+		return model, cmd, true
+	case key.Matches(msg, k.UpdateCore):
+		model, cmd := m.syncOrUpdate("update")
+		return model, cmd, true
+	case key.Matches(msg, k.Output):
+		if m.task == nil {
+			m.setFlash("nothing has run yet (y checks the scaffold, u updates taw/core)", false)
+		} else {
+			m.mode = modeOutput
+		}
+		return m, nil, true
+	}
+	return m, nil, false
 }
 
 // applyScan installs a new report, keeping the selected theme selected.
