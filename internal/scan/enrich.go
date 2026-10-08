@@ -1,0 +1,135 @@
+package scan
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+
+	"github.com/Relmaur/taw-fleet/internal/composer"
+	"github.com/Relmaur/taw-fleet/internal/exec"
+	"github.com/Relmaur/taw-fleet/internal/git"
+	"github.com/Relmaur/taw-fleet/internal/github"
+	"github.com/Relmaur/taw-fleet/internal/site"
+)
+
+// GitEnricher reads the theme's repository state.
+type GitEnricher struct{ Runner exec.Runner }
+
+// Name implements Enricher.
+func (GitEnricher) Name() string { return "git" }
+
+// Enrich implements Enricher.
+func (g GitEnricher) Enrich(ctx context.Context, _ *site.Site, t *site.Theme) error {
+	info, err := git.Info(ctx, g.Runner, t.RealPath)
+	if err != nil {
+		return err
+	}
+	t.Git = info
+	if info != nil {
+		t.Version = info.Describe
+	}
+	return nil
+}
+
+// CoreEnricher reads the theme's installed and locked taw/core. A missing
+// vendor/ or lock is not an error here; the doctor reports it.
+type CoreEnricher struct{}
+
+// Name implements Enricher.
+func (CoreEnricher) Name() string { return "core" }
+
+// Enrich implements Enricher.
+func (CoreEnricher) Enrich(_ context.Context, _ *site.Site, t *site.Theme) error {
+	switch t.Kind {
+	case site.KindClassic:
+		t.Scaffold.Name = "taw-theme"
+	case site.KindGutenberg:
+		t.Scaffold.Name = "taw-gutenberg"
+	}
+	installed, err := composer.InstalledVersion(t.RealPath, composer.CorePackage)
+	if err != nil && !errors.Is(err, composer.ErrNotInstalled) {
+		t.Core.Err = err.Error()
+		return err
+	}
+	locked, err := composer.LockedVersion(t.RealPath, composer.CorePackage)
+	if err != nil && !errors.Is(err, composer.ErrNotInstalled) {
+		t.Core.Err = err.Error()
+		return err
+	}
+	t.Core.Installed, t.Core.Locked = installed, locked
+	t.Core.LockMismatch = installed != "" && locked != "" && !composer.SameVersion(installed, locked)
+	return nil
+}
+
+// Keys of Report.Latest.
+const (
+	LatestCore      = "taw/core"
+	LatestTheme     = "taw-theme"
+	LatestGutenberg = "taw-gutenberg"
+)
+
+// Lookup answers once per scan (not per theme), e.g. the newest releases.
+type Lookup interface {
+	Name() string
+	Lookup(ctx context.Context) (map[string]string, []error)
+}
+
+// GitHubLookup finds the newest taw-core, taw-theme and taw-gutenberg tags.
+type GitHubLookup struct{ Client *github.Client }
+
+// Name implements Lookup.
+func (GitHubLookup) Name() string { return "github" }
+
+// Lookup implements Lookup.
+func (l GitHubLookup) Lookup(ctx context.Context) (map[string]string, []error) {
+	repos := map[string]string{LatestCore: "taw-core", LatestTheme: "taw-theme", LatestGutenberg: "taw-gutenberg"}
+	var (
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		out    = map[string]string{}
+		failed []string
+		first  error
+	)
+	for key, repo := range repos {
+		wg.Go(func() {
+			latest, err := l.Client.LatestTag(ctx, "Relmaur", repo)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				failed = append(failed, repo)
+				if first == nil || errors.Is(first, github.ErrOffline) {
+					first = err
+				}
+				return
+			}
+			out[key] = latest.Tag
+		})
+	}
+	wg.Wait()
+	if len(failed) == 0 {
+		return out, nil
+	}
+	sort.Strings(failed)
+	// One error for the whole lookup: which repos, and the first reason.
+	return out, []error{fmt.Errorf("newest version unknown for %s: %w", strings.Join(failed, ", "), first)}
+}
+
+// applyLatest fills Core.Latest/Behind and Scaffold.Latest from the lookups.
+func applyLatest(sites []site.Site, latest map[string]string) {
+	for si := range sites {
+		for ti := range sites[si].Themes {
+			t := &sites[si].Themes[ti]
+			if !t.IsTAW {
+				continue
+			}
+			t.Core.Latest = latest[LatestCore]
+			t.Core.Behind = composer.Older(t.Core.Installed, t.Core.Latest)
+			if t.Scaffold.Name != "" {
+				t.Scaffold.Latest = latest[t.Scaffold.Name]
+			}
+		}
+	}
+}

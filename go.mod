@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/mod v0.41.0
 	golang.org/x/sync v0.23.0
 )
 

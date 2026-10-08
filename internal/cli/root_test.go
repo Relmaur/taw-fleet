@@ -3,20 +3,45 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/exec"
+	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
+	"github.com/Relmaur/taw-fleet/internal/site"
 )
+
+// fakeGitHub answers every tags request with taw-core's newest being v1.76.1.
+func fakeGitHub(t *testing.T) *github.Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/taw-core/tags"):
+			_, _ = w.Write([]byte(`[{"name":"v1.76.1"},{"name":"v1.59.2"}]`))
+		case strings.HasSuffix(r.URL.Path, "/taw-theme/tags"):
+			_, _ = w.Write([]byte(`[{"name":"v1.12.43"}]`))
+		default:
+			_, _ = w.Write([]byte(`[{"name":"v0.3.41"}]`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c := github.New("", nil)
+	c.BaseURL = srv.URL
+	return c
+}
 
 func run(t *testing.T, p paths.Paths, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	d := Deps{Paths: p, Runner: &exec.FakeRunner{}, Out: &out, Err: &out, Dark: true}
+	// The fake runner answers git with nothing: no theme is a repo here.
+	d := Deps{Paths: p, Runner: &exec.FakeRunner{}, Out: &out, Err: &out, Dark: true, GitHub: fakeGitHub(t)}
 	root := NewRoot(BuildInfo{Version: "1.2.3", Commit: "abc123"}, d)
 	root.SetArgs(args)
 	err := root.Execute()
@@ -42,8 +67,10 @@ func fixture(t *testing.T) paths.Paths {
 		return filepath.Join(home, "Local Sites", slug, "app", "public", "wp-content", "themes")
 	}
 	write(t, filepath.Join(themes("acme"), "acme-theme", "composer.json"), `{"name":"taw/theme","require":{"taw/core":"^1.0"}}`)
+	write(t, filepath.Join(themes("acme"), "acme-theme", "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.59.2"}]}`)
 	gut := filepath.Join(home, "umbrella", "taw-gutenberg")
 	write(t, filepath.Join(gut, "composer.json"), `{"name":"taw/gutenberg","type":"wordpress-theme","require":{"taw/core":"^1.50"}}`)
+	write(t, filepath.Join(gut, "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.76.1"}]}`)
 	if err := os.Symlink(gut, filepath.Join(themes("acme"), "taw-gutenberg")); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +111,8 @@ func TestListTable(t *testing.T) {
 	}
 	for _, want := range []string{
 		"1 site", "2 TAW themes", "1 running",
-		"acme", "acme-theme", "taw-gutenberg ↗", "CLASSIC", "BLOCK", "8.2.30", "acme.local",
+		"acme", "acme-theme", "taw-gutenberg ↗", "CLASSIC", "BLOCK", "acme.local",
+		"1.59.2 ▲ 1.76.1", "1.76.1", "no git", "TAW/CORE",
 		"1 more site without a TAW theme (--all)",
 	} {
 		if !strings.Contains(out, want) {
@@ -145,5 +173,119 @@ func TestListWithoutLocal(t *testing.T) {
 	}
 	if !strings.Contains(out, "no Local by Flywheel sites found") || !strings.Contains(out, "No TAW sites found") {
 		t.Errorf("out:\n%s", out)
+	}
+}
+
+func TestShow(t *testing.T) {
+	out, err := run(t, fixture(t), "show", "acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"acme", "http://acme.local", "running", "PHP 8.2.30", "id a1",
+		"acme-theme", "CLASSIC", "taw-gutenberg", "BLOCK", "↗ symlink", "links to   ~/umbrella/taw-gutenberg",
+		"1.59.2 ▲ 1.76.1", "1.76.1  (latest)", "not its own repository",
+		"taw/core v1.59.2, latest is v1.76.1", "core.behind", "→ composer update taw/core",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestShowResolvesAndFails(t *testing.T) {
+	p := fixture(t)
+	if out, err := run(t, p, "show", "acme.local"); err != nil || !strings.Contains(out, "acme-theme") {
+		t.Errorf("by domain: %v", err)
+	}
+	if _, err := run(t, p, "show", "nope"); err == nil || !strings.Contains(err.Error(), "no site matches") {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := run(t, p, "show"); err == nil {
+		t.Error("show needs a site")
+	}
+}
+
+func TestShowJSON(t *testing.T) {
+	out, err := run(t, fixture(t), "show", "acme", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Site     site.Site      `json:"site"`
+		Findings []site.Finding `json:"findings"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	codes := map[string]bool{}
+	for _, f := range v.Findings {
+		codes[f.Code] = true
+	}
+	if v.Site.Slug != "acme" || !codes["core.behind"] || !codes["tools.php-missing"] {
+		t.Errorf("show json = %+v", v)
+	}
+}
+
+func TestDoctor(t *testing.T) {
+	out, err := run(t, fixture(t), "doctor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"taw-fleet doctor", "0 errors", "2 warnings", "2 notes", "acme", "tools.php-missing",
+		"taw/core v1.59.2, latest is v1.76.1", "the theme isn't its own git repository", "git.none"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestDoctorJSONAndOffline(t *testing.T) {
+	out, err := run(t, fixture(t), "doctor", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v doctorJSON
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Counts["warn"] != 2 || v.Counts["info"] != 2 || len(v.Clean) != 0 {
+		t.Errorf("doctor json = %+v", v)
+	}
+
+	// Offline with no cache: latest is unknown, so nothing is "behind", and
+	// the doctor says why.
+	out, err = run(t, fixture(t), "doctor", "--json", "--offline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v = doctorJSON{}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	var behind, github int
+	for _, f := range v.Findings {
+		switch {
+		case f.Code == "core.behind":
+			behind++
+		case strings.HasPrefix(f.Code, "scan.github"):
+			github++
+		}
+	}
+	if behind != 0 || github == 0 {
+		t.Errorf("offline findings = %+v", v.Findings)
+	}
+}
+
+func TestAgo(t *testing.T) {
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	cases := map[time.Duration]string{
+		10 * time.Second: "just now", 5 * time.Minute: "5 minutes ago", time.Hour: "1 hour ago",
+		3 * 24 * time.Hour: "3 days ago", 90 * 24 * time.Hour: "3 months ago", 800 * 24 * time.Hour: "2 years ago",
+	}
+	for d, want := range cases {
+		if got := ago(now, now.Add(-d)); got != want {
+			t.Errorf("ago(%v) = %q, want %q", d, got, want)
+		}
 	}
 }
