@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io"
 	osexec "os/exec"
+	"slices"
+	"strings"
 )
 
 // Spec describes one command.
@@ -17,6 +19,7 @@ type Spec struct {
 	Name  string    // program name or absolute path
 	Args  []string  // arguments, passed as-is
 	Env   []string  // extra KEY=VALUE pairs, added to the current environment
+	Unset []string  // variable names removed from the environment
 	Stdin io.Reader // optional
 
 	// Stdout and Stderr, when set, receive the output as it's written
@@ -46,8 +49,8 @@ type OSRunner struct{}
 func (OSRunner) Run(ctx context.Context, s Spec) (Result, error) {
 	cmd := osexec.CommandContext(ctx, s.Name, s.Args...)
 	cmd.Dir = s.Dir
-	if len(s.Env) > 0 {
-		cmd.Env = append(cmd.Environ(), s.Env...)
+	if len(s.Env) > 0 || len(s.Unset) > 0 {
+		cmd.Env = append(without(cmd.Environ(), s.Unset), s.Env...)
 	}
 	cmd.Stdin = s.Stdin
 	var stdout, stderr bytes.Buffer
@@ -73,4 +76,19 @@ func (OSRunner) Run(ctx context.Context, s Spec) (Result, error) {
 		return res, err
 	}
 	return res, nil
+}
+
+// without returns env minus the variables named in drop.
+func without(env, drop []string) []string {
+	if len(drop) == 0 {
+		return env
+	}
+	out := env[:0:0]
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !slices.Contains(drop, name) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }

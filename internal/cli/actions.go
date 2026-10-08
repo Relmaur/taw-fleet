@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/tools"
 )
 
 func (d Deps) actions() (*actions.Actions, error) {
@@ -285,13 +285,10 @@ func pickName(a *actions.Actions, kind string) (string, error) {
 	if kind == "terminal" {
 		list, want = a.Tools.Terminals, a.Config.Terminal
 	}
-	if len(list) == 0 {
-		return "", errors.New("none installed")
+	// The same choice the shortcuts make, aliases ("vscode") included.
+	app, err := tools.Pick(list, want)
+	if err != nil {
+		return "", err
 	}
-	for _, app := range list {
-		if want == "" || strings.EqualFold(app.Name, want) {
-			return app.Name, nil
-		}
-	}
-	return "", fmt.Errorf("%q isn't installed", want)
+	return app.Name, nil
 }
