@@ -14,7 +14,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/style"
 )
 
-func newListCmd(d Deps) *cobra.Command {
+func newListCmd(d Deps, g *globals) *cobra.Command {
 	var asJSON, all bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -23,7 +23,7 @@ func newListCmd(d Deps) *cobra.Command {
 			"--all also shows sites and themes that aren't TAW.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			rep, err := d.scanner().Run(cmd.Context())
+			rep, err := d.scanner(g).Run(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -77,7 +77,14 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 		themes, plural(themes, "theme", "themes"), running)) + "\n\n")
 
 	for _, e := range rep.Errors {
-		b.WriteString(" " + p.Fg(p.Err).Render("✗ "+e.Stage+": "+e.Err) + "\n\n")
+		col := p.Err
+		if e.Stage == "github" {
+			col = p.Warn // only the "latest" column is missing
+		}
+		b.WriteString(" " + p.Fg(col).Render("✗ "+e.Stage+": "+e.Err) + "\n")
+	}
+	if len(rep.Errors) > 0 {
+		b.WriteString("\n")
 	}
 	if len(rep.Sites) == 0 {
 		b.WriteString(" " + p.Fg(p.Muted).Render("No TAW sites found.") + "\n")
@@ -93,9 +100,9 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 			ts = []site.Theme{{}}
 		}
 		for i, t := range ts {
-			dot, name, domain, php := "", "", "", ""
+			dot, name, domain := "", "", ""
 			if i == 0 {
-				dot, name, domain, php = p.Dot(s.Status), s.Slug, s.Domain, s.PHPVersion
+				dot, name, domain = p.Dot(s.Status), s.Slug, s.Domain
 				if len(s.Errors) > 0 {
 					name += " " + p.Fg(p.Warn).Render("⚠")
 				}
@@ -110,18 +117,21 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 			if theme == "" {
 				theme = muted.Render("—")
 			}
-			kind := p.Kind(t.Kind)
-			if !t.IsTAW && t.Dir != "" {
+			kind, core, gitCell := p.Kind(t.Kind), "", ""
+			switch {
+			case t.IsTAW:
+				core, gitCell = p.Core(t.Core), p.Git(t.Git)
+			case t.Dir != "":
 				kind = muted.Render("other")
 			}
-			rows = append(rows, []string{dot, name, theme, kind, muted.Render(php), muted.Render(domain)})
+			rows = append(rows, []string{dot, name, theme, kind, core, gitCell, muted.Render(domain)})
 		}
 	}
 
 	header := lipgloss.NewStyle().Foreground(p.Muted).Bold(true)
 	cell := lipgloss.NewStyle().Padding(0, 1)
 	t := table.New().
-		Headers("", "SITE", "THEME", "KIND", "PHP", "DOMAIN").
+		Headers("", "SITE", "THEME", "KIND", "TAW/CORE", "GIT", "DOMAIN").
 		Rows(rows...).
 		Border(lipgloss.NormalBorder()).
 		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
@@ -135,11 +145,12 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 		})
 	b.WriteString(t.Render() + "\n")
 
-	legend := "● running  ○ halted  ↗ symlink  ·  --json for scripts"
+	b.WriteString("\n " + muted.Render("● running  ○ halted  ↗ symlink  ▲ taw/core behind  ±uncommitted  ↑to push  ↓to pull") + "\n")
+	next := "`taw-fleet doctor` lists what needs attention  ·  `taw-fleet show <site>` for one site"
 	if hidden > 0 {
-		legend += fmt.Sprintf("  ·  %d more %s without a TAW theme (--all)", hidden, plural(hidden, "site", "sites"))
+		next += fmt.Sprintf("  ·  %d more %s without a TAW theme (--all)", hidden, plural(hidden, "site", "sites"))
 	}
-	b.WriteString("\n " + muted.Render(legend) + "\n")
+	b.WriteString(" " + muted.Render(next) + "\n")
 	errCount := 0
 	for _, s := range rep.Sites {
 		errCount += len(s.Errors)

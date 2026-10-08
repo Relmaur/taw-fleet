@@ -24,13 +24,15 @@ type Enricher interface {
 type Report struct {
 	Sites     []site.Site        `json:"sites"`
 	ScannedAt time.Time          `json:"scanned_at"`
-	Errors    []site.SourceError `json:"errors,omitempty"` // a whole source failed
+	Latest    map[string]string  `json:"latest,omitempty"` // newest releases (see Latest* keys)
+	Errors    []site.SourceError `json:"errors,omitempty"` // a whole source or lookup failed
 }
 
 // Scanner runs the sources, then the enrichers.
 type Scanner struct {
 	Sources   []Source
 	Enrichers []Enricher
+	Lookups   []Lookup
 	Limit     int           // concurrent enrichers; default 8
 	Timeout   time.Duration // per enricher call; default 5s
 	Now       func() time.Time
@@ -55,9 +57,36 @@ func (sc *Scanner) Run(ctx context.Context) (Report, error) {
 		rep.Sites = append(rep.Sites, sites...)
 	}
 
-	if err := sc.enrich(ctx, rep.Sites); err != nil {
-		return rep, err
+	// Lookups (network) run while the enrichers (disk, git) do.
+	type lookupResult struct {
+		name   string
+		latest map[string]string
+		errs   []error
 	}
+	results := make(chan lookupResult, len(sc.Lookups))
+	for _, l := range sc.Lookups {
+		go func() {
+			latest, errs := l.Lookup(ctx)
+			results <- lookupResult{l.Name(), latest, errs}
+		}()
+	}
+	enrichErr := sc.enrich(ctx, rep.Sites)
+	for range sc.Lookups {
+		r := <-results
+		for k, v := range r.latest {
+			if rep.Latest == nil {
+				rep.Latest = map[string]string{}
+			}
+			rep.Latest[k] = v
+		}
+		for _, e := range r.errs {
+			rep.Errors = append(rep.Errors, site.SourceError{Stage: r.name, Err: e.Error()})
+		}
+	}
+	if enrichErr != nil {
+		return rep, enrichErr
+	}
+	applyLatest(rep.Sites, rep.Latest)
 	rep.ScannedAt = now()
 	return rep, nil
 }

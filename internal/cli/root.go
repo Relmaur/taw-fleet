@@ -9,7 +9,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/exec"
+	"github.com/Relmaur/taw-fleet/internal/github"
+	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/style"
@@ -28,13 +31,39 @@ type Deps struct {
 	Runner exec.Runner
 	Out    io.Writer
 	Err    io.Writer
-	Dark   bool // the terminal has a dark background
+	Dark   bool           // the terminal has a dark background
+	GitHub *github.Client // newest-release lookups; nil = built from Paths
 }
 
 func (d Deps) palette() style.Palette { return style.New(d.Dark) }
 
-func (d Deps) scanner() *scan.Scanner {
-	return &scan.Scanner{Sources: []scan.Source{scan.NewLocalSource(d.Paths)}}
+// globals are the flags every command shares.
+type globals struct {
+	offline bool
+}
+
+func (d Deps) github(g *globals) *github.Client {
+	c := d.GitHub
+	if c == nil {
+		c = github.New(d.Paths.CacheDir, github.TokenSource(d.Paths, d.Runner))
+	}
+	c.Offline = g.offline
+	return c
+}
+
+func (d Deps) scanner(g *globals) *scan.Scanner {
+	return &scan.Scanner{
+		Sources:   []scan.Source{scan.NewLocalSource(d.Paths)},
+		Enrichers: []scan.Enricher{scan.GitEnricher{Runner: d.Runner}, scan.CoreEnricher{}},
+		Lookups:   []scan.Lookup{scan.GitHubLookup{Client: d.github(g)}},
+	}
+}
+
+func (d Deps) doctorOptions() doctor.Options {
+	return doctor.Options{PHPAvailable: func(v string) bool {
+		_, ok := local.PHPBinary(d.Paths, v)
+		return ok
+	}}
 }
 
 // NewRoot builds the command tree.
@@ -45,9 +74,11 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	g := &globals{}
+	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
-	root.AddCommand(newVersionCmd(info), newListCmd(d))
+	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g))
 	return root
 }
 

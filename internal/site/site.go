@@ -2,7 +2,10 @@
 // its themes, and what's wrong with them.
 package site
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // Status is a site's running state as Local reports it.
 type Status string
@@ -90,7 +93,63 @@ type Theme struct {
 	Kind      ThemeKind `json:"kind"`
 	IsTAW     bool      `json:"is_taw"`
 	HasBinTaw bool      `json:"has_bin_taw"`
+
+	// Version is `git describe --tags --always`. Never style.css, which is
+	// stale in every TAW theme. Client forks inherit taw-theme's old tags, so
+	// for them it's informational only.
+	Version  string       `json:"version,omitempty"`
+	Core     CoreInfo     `json:"core"`
+	Scaffold ScaffoldInfo `json:"scaffold"`
+	Git      *GitInfo     `json:"git,omitempty"` // nil when the folder isn't its own git repo
 }
+
+// CoreInfo is the theme's taw/core.
+type CoreInfo struct {
+	Installed    string `json:"installed,omitempty"` // vendor/composer/installed.json
+	Locked       string `json:"locked,omitempty"`    // composer.lock
+	Latest       string `json:"latest,omitempty"`    // newest stable tag on GitHub
+	Behind       bool   `json:"behind"`
+	LockMismatch bool   `json:"lock_mismatch"`
+	Err          string `json:"error,omitempty"`
+}
+
+// ScaffoldInfo is the TAW starter a theme comes from and its newest release.
+type ScaffoldInfo struct {
+	Name   string `json:"name,omitempty"` // taw-theme | taw-gutenberg
+	Latest string `json:"latest,omitempty"`
+}
+
+// GitInfo is a theme repository's state.
+type GitInfo struct {
+	Branch        string    `json:"branch"`
+	Detached      bool      `json:"detached"`
+	DefaultBranch string    `json:"default_branch,omitempty"` // from origin/HEAD
+	Upstream      string    `json:"upstream,omitempty"`       // e.g. origin/main
+	Ahead         int       `json:"ahead"`
+	Behind        int       `json:"behind"`
+	Dirty         int       `json:"dirty"` // changed + untracked files
+	Describe      string    `json:"describe,omitempty"`
+	LastTag       string    `json:"last_tag,omitempty"`
+	LastCommit    time.Time `json:"last_commit,omitzero"`
+	RemoteURL     string    `json:"remote_url,omitempty"`
+	Repo          *Repo     `json:"repo,omitempty"`
+}
+
+// HasUpstream reports whether the branch tracks a remote branch.
+func (g GitInfo) HasUpstream() bool { return g.Upstream != "" }
+
+// Repo is a hosted repository parsed from a remote URL.
+type Repo struct {
+	Host  string `json:"host"` // github.com (SSH aliases like github.com-work are mapped back)
+	Owner string `json:"owner"`
+	Name  string `json:"name"`
+}
+
+// FullName is "owner/name".
+func (r Repo) FullName() string { return r.Owner + "/" + r.Name }
+
+// WebURL is the repository's page.
+func (r Repo) WebURL() string { return "https://" + r.Host + "/" + r.Owner + "/" + r.Name }
 
 // TAWThemes returns the site's TAW themes only.
 func (s Site) TAWThemes() []Theme {
