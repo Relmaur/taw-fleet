@@ -623,3 +623,17 @@ func TestSyncColumn(t *testing.T) {
 		t.Errorf("sync column:\n%s", out)
 	}
 }
+
+func TestHeaderSaysWhenTawFleetIsOutdated(t *testing.T) {
+	rep := fixtureReport()
+	rep.Latest[scan.LatestFleet] = "v0.7.1"
+	m := newModel(t, 140, 30, &rep)
+	if h := ansi.Strip(m.header()); !strings.Contains(h, "v0.3.0 ▲ 0.7.1") {
+		t.Errorf("header = %q", h)
+	}
+	rep.Latest[scan.LatestFleet] = "v0.3.0"
+	m = newModel(t, 140, 30, &rep)
+	if h := ansi.Strip(m.header()); strings.Contains(h, "▲") {
+		t.Errorf("up to date: %q", h)
+	}
+}
