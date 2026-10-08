@@ -16,6 +16,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/config"
+	"github.com/Relmaur/taw-fleet/internal/create"
+	"github.com/Relmaur/taw-fleet/internal/createform"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/local"
@@ -322,6 +325,7 @@ type fakeActions struct {
 	copied   string
 	launched string
 	refuse   error
+	created  create.Request
 }
 
 func (f *fakeActions) Do(_ context.Context, k actions.Kind, _ site.Site, t site.Theme) (string, error) {
@@ -355,6 +359,14 @@ func (f *fakeActions) SyncTask(_ site.Site, t site.Theme, apply bool) (actions.T
 func (f *fakeActions) UpdateTask(_ site.Site, t site.Theme) (actions.Task, error) {
 	return actions.Task{Title: "Update taw/core: " + t.Dir, Writes: true, Run: func(context.Context, io.Writer) (actions.Summary, error) {
 		return actions.Summary{}, errors.New("composer exited 2 (output above)")
+	}}, nil
+}
+
+func (f *fakeActions) CreateTask(r create.Request) (actions.Task, error) {
+	f.created = r
+	return actions.Task{Title: "Create site: " + r.Name, Writes: true, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		_, _ = out.Write([]byte("→ Creating the Local site " + r.Domain + "…\n✓ Site created and running in 18s\n"))
+		return actions.Summary{Headline: r.Slug + " is ready: http://" + r.Domain, Lines: []string{"Admin " + r.AdminUser + " · password " + r.AdminPassword}, Secret: r.AdminPassword}, nil
 	}}, nil
 }
 
@@ -635,5 +647,51 @@ func TestHeaderSaysWhenTawFleetIsOutdated(t *testing.T) {
 	m = newModel(t, 140, 30, &rep)
 	if h := ansi.Strip(m.header()); strings.Contains(h, "▲") {
 		t.Errorf("up to date: %q", h)
+	}
+}
+
+func TestNewSiteForm(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 30, f)
+	m.deps.Paths.LocalApp = t.TempDir() // the form lists Local's PHP versions
+	m.deps.CreateDefaults = config.Create{AdminUser: "marco", AdminEmail: "marco@example.test"}
+	next, _ := m.Update(keyMsg("n"))
+	m = next.(Model)
+	if m.mode != modeCreate || m.form == nil || m.fields.AdminUser != "marco" {
+		t.Fatalf("n opens the form: mode=%v", m.mode)
+	}
+	if out := screen(m); !strings.Contains(out, "New TAW site") || !strings.Contains(out, "Site name") || !strings.Contains(out, "esc cancel") {
+		t.Errorf("form screen:\n%s", out)
+	}
+	m = press(t, m, "esc")
+	if m.mode != modeTable || m.form != nil || !strings.Contains(screen(m), "Nothing changed.") {
+		t.Error("esc cancels")
+	}
+
+	// The form's answers start the task; the summary offers the password.
+	next, _ = m.Update(keyMsg("n"))
+	m = next.(Model)
+	m.fields.Name, m.fields.Kind, m.fields.Confirmed = "Acme Two", "block", true
+	next, cmd := m.finishCreate()
+	m = next.(Model)
+	if m.mode != modeOutput || m.selectAfterScan != "acme-two" || f.created.Kind != create.Block || len(f.created.AdminPassword) != 20 {
+		t.Fatalf("mode=%v select=%q created=%+v", m.mode, m.selectAfterScan, f.created)
+	}
+	m = drain(t, m, cmd)
+	out := screen(m)
+	for _, want := range []string{"Create site: Acme Two", "Site created and running", "acme-two is ready", "c copy password"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	next, cmd = m.Update(keyMsg("c"))
+	m = drain(t, next.(Model), cmd)
+	if f.copied != f.created.AdminPassword {
+		t.Errorf("copied %q", f.copied)
+	}
+
+	m.fields = &createform.Fields{Name: "x", Confirmed: false}
+	if next, _ := m.finishCreate(); next.(Model).mode != modeTable {
+		t.Error("backing out closes the form")
 	}
 }

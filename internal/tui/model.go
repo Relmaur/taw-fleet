@@ -15,9 +15,13 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/config"
+	"github.com/Relmaur/taw-fleet/internal/create"
+	"github.com/Relmaur/taw-fleet/internal/createform"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
@@ -34,6 +38,7 @@ type Actions interface {
 	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
+	CreateTask(r create.Request) (actions.Task, error)
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -49,6 +54,8 @@ type Deps struct {
 	Dark       bool             // first guess; the terminal's answer replaces it
 	Now        func() time.Time // nil = time.Now
 	Refresh    time.Duration    // re-scan this often; 0 = only on `r`
+
+	CreateDefaults config.Create // the config's [create] section, for the n form
 }
 
 type mode int
@@ -59,6 +66,7 @@ const (
 	modeHelp
 	modeHandoff
 	modeOutput
+	modeCreate
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -98,6 +106,10 @@ type Model struct {
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
+
+	form            *huh.Form          // the new-site form (modeCreate)
+	fields          *createform.Fields // its answers
+	selectAfterScan string             // site slug to select once the next scan lands
 
 	prompt handoff.Prompt // the handoff on screen (modeHandoff)
 	hsite  site.Site
@@ -286,11 +298,18 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles one message.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.formOwns(msg) {
+		return m.onForm(msg)
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(msg.Width - 2)
 		m.clamp()
+		if m.form != nil {
+			m.form = m.form.WithWidth(m.formWidth())
+			m = m.sizeForm()
+		}
 		return m, nil
 
 	case tea.BackgroundColorMsg:
@@ -492,6 +511,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, k.Help):
 		m.mode = modeHelp
+	case key.Matches(msg, k.New):
+		return m.openCreate()
 	case key.Matches(msg, k.Handoff):
 		return m.openHandoff()
 	case key.Matches(msg, k.StartStop):
@@ -567,6 +588,14 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 		r := m.rows[ri]
 		if rep.Sites[r.site].ID == prevSite && rep.Sites[r.site].Themes[r.theme].Dir == prevTheme {
 			m.cursor = vi
+		}
+	}
+	if m.selectAfterScan != "" { // a site was just created: select it
+		for vi, ri := range m.visible {
+			if rep.Sites[m.rows[ri].site].Slug == m.selectAfterScan {
+				m.cursor, m.selectAfterScan = vi, ""
+				break
+			}
 		}
 	}
 	m.clamp()

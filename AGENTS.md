@@ -28,6 +28,8 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes); unknown keys are errors |
 | `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
+| `internal/create` | New site: `Normalize`/`Check` a `Request`, `Creator.Run` (Local `addSite` → taw-create → npm build → `wp theme activate` → git), `Password` |
+| `internal/createform` | The new-site form (charm.land/huh): `New`, `Defaults`, `Summary`, `Theme` (huh in taw-fleet's palette); shared by `create` and the dashboard's `n` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
@@ -43,7 +45,10 @@ Local's API (probed on Local 10.1.2): `Authorization: Bearer <authToken>` from
 bundled schema (`startSite/stopSite/restartSite(id: ID!): Site`, `site(id)`, `sites`). The client
 refuses a non-localhost URL so the token never leaves the machine. Test against the fake in
 `internal/local/graphql_test.go`; on a real Mac, only start/stop sites nobody is working on, and
-put them back the way they were.
+put them back the way they were. `addSite(input: AddSiteInput!): Job` + `job(id)` create sites
+(the job id is not the site id: find the site in `sites.json` by path); there is **no delete
+mutation**. `create` tests use fakes; a real `create` makes a site the owner has to delete in
+Local by hand, so ask before running one.
 
 Dashboard rules: `View` is a pure function of the model (no I/O); work happens in `tea.Cmd`s.
 Golden screens: `go test ./internal/tui -update` rewrites `internal/tui/testdata/*.golden`; read

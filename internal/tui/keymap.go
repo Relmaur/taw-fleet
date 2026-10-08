@@ -12,6 +12,7 @@ type keyMap struct {
 	Handoff, Copy, Launch                                             key.Binding
 	StartStop, Restart, Yes, No                                       key.Binding
 	SyncCheck, SyncApply, UpdateCore, Output                          key.Binding
+	New, CopySecret                                                   key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -48,6 +49,8 @@ func newKeyMap() keyMap {
 		SyncApply:  key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "apply Tier 1")),
 		UpdateCore: key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update taw/core")),
 		Output:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "last output")),
+		New:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new site")),
+		CopySecret: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
 	}
 }
 
@@ -75,6 +78,7 @@ func (h handoffKeys) FullHelp() [][]key.Binding { return h.k.FullHelp() }
 type outputKeys struct {
 	k       keyMap
 	running bool
+	secret  bool // the finished task has something to copy (c)
 }
 
 func (o outputKeys) ShortHelp() []key.Binding {
@@ -84,7 +88,11 @@ func (o outputKeys) ShortHelp() []key.Binding {
 	if o.running {
 		back = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (it keeps running)"))
 	}
-	return []key.Binding{scroll, follow, back}
+	keys := []key.Binding{scroll, follow, back}
+	if o.secret {
+		keys = append([]key.Binding{o.k.CopySecret}, keys...)
+	}
+	return keys
 }
 
 func (o outputKeys) FullHelp() [][]key.Binding { return o.k.FullHelp() }
@@ -97,15 +105,28 @@ func (c confirmKeys) FullHelp() [][]key.Binding { return c.k.FullHelp() }
 
 // ShortHelp is the one-line help bar.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.StartStop, k.UpdateCore, k.Handoff, k.Filter, k.Help, k.Quit}
+	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.StartStop, k.UpdateCore, k.Handoff, k.New, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Help, k.Quit},
-		{k.Detail, k.Back, k.Filter, k.Refresh, k.StartStop, k.Restart},
+		{k.Detail, k.Back, k.Filter, k.Refresh, k.StartStop, k.Restart, k.New},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
 		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Output, k.Handoff, k.Copy, k.Launch},
 	}
 }
+
+// createKeys is the help bar under the new-site form (the form shows its own
+// keys inside the box).
+type createKeys struct{}
+
+func (createKeys) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+		key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),
+	}
+}
+
+func (c createKeys) FullHelp() [][]key.Binding { return [][]key.Binding{c.ShortHelp()} }

@@ -163,6 +163,14 @@ func (m Model) onOutputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		t.follow = true
 	case msg.String() == "home":
 		t.follow, t.scroll = false, 0
+	case msg.String() == "c" && !t.running && t.summary.Secret != "" && m.deps.Actions != nil:
+		a, ctx, secret := m.deps.Actions, m.ctx, t.summary.Secret
+		return m, m.run(func() (string, error) {
+			if err := a.Copy(ctx, secret); err != nil {
+				return "", err
+			}
+			return "Copied the password. Save it in your password manager.", nil
+		})
 	case msg.String() == "ctrl+c":
 		return m, tea.Quit
 	}

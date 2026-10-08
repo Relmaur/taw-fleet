@@ -10,7 +10,7 @@
       │  pgdn page down    r     refresh       b site          o last output                │       
       │  home first        s     start/stop    B wp-admin      h hand off                   │       
       │  end  last         R     restart       P production    c copy prompt                │       
-      │  ?    help                             g GitHub        l launch Claude              │       
+      │  ?    help         n     new site      g GitHub        l launch Claude              │       
       │  q    quit                             G PRs                                        │       
       │                                                                                     │       
       │  Symbols                                                                            │       
@@ -27,4 +27,4 @@
       ╰─────────────────────────────────────────────────────────────────────────────────────╯       
                                                                                                     
 
- enter details • e editor • g GitHub • s start/stop • u update taw/core • h hand off • / filter …
+ enter details • e editor • g GitHub • s start/stop • u update taw/core • h hand off • n new site •…
