@@ -24,6 +24,7 @@ type Summary struct {
 	Headline string   // one line, for the footer
 	Lines    []string // the details
 	Report   any      // the raw result (sync report, update result)
+	Secret   string   // something to copy once and not keep (a new site's password)
 }
 
 func (a *Actions) taw(s site.Site) taw.Runner {

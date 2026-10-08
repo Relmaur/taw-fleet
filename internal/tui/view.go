@@ -134,6 +134,10 @@ func (m Model) body() string {
 		return block(m.helpScreen(), m.width, h)
 	case !m.loaded && m.err != nil:
 		return block(center(p.Fg(p.Err).Render("✗ "+m.err.Error()), m.width, h), m.width, h)
+	case m.mode == modeCreate && m.form != nil:
+		return m.createScreen(h)
+	case m.mode == modeOutput:
+		return m.outputScreen(h)
 	case !m.loaded:
 		return block(center(m.spin.View()+" "+p.Fg(p.Muted).Render("Reading Local's sites…"), m.width, h), m.width, h)
 	case len(m.rows) == 0:
@@ -142,8 +146,6 @@ func (m Model) body() string {
 		return m.detailScreen(h)
 	case m.mode == modeHandoff:
 		return m.handoffScreen(h)
-	case m.mode == modeOutput:
-		return m.outputScreen(h)
 	}
 
 	if !m.wide() {
@@ -166,7 +168,8 @@ func (m Model) emptyState() string {
 		lines = append(lines, " "+p.Fg(p.Warn).Render("▲ "+e.Err))
 	}
 	lines = append(lines, "",
-		" "+p.Fg(p.Muted).Render("taw-fleet reads Local by Flywheel's sites. A TAW theme is one whose composer.json requires taw/core."))
+		" "+p.Fg(p.Muted).Render("taw-fleet reads Local by Flywheel's sites. A TAW theme is one whose composer.json requires taw/core."),
+		"", " "+p.Fg(p.Accent).Render("n")+p.Fg(p.Muted).Render(" creates one: a Local site with taw-theme or taw-gutenberg."))
 	return strings.Join(lines, "\n")
 }
 
@@ -393,9 +396,12 @@ func (m Model) footer() string {
 	case m.mode == modeHandoff:
 		keys = handoffKeys{m.keys}
 	case m.mode == modeOutput:
-		keys = outputKeys{m.keys, m.task != nil && m.task.running}
+		keys = outputKeys{m.keys, m.task != nil && m.task.running, m.task != nil && !m.task.running && m.task.summary.Secret != ""}
+	case m.mode == modeCreate:
+		keys = createKeys{}
 	}
-	return ansi.Truncate(status, m.width, "…") + "\n" + " " + m.help.View(keys)
+	// bubbles' help can overflow when the ellipsis itself doesn't fit: cut it.
+	return ansi.Truncate(status, m.width, "…") + "\n" + ansi.Truncate(" "+m.help.View(keys), m.width, "…")
 }
 
 // --- helpers ----------------------------------------------------------------

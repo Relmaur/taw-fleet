@@ -18,7 +18,17 @@ import (
 type Config struct {
 	Editor   string          `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
 	Terminal string          `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
+	Create   Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
+}
+
+// Create holds the defaults for new sites. Empty = ask, or Local's choice.
+type Create struct {
+	Kind       string `toml:"kind"`        // "classic" or "block"
+	AdminUser  string `toml:"admin_user"`  // WordPress admin username
+	AdminEmail string `toml:"admin_email"` // WordPress admin email
+	PHP        string `toml:"php"`         // e.g. "8.2.30"; "" = Local's preferred
+	WebServer  string `toml:"web_server"`  // e.g. "nginx"; "" = Local's preferred
 }
 
 // Site holds what taw-fleet can't learn from Local.
@@ -51,6 +61,11 @@ func Load(p paths.Paths) (Config, error) {
 		}
 		return c, fmt.Errorf("%s: unknown keys: %s", File(p), strings.Join(keys, ", "))
 	}
+	switch c.Create.Kind {
+	case "", "classic", "block":
+	default:
+		return c, fmt.Errorf("%s: create.kind must be \"classic\" or \"block\"", File(p))
+	}
 	for slug, s := range c.Sites {
 		if s.ProductionURL != "" && !strings.HasPrefix(s.ProductionURL, "https://") && !strings.HasPrefix(s.ProductionURL, "http://") {
 			return c, fmt.Errorf("%s: sites.%s.production_url must start with https://", File(p), slug)
@@ -74,6 +89,16 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # The terminal for "open a terminal here" (t) and the agent handoff (h, l).
 # Empty: the first one installed of Ghostty, iTerm2, Warp, kitty, Terminal.
 # terminal = "Ghostty"
+
+# Defaults for taw-fleet create (n in the dashboard). Empty: asked, or
+# Local's preferred PHP and web server. The admin password is always
+# generated and shown once; it's never stored here.
+# [create]
+# kind = "classic"            # or "block"
+# admin_user = "marco"
+# admin_email = "me@example.com"
+# php = "8.2.30"
+# web_server = "nginx"
 
 # What Local doesn't know about a site, keyed by its folder in ~/Local Sites.
 # [sites.ls-mxico]

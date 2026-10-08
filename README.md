@@ -8,8 +8,8 @@ browser or the repo on GitHub.
 
 ![taw-fleet dashboard](docs/images/dashboard.png)
 
-> **Status: v0.7.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
-> start/stop, `wp`, `sync`, `update`, `inspect`, release binaries and `self-update` work. The plan
+> **Status: v0.8.** The dashboard, `list`, `show`, `doctor`, the shortcuts, the agent handoff,
+> start/stop, `wp`, `sync`, `update`, `inspect`, `create`, release binaries and `self-update` work. The plan
 > is in the TAW umbrella at `docs/plans/taw-fleet.md`.
 
 ## Install
@@ -48,7 +48,8 @@ Run `taw-fleet` on its own for the dashboard:
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
-| `o` | show the last sync/update output again (`esc` leaves a running one in the background) |
+| `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
+| `n` | create a new site (see below); when it's done, `c` copies the admin password |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -100,6 +101,30 @@ everything after the site goes to wp-cli, PHP notices go to stderr so `--format=
 clean, and wp-cli's exit code is kept. While Local is open, statuses come live from it; the
 active theme of each running site is read too (cached ten minutes) and marked ✓ when a site has
 more than one TAW theme.
+
+### Create a site
+
+```bash
+taw-fleet create                                   # asks everything in a form
+taw-fleet create "Acme Shop" --block               # asks only what's missing
+taw-fleet create "Acme Shop" --classic --php 8.2 --admin-user marco --admin-email me@example.com --yes
+```
+
+`create` (or `n` in the dashboard) makes a Local site and a fresh TAW theme in it:
+
+1. Local creates the site through its own API (Local must be open) and starts it, with Local's
+   preferred PHP and web server unless you pick versions Local has downloaded.
+2. [taw-create](https://github.com/Relmaur/taw-create) installs **taw-theme** (classic) or
+   **taw-gutenberg** (block) into `wp-content/themes/<name>` with the site's PHP and Local's
+   Composer; the front-end assets are built (`npm`, when it's on your PATH).
+3. wp-cli activates the theme, and the theme folder becomes a git repository with a first commit
+   (connect GitHub when you're ready).
+
+The WordPress admin password is generated and shown once at the end (`c` copies it in the
+dashboard); taw-fleet never stores it. Folder, domain (`<name>.local`) and theme folder come
+from the name; a name, domain or folder Local already has is refused before anything starts. If
+a step fails, the message says what exists so far. Local's API can't delete sites: remove one in
+Local's window.
 
 ### Sync, update, inspect
 
@@ -163,6 +188,13 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 ```toml
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
+
+[create]                 # defaults for taw-fleet create / n (all optional)
+kind = "classic"         # or "block"
+admin_user = "marco"
+admin_email = "me@example.com"
+php = "8.2.30"           # empty: Local's preferred
+web_server = "nginx"
 
 [sites.ls-mxico]         # keyed by the site's folder in ~/Local Sites
 production_url = "https://lsmexico.mx"

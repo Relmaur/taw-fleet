@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/config"
+	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/local"
@@ -48,6 +49,9 @@ type Actions struct {
 	Tools  tools.Inventory
 	Now    func() time.Time
 	open   tools.Opener
+
+	LocalAPI   create.API    // create's Local API; nil = the running Local app
+	CreatePoll time.Duration // create's polling interval; 0 = 2 s
 }
 
 // New detects the installed apps and returns ready Actions.
