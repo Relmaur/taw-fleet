@@ -49,7 +49,8 @@ homebrew_casks:
     repository:
       owner: Relmaur
       name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+      # GoReleaser accepts only this exact form here (no template logic).
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     # Without the token secret the release still ships; only the cask is skipped.
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
     directory: Casks
