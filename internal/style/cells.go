@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -34,18 +36,44 @@ func (p Palette) Core(c site.CoreInfo) string {
 
 // Git renders a repo's state compactly: "main ±5 ↑2 ↓1". The branch is
 // accented when it isn't the default one.
-func (p Palette) Git(g *site.GitInfo) string {
+func (p Palette) Git(g *site.GitInfo) string { return p.GitFit(g, 0) }
+
+// GitFit is Git within width cells (0 = no limit). The branch name is
+// shortened first, so the markers (±, ↑, ↓, unpushed) always stay visible.
+func (p Palette) GitFit(g *site.GitInfo, width int) string {
 	if g == nil {
 		return p.Fg(p.Muted).Render("no git")
 	}
-	branch := g.Branch
+	markers := p.gitMarkers(g, false)
+	if width > 0 && ansi.StringWidth(markers)+5 > width {
+		markers = p.gitMarkers(g, true)
+	}
+	name := g.Branch
+	if g.Detached {
+		name = "detached"
+	}
+	if width > 0 {
+		budget := width
+		if markers != "" {
+			budget -= ansi.StringWidth(markers) + 1
+		}
+		name = ansi.Truncate(name, max(budget, 1), "…")
+	}
 	switch {
 	case g.Detached:
-		branch = p.Fg(p.Warn).Render("detached")
+		name = p.Fg(p.Warn).Render(name)
 	case g.DefaultBranch != "" && g.Branch != g.DefaultBranch:
-		branch = p.Fg(p.Accent).Render(branch)
+		name = p.Fg(p.Accent).Render(name)
 	}
-	parts := []string{branch}
+	if markers == "" {
+		return name
+	}
+	return name + " " + markers
+}
+
+// gitMarkers: compact drops the word "unpushed" from ◇.
+func (p Palette) gitMarkers(g *site.GitInfo, compact bool) string {
+	var parts []string
 	if g.Dirty > 0 {
 		parts = append(parts, p.Fg(p.Warn).Render(fmt.Sprintf("±%d", g.Dirty)))
 	}
@@ -56,7 +84,11 @@ func (p Palette) Git(g *site.GitInfo) string {
 		parts = append(parts, p.Fg(p.Warn).Render(fmt.Sprintf("↓%d", g.Behind)))
 	}
 	if !g.Detached && !g.HasUpstream() {
-		parts = append(parts, p.Fg(p.Warn).Render("⇡ unpushed"))
+		unpushed := "◇ unpushed"
+		if compact {
+			unpushed = "◇"
+		}
+		parts = append(parts, p.Fg(p.Warn).Render(unpushed))
 	}
 	return strings.Join(parts, " ")
 }

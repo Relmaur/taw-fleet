@@ -21,9 +21,17 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/git` | `Info` (read-only state of a theme repo), `ParseRemote` (incl. SSH host aliases) |
 | `internal/github` | Newest release tags, 1 h disk cache, stale-on-error, `--offline`, token discovery |
 | `internal/doctor` | Rules → `site.Finding` (stable codes, severity, fix). Rules read the report only |
-| `internal/style` | Palette (light/dark), status dots, badges; shared by CLI and dashboard |
+| `internal/style` | Palette (light/dark), status dots, badges, `Core`/`GitFit` cells; shared by CLI and dashboard |
+| `internal/render` | Site header, theme cards, findings: the `show` output and the dashboard's detail pane |
+| `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/` |
 
-Still to come (see the plan): `tools`, `config`, `taw`, `tui`, `selfupdate`.
+Still to come (see the plan): `tools`, `config`, `taw`, `selfupdate`.
+
+Dashboard rules: `View` is a pure function of the model (no I/O); work happens in `tea.Cmd`s.
+Golden screens: `go test ./internal/tui -update` rewrites `internal/tui/testdata/*.golden`; read
+the diff before committing. To look at the real thing: `tmux new -d -s tf -x 150 -y 40
+taw-fleet; tmux capture-pane -pt tf` (add `-e` for colors; tmux turns resets into `\e[49m`).
+Use glyphs from common fonts only: `◇` not `⇡`.
 
 Doctor codes are a contract like `--json`: add new ones freely, don't rename existing ones.
 

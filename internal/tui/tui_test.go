@@ -1,0 +1,314 @@
+package tui
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"image/color"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Relmaur/taw-fleet/internal/doctor"
+	"github.com/Relmaur/taw-fleet/internal/paths"
+	"github.com/Relmaur/taw-fleet/internal/scan"
+	"github.com/Relmaur/taw-fleet/internal/site"
+)
+
+var update = flag.Bool("update", false, "rewrite the golden files")
+
+var now = time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+
+func gitInfo(branch string, dirty int, upstream bool) *site.GitInfo {
+	g := &site.GitInfo{Branch: branch, DefaultBranch: "main", Dirty: dirty, Describe: "abc1234",
+		LastCommit: now.Add(-50 * time.Hour), RemoteURL: "git@github.com:Relmaur/x.git",
+		Repo: &site.Repo{Host: "github.com", Owner: "Relmaur", Name: "client--theme"}}
+	if upstream {
+		g.Upstream = "origin/" + branch
+	}
+	return g
+}
+
+func theme(slug, dir string, kind site.ThemeKind, installed string, g *site.GitInfo) site.Theme {
+	return site.Theme{
+		Dir: dir, Path: "/Users/me/Local Sites/" + slug + "/app/public/wp-content/themes/" + dir, IsTAW: true, Kind: kind, HasBinTaw: true,
+		Core: site.CoreInfo{Installed: installed, Locked: installed, Latest: "v1.76.1", Behind: installed != "v1.76.1"},
+		Git:  g,
+	}
+}
+
+func fixtureReport() scan.Report {
+	link := theme("taw", "taw-gutenberg", site.KindGutenberg, "v1.76.1", gitInfo("main", 0, true))
+	link.Symlink = true
+	link.RealPath = "/Users/me/Documents/TAW/taw-gutenberg"
+	return scan.Report{
+		ScannedAt: now,
+		Latest:    map[string]string{scan.LatestCore: "v1.76.1"},
+		Sites: []site.Site{
+			{ID: "a1", Slug: "acme-shop", Name: "Acme", Domain: "acme.local", URL: "http://acme.local", Status: site.StatusRunning,
+				Path: "/Users/me/Local Sites/acme-shop", WebRoot: "/Users/me/Local Sites/acme-shop/app/public", PHPVersion: "8.2.30",
+				Themes: []site.Theme{theme("acme-shop", "acme", site.KindClassic, "v1.76.1", gitInfo("main", 0, true))}},
+			{ID: "b2", Slug: "bistro", Domain: "bistro.local", URL: "http://bistro.local", Status: site.StatusHalted,
+				Path: "/Users/me/Local Sites/bistro", WebRoot: "/Users/me/Local Sites/bistro/app/public", PHPVersion: "8.2.29",
+				Themes: []site.Theme{theme("bistro", "bistro-theme", site.KindClassic, "v1.59.2", gitInfo("chore/update-core", 5, false))}},
+			{ID: "c3", Slug: "plain", Domain: "plain.local", Status: site.StatusHalted, Themes: []site.Theme{{Dir: "twentytwentyfive"}}},
+			{ID: "t4", Slug: "taw", Domain: "taw.local", URL: "http://taw.local", Status: site.StatusRunning, PHPVersion: "8.5.3",
+				Path: "/Users/me/Local Sites/taw", WebRoot: "/Users/me/Local Sites/taw/app/public",
+				Themes: []site.Theme{link, theme("taw", "taw-theme", site.KindClassic, "v1.76.1", gitInfo("main", 0, true))}},
+		},
+	}
+}
+
+func newModel(t *testing.T, w, h int, rep *scan.Report) Model {
+	t.Helper()
+	scans := 0
+	m := New(context.Background(), Deps{
+		Scan: func(context.Context) (scan.Report, error) {
+			scans++
+			return fixtureReport(), nil
+		},
+		Doctor:  func(r scan.Report) []site.Finding { return doctor.Run(r, doctor.Options{}) },
+		Paths:   paths.ForHome("/Users/me", nil),
+		Version: "v0.3.0",
+		Dark:    true,
+		Now:     func() time.Time { return now },
+	})
+	m = step(t, m, tea.WindowSizeMsg{Width: w, Height: h})
+	if rep != nil {
+		m = step(t, m, scanDoneMsg{rep: *rep})
+	}
+	return m
+}
+
+func step(t *testing.T, m Model, msg tea.Msg) Model {
+	t.Helper()
+	next, _ := m.Update(msg)
+	return next.(Model)
+}
+
+func press(t *testing.T, m Model, keys ...string) Model {
+	t.Helper()
+	for _, k := range keys {
+		m = step(t, m, keyMsg(k))
+	}
+	return m
+}
+
+func keyMsg(k string) tea.KeyPressMsg {
+	switch k {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "up":
+		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	}
+	r := []rune(k)[0]
+	return tea.KeyPressMsg{Code: r, Text: k}
+}
+
+func screen(m Model) string { return ansi.Strip(m.View().Content) }
+
+func golden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", name+".golden")
+	if *update {
+		if err := os.MkdirAll("testdata", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run `go test ./internal/tui -update`)", err)
+	}
+	if got != string(want) {
+		t.Errorf("%s differs from %s:\n--- got ---\n%s\n--- want ---\n%s", name, path, got, want)
+	}
+}
+
+func TestGoldenScreens(t *testing.T) {
+	rep := fixtureReport()
+	cases := map[string]Model{
+		"table-80x24":   newModel(t, 80, 24, &rep),
+		"wide-140x40":   newModel(t, 140, 40, &rep),
+		"detail-100x30": press(t, newModel(t, 100, 30, &rep), "j", "enter"),
+		"help-100x30":   press(t, newModel(t, 100, 30, &rep), "?"),
+		"filter-100x20": press(t, newModel(t, 100, 20, &rep), "/", "b", "e", "h", "i", "n", "d"),
+		"nomatch-80x12": press(t, newModel(t, 80, 12, &rep), "/", "z", "z", "enter"),
+		"loading-80x12": newModel(t, 80, 12, nil),
+		"tiny-50x8":     newModel(t, 50, 8, &rep),
+		"empty-80x12": newModel(t, 80, 12, &scan.Report{ScannedAt: now,
+			Errors: []site.SourceError{{Stage: "local", Err: "no Local by Flywheel sites found (sites.json is missing)"}}}),
+	}
+	for name, m := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := screen(m)
+			// Every line fits the window.
+			for i, l := range strings.Split(got, "\n") {
+				if w := ansi.StringWidth(l); w > m.width {
+					t.Errorf("line %d is %d wide (window %d): %q", i, w, m.width, l)
+				}
+			}
+			golden(t, name, got)
+		})
+	}
+}
+
+func TestViewIsFullScreen(t *testing.T) {
+	rep := fixtureReport()
+	v := newModel(t, 80, 24, &rep).View()
+	if !v.AltScreen || v.WindowTitle != "taw-fleet" {
+		t.Errorf("view = %+v", v)
+	}
+	if lines := strings.Count(v.Content, "\n") + 1; lines != 24 {
+		t.Errorf("lines = %d, want exactly the window height", lines)
+	}
+}
+
+func TestNavigationBounds(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 80, 24, &rep)
+	if len(m.visible) != 4 {
+		t.Fatalf("rows = %d, want the 4 TAW themes", len(m.visible))
+	}
+	m = press(t, m, "k", "up")
+	if m.cursor != 0 {
+		t.Errorf("cursor above the top = %d", m.cursor)
+	}
+	m = press(t, m, "j", "j", "j", "j", "j", "down")
+	if m.cursor != 3 {
+		t.Errorf("cursor past the end = %d", m.cursor)
+	}
+	_, th, _ := m.selectedTheme()
+	if th.Dir != "taw-theme" {
+		t.Errorf("selected = %s", th.Dir)
+	}
+}
+
+func TestSelectionSurvivesRescan(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 80, 24, &rep), "j", "j") // taw-gutenberg
+	// The new scan lists the sites in another order.
+	r2 := fixtureReport()
+	r2.Sites[0], r2.Sites[3] = r2.Sites[3], r2.Sites[0]
+	m = step(t, m, scanDoneMsg{rep: r2})
+	if s, th, _ := m.selectedTheme(); s.Slug != "taw" || th.Dir != "taw-gutenberg" {
+		t.Errorf("selected after rescan = %s/%s", s.Slug, th.Dir)
+	}
+}
+
+func TestFilterAndEscape(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 80, 24, &rep), "/", "u", "n", "p", "u", "s", "h", "e", "d")
+	if !m.filtering || len(m.visible) != 1 {
+		t.Fatalf("filtering=%v visible=%d", m.filtering, len(m.visible))
+	}
+	m = press(t, m, "enter")
+	if m.filtering || len(m.visible) != 1 {
+		t.Errorf("enter keeps the filter: filtering=%v visible=%d", m.filtering, len(m.visible))
+	}
+	m = press(t, m, "esc")
+	if len(m.visible) != 4 || m.filter.Value() != "" {
+		t.Errorf("esc clears: visible=%d value=%q", len(m.visible), m.filter.Value())
+	}
+}
+
+func TestDetailAndHelpModes(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 80, 24, &rep), "enter")
+	if m.mode != modeDetail {
+		t.Fatal("enter opens the detail")
+	}
+	m = press(t, m, "j", "j", "k")
+	if m.scroll != 1 {
+		t.Errorf("scroll = %d", m.scroll)
+	}
+	m = press(t, m, "esc")
+	if m.mode != modeTable || m.scroll != 0 {
+		t.Errorf("esc goes back: mode=%v scroll=%d", m.mode, m.scroll)
+	}
+	m = press(t, m, "?")
+	if m.mode != modeHelp {
+		t.Fatal("? opens help")
+	}
+	m = press(t, m, "q")
+	if m.mode != modeTable {
+		t.Error("q closes help (doesn't quit)")
+	}
+}
+
+func TestQuit(t *testing.T) {
+	rep := fixtureReport()
+	for _, k := range []string{"q", "ctrl+c"} {
+		_, cmd := newModel(t, 80, 24, &rep).Update(keyMsg(k))
+		if cmd == nil {
+			t.Fatalf("%s: no command", k)
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Errorf("%s doesn't quit", k)
+		}
+	}
+	// ctrl+c quits even while typing a filter.
+	m := press(t, newModel(t, 80, 24, &rep), "/")
+	if _, cmd := m.Update(keyMsg("ctrl+c")); cmd == nil {
+		t.Error("ctrl+c while filtering")
+	} else if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Error("ctrl+c while filtering doesn't quit")
+	}
+}
+
+func TestRefreshAndFailure(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 80, 24, &rep), "r")
+	if !m.scanning || !strings.Contains(screen(m), "scanning…") {
+		t.Error("r starts a scan")
+	}
+	m = step(t, m, scanDoneMsg{err: errors.New("boom")})
+	out := screen(m)
+	if !strings.Contains(out, "scan failed") || !strings.Contains(out, "last refresh failed: boom") || !strings.Contains(out, "acme-shop") {
+		t.Errorf("a failed refresh keeps the old data and says so:\n%s", out)
+	}
+}
+
+func TestAutoRefresh(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 80, 24, &rep)
+	m.deps.Refresh = time.Minute
+	m = step(t, m, tickMsg(now.Add(30*time.Second)))
+	if m.scanning {
+		t.Error("too early to refresh")
+	}
+	m = step(t, m, tickMsg(now.Add(61*time.Second)))
+	if !m.scanning {
+		t.Error("should refresh after a minute")
+	}
+	if !strings.Contains(screen(m), "scanning…") {
+		t.Error("header shows scanning")
+	}
+}
+
+func TestBackgroundColorSwitchesPalette(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 80, 24, &rep)
+	m = step(t, m, tea.BackgroundColorMsg{Color: color.White})
+	if m.dark {
+		t.Error("a white background means the light palette")
+	}
+	m = step(t, m, tea.BackgroundColorMsg{Color: color.Black})
+	if !m.dark {
+		t.Error("a black background means the dark palette")
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Relmaur/taw-fleet/internal/doctor"
+	"github.com/Relmaur/taw-fleet/internal/render"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
@@ -103,7 +104,7 @@ func renderDoctor(w io.Writer, p style.Palette, fs []site.Finding, clean []strin
 	head := lipgloss.NewStyle().Bold(true)
 	for _, k := range order {
 		b.WriteString(" " + head.Render(k) + "\n")
-		writeFindings(&b, p, groups[k], false)
+		b.WriteString(render.Findings(p, groups[k], false, 0))
 		b.WriteString("\n")
 	}
 	if len(fs) == 0 {

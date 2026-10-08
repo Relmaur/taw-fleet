@@ -118,7 +118,7 @@ func parseSite(p paths.Paths, id string, raw json.RawMessage) RawSite {
 	s.Path = p.Expand(e.Path)
 	s.Domain = e.Domain
 	s.PHPVersion = e.PHPVersion
-	s.WebServer = asString(e.WebServer)
+	s.WebServer = webServerName(asString(e.WebServer))
 	s.MultiSite = asString(e.MultiSite)
 	s.Xdebug = asBool(e.Xdebug)
 
@@ -157,6 +157,14 @@ func parseSite(p paths.Paths, id string, raw json.RawMessage) RawSite {
 	}
 	if s.Path == "" {
 		s.ParseErr = fmt.Errorf("sites.json entry %s has no path", id)
+	}
+	return s
+}
+
+// webServerName turns Local's "nginx-1.26.1" into "nginx 1.26.1".
+func webServerName(s string) string {
+	if i := strings.Index(s, "-"); i > 0 && i+1 < len(s) && s[i+1] >= '0' && s[i+1] <= '9' {
+		return s[:i] + " " + s[i+1:]
 	}
 	return s
 }

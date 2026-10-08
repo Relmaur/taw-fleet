@@ -99,6 +99,9 @@ func TestLoadRegistry(t *testing.T) {
 	}
 
 	b := m["bbb222"]
+	if webServerName("nginx-1.26.1") != "nginx 1.26.1" || webServerName("apache") != "apache" || webServerName("x-") != "x-" {
+		t.Error("webServerName")
+	}
 	if b.Path != "/abs/Local Sites/beta" || b.MultiSite != "ms-subdir" || !b.Xdebug {
 		t.Errorf("beta = %+v", b)
 	}

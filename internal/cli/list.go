@@ -23,25 +23,29 @@ func newListCmd(d Deps, g *globals) *cobra.Command {
 			"--all also shows sites and themes that aren't TAW.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			rep, err := d.scanner(g).Run(cmd.Context())
-			if err != nil {
-				return err
-			}
-			hidden := 0
-			if !all {
-				before := len(rep.Sites)
-				rep = OnlyTAW(rep)
-				hidden = before - len(rep.Sites)
-			}
-			if asJSON {
-				return writeJSON(cmd.OutOrStdout(), rep)
-			}
-			return renderList(cmd.OutOrStdout(), d.palette(), rep, hidden)
+			return runList(cmd, d, g, asJSON, all)
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.Flags().BoolVar(&all, "all", false, "include sites and themes that aren't TAW")
 	return cmd
+}
+
+func runList(cmd *cobra.Command, d Deps, g *globals, asJSON, all bool) error {
+	rep, err := d.scanner(g).Run(cmd.Context())
+	if err != nil {
+		return err
+	}
+	hidden := 0
+	if !all {
+		before := len(rep.Sites)
+		rep = OnlyTAW(rep)
+		hidden = before - len(rep.Sites)
+	}
+	if asJSON {
+		return writeJSON(cmd.OutOrStdout(), rep)
+	}
+	return renderList(cmd.OutOrStdout(), d.palette(), rep, hidden)
 }
 
 // OnlyTAW keeps the TAW sites, each with its TAW themes only. Report.Errors
