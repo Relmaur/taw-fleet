@@ -80,3 +80,25 @@ The owner asked for a terminal app with three requirements:
   need nothing.
 - The Hub, a production view and a menu-bar or desktop app are deliberately not built. They come
   when the owner asks, on top of the `Source` seam.
+
+## As built (v1.0.0, 2026-10-08)
+
+- **Every decision held.** The GraphQL probe (Step 5a) passed on Local 10.1.2: `Authorization:
+  Bearer <authToken>`; introspection is disabled, so operations come from Local's bundled schema.
+- **Beyond the plan:**
+  - the agent handoff (`handoff`, dashboard `h`): a prompt for the `update-theme` skill with
+    the site's context and the owner's rules;
+  - `create` (dashboard `n`): Local's `addSite` mutation plus taw-create. Local's API has no
+    delete, so test sites are removed by hand;
+  - the dashboard says when a newer taw-fleet is out.
+- **Distribution as decided, with one change:** Homebrew ships a **cask**, because GoReleaser 2.10+
+  deprecates formulas for prebuilt binaries. The cask drops the quarantine flag, since the
+  binaries aren't notarized. The tap token is a fine-grained secret limited to the tap repo.
+- **Local quirks found:**
+  - an addSite job's id is not the new site's id;
+  - Local's wp-cli prints PHP deprecations on stdout unless `display_errors=stderr`;
+  - `open` passes its environment to apps, and `ELECTRON_RUN_AS_NODE=1` from a VS Code
+    terminal stops Electron editors from opening, so taw-fleet removes it.
+- **Not built, still on the seam:** production sites (a Hub-backed `Source`), Windows/Linux, a
+  menu-bar app.
+
