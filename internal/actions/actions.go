@@ -247,10 +247,13 @@ func WindowScript(exe string, args []string, closeTerminal bool) string {
 	for _, a := range args {
 		line += " " + shq(a)
 	}
+	// Clear the screen and its scrollback (the login banner, this command),
+	// so scrolling up in the window finds nothing behind the dashboard.
+	head := "#!/bin/sh\n# taw-fleet dashboard window\nprintf '\\033[H\\033[2J\\033[3J'\n"
 	if !closeTerminal {
-		return "#!/bin/sh\n# taw-fleet dashboard window\nexec " + line + "\n"
+		return head + "exec " + line + "\n"
 	}
-	return "#!/bin/sh\n# taw-fleet dashboard window\n" + line + " || exit\n" +
+	return head + line + " || exit\n" +
 		`tty=$(tty)` + "\n" +
 		`osascript -e "tell application \"Terminal\" to close (every window whose tty is \"$tty\")" >/dev/null 2>&1 &` + "\n"
 }

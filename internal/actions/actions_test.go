@@ -295,6 +295,9 @@ func TestWindowRunsTheDashboard(t *testing.T) {
 		!strings.Contains(string(script), `close (every window whose tty is \"$tty\")`) {
 		t.Errorf("Terminal closes its window after a clean quit:\n%s", script)
 	}
+	if !strings.Contains(string(script), `printf '\033[H\033[2J\033[3J'`) {
+		t.Errorf("the window starts with an empty scrollback:\n%s", script)
+	}
 	if got := WindowScript("/bin/tf", []string{"--window=false"}, false); !strings.HasSuffix(got, "\nexec '/bin/tf' '--window=false'\n") {
 		t.Errorf("other terminals close on their own:\n%s", got)
 	}
