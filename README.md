@@ -53,6 +53,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `h` | show that prompt first; then `A` sends it to Claude Code, `c` copies it |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
+| `Y` | check every classic TAW theme against the scaffold at once (read-only; keeps the SYNC column and `U` current) |
+| `:` | all actions: type to find one, enter runs it on the selected theme |
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
@@ -80,7 +82,7 @@ taw-fleet prs             # open PRs with their CI, and what each theme has depl
 taw-fleet merge <site>    # merge its PR (--pr N when there are several); deploys production
 taw-fleet pull <site>     # production content into the Local site (preview, then asks)
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
-taw-fleet sync <site>     # also update, inspect (see below)
+taw-fleet sync <site>     # also update, inspect (see below); sync --all checks every theme
 taw-fleet version
 ```
 

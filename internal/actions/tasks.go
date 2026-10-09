@@ -2,9 +2,14 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -168,4 +173,82 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// syncAllParallel is how many scaffold checks run at once: each clones
+// taw-theme.
+const syncAllParallel = 3
+
+// SyncAllTask checks every classic TAW theme against the taw-theme scaffold
+// (`bin/taw sync`, read-only), a few at a time, and caches each result for
+// the SYNC column. A theme that fails doesn't stop the others.
+func (a *Actions) SyncAllTask(sites []site.Site) (Task, error) {
+	type job struct {
+		s site.Site
+		t site.Theme
+	}
+	var jobs []job
+	for _, s := range sites {
+		for _, t := range s.TAWThemes() {
+			if taw.Guard(t, true) == nil {
+				jobs = append(jobs, job{s, t})
+			}
+		}
+	}
+	if len(jobs) == 0 {
+		return Task{}, errors.New("no theme to check (only classic TAW themes with bin/taw, not the umbrella's)")
+	}
+	return Task{
+		Title: fmt.Sprintf("Sync check: %d themes", len(jobs)),
+		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
+			say := sayTo(out)
+			var differ, failed []string
+			var mu sync.Mutex
+			g, gctx := errgroup.WithContext(ctx)
+			g.SetLimit(syncAllParallel)
+			for _, j := range jobs {
+				g.Go(func() error {
+					rep, err := a.taw(j.s).Sync(gctx, j.t, false, io.Discard)
+					mu.Lock()
+					defer mu.Unlock()
+					var line string
+					switch {
+					case err != nil:
+						line = "✗ " + j.t.Dir + ": " + err.Error()
+						failed = append(failed, j.t.Dir)
+					case len(rep.Errors) > 0:
+						line = "✗ " + j.t.Dir + ": " + rep.Errors[0]
+						failed = append(failed, j.t.Dir)
+					default:
+						d := rep.Drift(a.now())
+						taw.SaveDrift(a.Paths.CacheDir, j.s.Slug, j.t.Dir, d)
+						if len(d.Tier1) > 0 {
+							line = fmt.Sprintf("▲ %s: %d Tier 1 %s (%s)", j.t.Dir, len(d.Tier1), plural(len(d.Tier1), "path differs", "paths differ"), strings.Join(d.Tier1, ", "))
+							differ = append(differ, j.t.Dir)
+						} else {
+							line = "✓ " + j.t.Dir + ": matches taw-theme"
+							if len(d.Tier2) > 0 {
+								line += fmt.Sprintf(" (%d Tier 2 to review)", len(d.Tier2))
+							}
+						}
+					}
+					say("%s", line)
+					return nil
+				})
+			}
+			_ = g.Wait()
+			if err := ctx.Err(); err != nil {
+				return Summary{}, err
+			}
+			head := fmt.Sprintf("Checked %d themes: %d match taw-theme", len(jobs), len(jobs)-len(differ)-len(failed))
+			if len(differ) > 0 {
+				sort.Strings(differ)
+				head += fmt.Sprintf(", %d differ (%s)", len(differ), strings.Join(differ, ", "))
+			}
+			if len(failed) > 0 {
+				head += fmt.Sprintf(", %d failed", len(failed))
+			}
+			return Summary{Headline: head}, nil // the lines are the progress
+		},
+	}, nil
 }

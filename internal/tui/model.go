@@ -42,6 +42,7 @@ type Actions interface {
 	PlanFleet(ctx context.Context, sites []site.Site) actions.FleetPlan
 	LaunchFleet(ctx context.Context, plan actions.FleetPlan, findings map[string][]site.Finding, beside string) (actions.Launched, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
+	SyncAllTask(sites []site.Site) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
@@ -92,6 +93,7 @@ const (
 	modeHandoff
 	modeOutput
 	modeCreate
+	modeMenu
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -154,6 +156,10 @@ type Model struct {
 	hsite  site.Site
 	htheme site.Theme
 
+	menuInput  textinput.Model // the : menu's filter
+	menuCursor int
+	menuFrom   mode // where the menu goes back to
+
 	filtering bool
 	filter    textinput.Model
 	spin      spinner.Model
@@ -168,6 +174,9 @@ func New(ctx context.Context, d Deps) Model {
 	m := Model{deps: d, ctx: ctx, keys: newKeyMap(), now: d.Now()}
 	m.filter = textinput.New()
 	m.filter.Prompt = "/ "
+	m.menuInput = textinput.New()
+	m.menuInput.Prompt = ": "
+	m.menuInput.Placeholder = "type to find an action"
 	m.filter.Placeholder = "site, theme, branch, version, or: behind, dirty, unpushed, running, live, vite"
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	m.help = help.New()
@@ -528,6 +537,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch m.mode {
+	case modeMenu:
+		return m.onMenuKey(msg)
 	case modeOutput:
 		return m.onOutputKey(msg)
 	case modeHandoff:
@@ -577,6 +588,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeHelp
 		case key.Matches(msg, k.Handoff):
 			return m.openHandoff()
+		case key.Matches(msg, k.Menu):
+			return m.openMenu()
 		case key.Matches(msg, k.Agent):
 			return m.runAgent()
 		case key.Matches(msg, k.StartStop):
@@ -642,6 +655,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	case key.Matches(msg, k.Help):
 		m.mode = modeHelp
+	case key.Matches(msg, k.Menu):
+		return m.openMenu()
 	case key.Matches(msg, k.New):
 		return m.openCreate()
 	case key.Matches(msg, k.Handoff):
@@ -669,6 +684,9 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	k := m.keys
 	switch {
+	case key.Matches(msg, k.SyncAll):
+		model, cmd := m.syncAll()
+		return model, cmd, true
 	case key.Matches(msg, k.SyncCheck):
 		model, cmd := m.syncOrUpdate("check")
 		return model, cmd, true

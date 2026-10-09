@@ -133,6 +133,8 @@ func (m Model) body() string {
 	switch {
 	case m.mode == modeHelp:
 		return block(m.helpScreen(), m.width, h)
+	case m.mode == modeMenu:
+		return block(m.menuScreen(h), m.width, h)
 	case !m.loaded && m.err != nil:
 		return block(center(p.Fg(p.Err).Render("✗ "+m.err.Error()), m.width, h), m.width, h)
 	case m.mode == modeCreate && m.form != nil:
@@ -464,6 +466,8 @@ func (m Model) footer() string {
 		keys = outputKeys{m.keys, m.task != nil && m.task.running, m.task != nil && !m.task.running && m.task.summary.Secret != ""}
 	case m.mode == modeCreate:
 		keys = createKeys{}
+	case m.mode == modeMenu:
+		keys = menuKeys{}
 	}
 	// bubbles' help can overflow when the ellipsis itself doesn't fit: cut it.
 	return ansi.Truncate(status, m.width, "…") + "\n" + ansi.Truncate(" "+m.help.View(keys), m.width, "…")

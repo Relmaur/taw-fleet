@@ -315,3 +315,17 @@ func (m Model) askPull() (tea.Model, tea.Cmd) {
 	}
 	return m.askTask(task, "")
 }
+
+// syncAll checks every classic theme against the scaffold (Y).
+func (m Model) syncAll() (tea.Model, tea.Cmd) {
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	task, err := m.deps.Actions.SyncAllTask(m.rep.Sites)
+	if err != nil {
+		m.setFlash(err.Error(), true)
+		return m, nil
+	}
+	return m.startTask(task)
+}

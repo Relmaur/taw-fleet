@@ -467,6 +467,13 @@ func (f *fakeActions) PullTask(s site.Site, _ site.Theme, _ actions.SiteOp) (act
 	}}, nil
 }
 
+func (f *fakeActions) SyncAllTask(sites []site.Site) (actions.Task, error) {
+	return actions.Task{Title: fmt.Sprintf("Sync check: %d sites", len(sites)), Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		_, _ = out.Write([]byte("✓ acme: matches taw-theme\n▲ bistro-theme: 2 Tier 1 paths differ\n"))
+		return actions.Summary{Headline: "Checked 2 themes: 1 match taw-theme, 1 differ (bistro-theme)"}, nil
+	}}, nil
+}
+
 // runCmd executes a command returned by Update and feeds its message back.
 func runCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
@@ -1171,5 +1178,42 @@ func TestOtherAccountTag(t *testing.T) {
 	m.applyFilter()
 	if len(m.visible) != 1 {
 		t.Errorf("/other filters to themes of other accounts: %d rows", len(m.visible))
+	}
+}
+
+func TestCheckAllThemes(t *testing.T) {
+	m := withActions(t, 24, &fakeActions{})
+	next, cmd := m.Update(keyMsg("Y"))
+	m = drain(t, next.(Model), cmd)
+	out := screen(m)
+	for _, want := range []string{"Sync check: 4 sites", "▲ bistro-theme: 2 Tier 1 paths differ", "Checked 2 themes: 1 match taw-theme, 1 differ (bistro-theme)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestCommandMenu(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 30, f)
+	m = press(t, m, ":")
+	if m.mode != modeMenu || !strings.Contains(screen(m), "All actions  on acme") || !strings.Contains(screen(m), "work on it") {
+		t.Fatalf("the menu lists the actions:\n%s", screen(m))
+	}
+	m = press(t, m, "f", "i", "n", "d")
+	if out := screen(m); !strings.Contains(out, "Finder") || strings.Contains(out, "work on it") {
+		t.Errorf("typing filters:\n%s", out)
+	}
+	m = runCmd(t, m, keyMsg("enter"))
+	if m.mode != modeTable || len(f.did) != 1 || f.did[0] != actions.Finder {
+		t.Errorf("enter runs the action: mode %v, did %v", m.mode, f.did)
+	}
+	m = press(t, m, ":", "z", "z", "z")
+	if !strings.Contains(screen(m), "No action matches.") {
+		t.Errorf("no match:\n%s", screen(m))
+	}
+	m = press(t, m, "esc")
+	if m.mode != modeTable {
+		t.Error("esc closes the menu")
 	}
 }

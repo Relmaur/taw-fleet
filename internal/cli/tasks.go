@@ -80,16 +80,24 @@ func dirtyNote(t site.Theme) string {
 
 func newSyncCmd(d Deps, g *globals) *cobra.Command {
 	var theme string
-	var apply, yes, asJSON bool
+	var apply, yes, asJSON, all bool
 	cmd := &cobra.Command{
-		Use:   "sync <site>",
+		Use:   "sync <site> | --all",
 		Short: "Check a theme's framework files against the taw-theme scaffold (bin/taw sync)",
 		Long: "Run the theme's own `bin/taw sync`: compare its framework files (Tier 1) and docs/config\n" +
 			"(Tier 2) with the newest taw-theme. Reads only, unless --apply: then Tier 1 is written\n" +
 			"(Tier 2 is never written; review it by hand or with the update-theme skill).",
-		Example: "  taw-fleet sync chcapital\n  taw-fleet sync ls-mxico --apply",
-		Args:    cobra.ExactArgs(1),
+		Example: "  taw-fleet sync chcapital\n  taw-fleet sync ls-mxico --apply\n  taw-fleet sync --all",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if all {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if all {
+				return runSyncAll(cmd, d, g, apply)
+			}
 			s, t, a, err := resolveForTask(cmd, d, g, args[0], theme)
 			if err != nil {
 				return err
@@ -113,6 +121,7 @@ func newSyncCmd(d Deps, g *globals) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
 	cmd.Flags().BoolVar(&apply, "apply", false, "write the Tier 1 changes")
+	cmd.Flags().BoolVar(&all, "all", false, "check every classic TAW theme (read-only)")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask (with --apply)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print bin/taw sync's JSON report")
 	return cmd
@@ -241,4 +250,30 @@ func newWorkCmd(d Deps, g *globals) *cobra.Command {
 	cmd.Flags().BoolVar(&stop, "stop", false, "stop the theme's Vite and the site")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
 	return cmd
+}
+
+// runSyncAll checks every classic theme (sync --all).
+func runSyncAll(cmd *cobra.Command, d Deps, g *globals, apply bool) error {
+	if apply {
+		return errors.New("--all only checks; apply Tier 1 per theme (sync <site> --apply)")
+	}
+	a, err := d.actions()
+	if err != nil {
+		return err
+	}
+	offline := *g
+	offline.offline = true
+	rep, err := d.scanner(&offline).Run(cmd.Context())
+	if err != nil {
+		return err
+	}
+	task, err := a.SyncAllTask(rep.Sites)
+	if err != nil {
+		return err
+	}
+	sum, err := runTask(cmd, d, task, true, "")
+	if err != nil {
+		return err
+	}
+	return printSummary(cmd, d, sum)
 }
