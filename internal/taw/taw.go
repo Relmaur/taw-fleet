@@ -190,15 +190,20 @@ type UpdateResult struct {
 	Sections []Section // UPGRADING.md sections to work through
 }
 
-// UpdateCore runs `composer update taw/core --no-interaction` and reads the
-// new version and the UPGRADING.md sections that now apply. Composer's
+// UpdateCore runs `composer update taw/core --with-dependencies` and reads
+// the new version and the UPGRADING.md sections that now apply. Composer's
 // output goes to out as it's written.
+//
+// --with-dependencies lets Composer move taw/core's own dependencies too:
+// without it, a release that needs a newer one (v1.77.0 needs
+// enshrined/svg-sanitize ^1.0) is a silent no-op that exits 0. A behind
+// theme whose version didn't move is an error.
 func (r Runner) UpdateCore(ctx context.Context, t site.Theme, out io.Writer) (UpdateResult, error) {
 	if err := Guard(t, false); err != nil {
 		return UpdateResult{}, err
 	}
 	from := t.Core.Installed
-	name, args := "composer", []string{"update", "taw/core", "--no-interaction", "--no-progress"}
+	name, args := "composer", []string{"update", "taw/core", "--with-dependencies", "--no-interaction", "--no-progress"}
 	if r.Composer != "" {
 		name, args = r.php(), append([]string{r.Composer}, args...)
 	}
@@ -215,6 +220,10 @@ func (r Runner) UpdateCore(ctx context.Context, t site.Theme, out io.Writer) (Up
 	to, err := composer.InstalledVersion(t.RealPath, composer.CorePackage)
 	if err != nil {
 		return UpdateResult{}, fmt.Errorf("after the update: %w", err)
+	}
+	if t.Core.Behind && to == from {
+		return UpdateResult{}, fmt.Errorf("taw/core is still %s: Composer couldn't move it to %s (see its output above; `composer why-not taw/core %s` says what holds it back)",
+			strings.TrimPrefix(from, "v"), strings.TrimPrefix(t.Core.Latest, "v"), strings.TrimPrefix(t.Core.Latest, "v"))
 	}
 	result := UpdateResult{From: from, To: to}
 	if md, err := os.ReadFile(filepath.Join(t.RealPath, "vendor", "taw", "core", "UPGRADING.md")); err == nil {

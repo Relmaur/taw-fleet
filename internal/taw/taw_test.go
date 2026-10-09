@@ -128,11 +128,20 @@ func TestUpdateCore(t *testing.T) {
 		t.Errorf("res = %+v", res)
 	}
 	c := f.Calls()[0]
-	if c.Name != "/L/php" || !reflect.DeepEqual(c.Args, []string{"/L/composer.phar", "update", "taw/core", "--no-interaction", "--no-progress"}) {
+	if c.Name != "/L/php" || !reflect.DeepEqual(c.Args, []string{"/L/composer.phar", "update", "taw/core", "--with-dependencies", "--no-interaction", "--no-progress"}) {
 		t.Errorf("call = %+v", c)
 	}
 	if !strings.Contains(out.String(), "Upgrading taw/core") {
 		t.Errorf("out = %q", out.String())
+	}
+
+	// Composer exits 0 but taw/core didn't move (a dependency held it back).
+	stuck := Runner{Exec: &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) {
+		write("vendor/composer/installed.json", `{"packages":[{"name":"taw/core","version":"v1.59.2"}]}`)
+		return exec.Result{}, nil
+	}}}
+	if _, err := stuck.UpdateCore(context.Background(), classic(dir), &out); err == nil || !strings.Contains(err.Error(), "still 1.59.2") || !strings.Contains(err.Error(), "why-not") {
+		t.Errorf("a no-op update is an error: %v", err)
 	}
 
 	failing := Runner{Exec: &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) { return exec.Result{Code: 2}, nil }}}

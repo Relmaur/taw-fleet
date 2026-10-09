@@ -52,6 +52,10 @@ type Actions struct {
 
 	LocalAPI   create.API    // create's Local API; nil = the running Local app
 	CreatePoll time.Duration // create's polling interval; 0 = 2 s
+
+	// CoreLatest asks GitHub for the newest taw-core, skipping the cache, for
+	// an update-all; nil = keep the scan's answer.
+	CoreLatest func(ctx context.Context) (string, error)
 }
 
 // New detects the installed apps and returns ready Actions.
@@ -108,6 +112,10 @@ func (a *Actions) Do(ctx context.Context, k Kind, s site.Site, t site.Theme) (st
 
 // Handoff builds the agent prompt for a theme.
 func (a *Actions) Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error) {
+	return handoff.Build(a.handoffInput(s, t, findings))
+}
+
+func (a *Actions) handoffInput(s site.Site, t site.Theme, findings []site.Finding) handoff.Input {
 	in := handoff.Input{
 		Site: s, Theme: t, Findings: findings, Now: a.now(),
 		HasSkill: fileExists(filepath.Join(t.RealPath, ".claude", "skills", "update-theme", "SKILL.md")),
@@ -123,7 +131,7 @@ func (a *Actions) Handoff(s site.Site, t site.Theme, findings []site.Finding) (h
 	}
 	cs := a.Config.Site(s.Slug)
 	in.Production, in.Notes = cs.ProductionURL, cs.Notes
-	return handoff.Build(in)
+	return in
 }
 
 // Copy puts text on the clipboard.
@@ -174,39 +182,12 @@ type Launched struct {
 // Terminal the dashboard window then takes the left half of the screen and
 // Claude's window the right half.
 func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt, beside string) (Launched, error) {
-	claude, err := a.Claude()
-	if err != nil {
-		return Launched{}, err
-	}
-	term, fallback, err := a.scriptTerminal()
-	if err != nil {
-		return Launched{}, err
-	}
-	used := ranIn(term, fallback)
-
 	dir := filepath.Join(a.Paths.CacheDir, "handoff")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return Launched{}, err
-	}
 	base := fmt.Sprintf("%s-%s-%s", safeName(s.Slug), safeName(t.Dir), a.now().Format("20060102-150405"))
-	ls := LaunchScript{Title: p.Title, Dir: t.RealPath, Claude: claude,
-		Prompt: filepath.Join(dir, base+".md"), Done: filepath.Join(dir, base+".done"), CloseTerminal: used == "Terminal"}
-	script := filepath.Join(dir, base+".command")
-	if err := os.WriteFile(ls.Prompt, []byte(p.Text), 0o600); err != nil {
-		return Launched{}, err
-	}
-	_ = os.Remove(ls.Done)
-	placed := false
-	if beside != "" && used == "Terminal" {
-		if left, right, ok := a.halves(ctx, beside); ok {
-			ls.Bounds = right
-			placed = a.place(ctx, beside, left) == nil
-		}
-	}
-	if err := os.WriteFile(script, []byte(ls.String()), 0o700); err != nil {
-		return Launched{}, err
-	}
-	if err := a.open.RunScript(ctx, term, script, fallback); err != nil {
+	ls := LaunchScript{Title: p.Title, Dir: t.RealPath,
+		Prompt: filepath.Join(dir, base+".md"), Done: filepath.Join(dir, base+".done")}
+	used, placed, err := a.launch(ctx, ls, p.Text, filepath.Join(dir, base+".command"), beside)
+	if err != nil {
 		return Launched{}, err
 	}
 	msg := fmt.Sprintf("Started Claude Code in %s for %s (branch %s)", used, t.Dir, p.Branch)
@@ -214,6 +195,41 @@ func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p hando
 		msg = fmt.Sprintf("Claude Code is working on %s in the window on the right (branch %s)", t.Dir, p.Branch)
 	}
 	return Launched{Message: msg, Done: ls.Done}, nil
+}
+
+// launch writes the prompt and the script, and opens a terminal running
+// Claude Code with it, beside the dashboard when beside is its tty. It says
+// which terminal ran it and whether the windows were arranged.
+func (a *Actions) launch(ctx context.Context, ls LaunchScript, prompt, script, beside string) (used string, placed bool, err error) {
+	if ls.Claude, err = a.Claude(); err != nil {
+		return "", false, err
+	}
+	term, fallback, err := a.scriptTerminal()
+	if err != nil {
+		return "", false, err
+	}
+	used = ranIn(term, fallback)
+	ls.CloseTerminal = used == "Terminal"
+	if err := os.MkdirAll(filepath.Dir(ls.Prompt), 0o700); err != nil {
+		return "", false, err
+	}
+	if err := os.WriteFile(ls.Prompt, []byte(prompt), 0o600); err != nil {
+		return "", false, err
+	}
+	_ = os.Remove(ls.Done)
+	if beside != "" && used == "Terminal" {
+		if left, right, ok := a.halves(ctx, beside); ok {
+			ls.Bounds = right
+			placed = a.place(ctx, beside, left) == nil
+		}
+	}
+	if err := os.WriteFile(script, []byte(ls.String()), 0o700); err != nil {
+		return "", false, err
+	}
+	if err := a.open.RunScript(ctx, term, script, fallback); err != nil {
+		return "", false, err
+	}
+	return used, placed, nil
 }
 
 // Bounds is a window's {left, top, right, bottom} in screen points.
@@ -282,9 +298,10 @@ func (a *Actions) TTY(ctx context.Context) string {
 // LaunchScript is the .command file a terminal runs for a handoff.
 type LaunchScript struct {
 	Title, Dir, Claude, Prompt string
-	Done                       string // touched when Claude Code exits
-	Bounds                     Bounds // where the window goes (Terminal); zero = leave it
-	CloseTerminal              bool   // close the Terminal window after a clean exit
+	Args                       []string // more claude arguments (--add-dir …), before the prompt
+	Done                       string   // touched when Claude Code exits
+	Bounds                     Bounds   // where the window goes (Terminal); zero = leave it
+	CloseTerminal              bool     // close the Terminal window after a clean exit
 }
 
 // String is the script: go to the theme, place the window, start Claude
@@ -298,7 +315,11 @@ func (l LaunchScript) String() string {
 		b := l.Bounds
 		out += fmt.Sprintf(`osascript -e "tell application \"Terminal\" to set bounds of (first window whose tty is \"$(tty)\") to {%d, %d, %d, %d}" >/dev/null 2>&1`+"\n", b[0], b[1], b[2], b[3])
 	}
-	out += shq(l.Claude) + ` "$(cat ` + shq(l.Prompt) + `)"` + "\n" +
+	out += shq(l.Claude)
+	for _, arg := range l.Args {
+		out += " " + shq(arg)
+	}
+	out += ` "$(cat ` + shq(l.Prompt) + `)"` + "\n" +
 		"status=$?\n" +
 		"touch " + shq(l.Done) + "\n"
 	if l.CloseTerminal {

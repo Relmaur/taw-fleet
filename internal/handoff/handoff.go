@@ -61,16 +61,7 @@ func Build(in Input) (Prompt, error) {
 	if IsUmbrella(t) {
 		return Prompt{}, ErrUmbrella
 	}
-	d := data{Input: in, Branch: Branch(in)}
-	d.PHP = orDefault(in.Tools.PHP, "php")
-	d.Composer = "composer"
-	if in.Tools.Composer != "" {
-		d.Composer = shq(d.PHP) + " " + shq(in.Tools.Composer)
-	}
-	if in.Site.SockLive && in.Tools.WPCli != "" {
-		d.WP = fmt.Sprintf("%s -d mysqli.default_socket=%s -d pdo_mysql.default_socket=%s %s --path=%s",
-			shq(d.PHP), shq(in.Site.Socket), shq(in.Site.Socket), shq(in.Tools.WPCli), shq(in.Site.WebRoot))
-	}
+	d := newData(in)
 	var b strings.Builder
 	if err := tmpl.Execute(&b, d); err != nil {
 		return Prompt{}, err
@@ -107,6 +98,7 @@ type data struct {
 	PHP      string
 	Composer string
 	WP       string // full wp-cli invocation, "" when the site isn't running
+	Batch    bool   // the batch prompt (update-all): nobody answers questions
 }
 
 func (d data) Classic() bool { return d.Theme.Kind == site.KindClassic }
@@ -156,8 +148,8 @@ func (d data) Steps() []string {
 	}
 	from, to := strings.TrimPrefix(t.Core.Installed, "v"), strings.TrimPrefix(t.Core.Latest, "v")
 	if t.Core.Behind {
-		steps = append(steps, fmt.Sprintf("**taw/core.** **You have my approval** to run %s (%s → %s). Then read %s and work through **every section newer than %s**: run each **Check** and note its outcome (\"not applicable\" is fine, skipping one isn't).",
-			c("composer update taw/core"), from, to, c("vendor/taw/core/UPGRADING.md"), from))
+		steps = append(steps, fmt.Sprintf("**taw/core.** **You have my approval** to run %s (%s → %s; it may also move taw/core's own dependencies). Check the version moved; if it didn't, stop and tell me. Then read %s and work through **every section newer than %s**: run each **Check** and note its outcome (\"not applicable\" is fine, skipping one isn't).",
+			c("composer update taw/core --with-dependencies"), from, to, c("vendor/taw/core/UPGRADING.md"), from))
 	} else {
 		steps = append(steps, "**taw/core** is current; no update needed. Mention it in the report.")
 	}
@@ -181,12 +173,7 @@ func (d data) Steps() []string {
 	return steps
 }
 
-var tmpl = template.Must(template.New("handoff").Funcs(template.FuncMap{
-	"shq":  shq,
-	"inc":  func(i int) int { return i + 1 },
-	"v":    func(s string) string { return strings.TrimPrefix(s, "v") },
-	"date": func(t time.Time) string { return t.Format("2006-01-02 15:04") },
-}).Parse(promptTemplate))
+var tmpl = template.Must(template.New("handoff").Funcs(funcs()).Parse(factsTemplate + promptTemplate))
 
 // shq quotes a value for a POSIX shell command shown in the prompt.
 func shq(s string) string {

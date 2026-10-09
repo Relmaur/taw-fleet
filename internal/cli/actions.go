@@ -25,6 +25,42 @@ func (d Deps) actions() (*actions.Actions, error) {
 	return actions.New(d.Paths, d.Runner, cfg), nil
 }
 
+// runFleet lists (or, with launch, starts) an update of every client TAW
+// theme that needs one.
+func runFleet(cmd *cobra.Command, d Deps, g *globals, a *actions.Actions, rep scan.Report, launch bool) error {
+	a.CoreLatest = d.coreLatest(g)
+	plan := a.PlanFleet(cmd.Context(), rep.Sites)
+	w, p := cmd.OutOrStdout(), d.palette()
+	for _, e := range plan.Themes {
+		core := "current"
+		if e.Theme.Core.Behind {
+			core = strings.TrimPrefix(e.Theme.Core.Installed, "v") + " → " + strings.TrimPrefix(e.Theme.Core.Latest, "v")
+		}
+		_, _ = lipgloss.Fprintln(w, p.Fg(p.OK).Render("+")+" "+e.Site.Slug+" / "+e.Theme.Dir+"  "+p.Fg(p.Muted).Render("taw/core "+core))
+	}
+	for _, s := range plan.Skipped {
+		_, _ = lipgloss.Fprintln(w, p.Fg(p.Warn).Render("−")+" "+s.Site+" / "+s.Theme+"  "+p.Fg(p.Muted).Render("left out: "+s.Reason))
+	}
+	if len(plan.Themes) == 0 {
+		_, err := fmt.Fprintln(w, "Nothing to update: every client TAW theme is current.")
+		return err
+	}
+	if !launch {
+		_, err := fmt.Fprintln(w, "\nRun with --launch to update these in one Claude Code session.")
+		return err
+	}
+	findings := map[string][]site.Finding{}
+	for _, f := range doctor.Run(rep, d.doctorOptions()) {
+		findings[f.SiteID] = append(findings[f.SiteID], f)
+	}
+	l, err := a.LaunchFleet(cmd.Context(), plan, findings, "")
+	if err != nil {
+		return err
+	}
+	_, err = lipgloss.Fprintln(w, p.Fg(p.OK).Render("✓")+" "+l.Message)
+	return err
+}
+
 var openFlags = []struct {
 	kind  actions.Kind
 	flag  string
@@ -97,17 +133,26 @@ func newOpenCmd(d Deps, g *globals) *cobra.Command {
 
 func newHandoffCmd(d Deps, g *globals) *cobra.Command {
 	var theme, out string
-	var copyIt, launch bool
+	var copyIt, launch, all bool
 	cmd := &cobra.Command{
-		Use:   "handoff <site>",
+		Use:   "handoff <site> | --all",
 		Short: "Hand a theme update to a coding agent: a ready prompt with all the context",
 		Long: "Write the prompt that hands this theme's update to an agent: the update-theme skill,\n" +
 			"where everything is on this Mac, what taw-fleet found, and the rules (work on a\n" +
 			"chore/taw-core-<version> branch, taw/core update approved, Tier 2 diffs need your OK,\n" +
 			"ask before pushing). It prints the prompt; --copy puts it on the clipboard and\n" +
-			"--launch opens a terminal running Claude Code in the theme folder with it.",
-		Example: "  taw-fleet handoff ls-mxico\n  taw-fleet handoff ls-mxico --launch\n  taw-fleet handoff emelambda --copy",
-		Args:    cobra.ExactArgs(1),
+			"--launch opens a terminal running Claude Code in the theme folder with it.\n\n" +
+			"--all updates every client TAW theme that needs it in one Claude Code session:\n" +
+			"a coordinator runs a subagent per theme (the update-theme skill's batch mode) and\n" +
+			"asks you once about docs changes, sites to start and pushes. Without --launch it\n" +
+			"lists the themes it would take and the ones it leaves out.",
+		Example: "  taw-fleet handoff ls-mxico\n  taw-fleet handoff ls-mxico --launch\n  taw-fleet handoff emelambda --copy\n  taw-fleet handoff --all --launch",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if all {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := d.actions()
 			if err != nil {
@@ -116,6 +161,9 @@ func newHandoffCmd(d Deps, g *globals) *cobra.Command {
 			rep, err := d.scanner(g).Run(cmd.Context())
 			if err != nil {
 				return err
+			}
+			if all {
+				return runFleet(cmd, d, g, a, rep, launch)
 			}
 			s, t, err := scan.ResolveTheme(rep.Sites, args[0], theme)
 			if err != nil {
@@ -166,6 +214,7 @@ func newHandoffCmd(d Deps, g *globals) *cobra.Command {
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
 	cmd.Flags().BoolVar(&copyIt, "copy", false, "copy the prompt to the clipboard")
 	cmd.Flags().BoolVar(&launch, "launch", false, "open a terminal running Claude Code in the theme folder with the prompt")
+	cmd.Flags().BoolVar(&all, "all", false, "every client TAW theme that needs an update, in one Claude Code session (with --launch)")
 	cmd.Flags().StringVar(&out, "out", "", "also write the prompt to this file")
 	return cmd
 }

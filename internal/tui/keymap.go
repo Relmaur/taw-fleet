@@ -9,7 +9,7 @@ type keyMap struct {
 
 	// Shortcuts on the selected theme.
 	Editor, Finder, Browser, Admin, GitHub, PRs, Terminal, Production key.Binding
-	Handoff, Copy, Agent                                              key.Binding
+	Handoff, Copy, Agent, UpdateAll                                   key.Binding
 	StartStop, Restart, Yes, No                                       key.Binding
 	SyncCheck, SyncApply, UpdateCore, Output                          key.Binding
 	New, CopySecret, LiveRefresh                                      key.Binding
@@ -41,6 +41,7 @@ func newKeyMap() keyMap {
 		Handoff:     key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off")),
 		Copy:        key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
 		Agent:       key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "update with agent")),
+		UpdateAll:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "update all with agents")),
 		StartStop:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
 		Restart:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
 		Yes:         key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y", "yes")),
@@ -114,7 +115,7 @@ func (c confirmKeys) FullHelp() [][]key.Binding { return c.k.FullHelp() }
 
 // ShortHelp is the one-line help bar.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.StartStop, k.UpdateCore, k.Agent, k.Handoff, k.New, k.Filter, k.Help, k.Quit}
+	return []key.Binding{k.Detail, k.Editor, k.GitHub, k.StartStop, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.New, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the help screen, in columns.
@@ -123,7 +124,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Help, k.Quit},
 		{k.Detail, k.Back, k.Filter, k.Refresh, k.LiveRefresh, k.StartStop, k.Restart, k.New},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
-		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Agent, k.Output, k.Handoff, k.Copy},
+		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Output, k.Handoff, k.Copy},
 	}
 }
 
