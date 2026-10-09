@@ -148,3 +148,38 @@ func TestStopWork(t *testing.T) {
 		t.Errorf("headline %q, ops %v, %v", sum.Headline, ops, err)
 	}
 }
+
+func TestSyncAllTask(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	s, th := fixture()
+	th.HasBinTaw = true
+	other := th
+	other.Dir, other.RealPath = "other", "/S/other"
+	gut := th
+	gut.Dir, gut.Kind = "blocky", site.KindGutenberg
+	s.Themes = []site.Theme{th, other, gut}
+	f.Script = func(sp exec.Spec) (exec.Result, error) {
+		if sp.Dir == "/S/other" {
+			return exec.Result{Stdout: []byte(`{"taw_core":{},"tier1":[{"path":"bin/","changed":true}],"tier2":[],"errors":[],"clean":false}`)}, nil
+		}
+		return exec.Result{Stdout: []byte(`{"taw_core":{},"tier1":[{"path":"bin/","changed":false}],"tier2":[{"path":"composer.json","changed":true}],"errors":[],"clean":false}`)}, nil
+	}
+	task, err := a.SyncAllTask([]site.Site{s})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	sum, err := task.Run(context.Background(), &out)
+	if err != nil || task.Title != "Sync check: 2 themes" {
+		t.Fatalf("%q %v", task.Title, err)
+	}
+	if sum.Headline != "Checked 2 themes: 1 match taw-theme, 1 differ (other)" {
+		t.Errorf("headline %q", sum.Headline)
+	}
+	if !strings.Contains(out.String(), "✓ ls-mexico: matches taw-theme (1 Tier 2 to review)") || !strings.Contains(out.String(), "▲ other: 1 Tier 1 path differs (bin/)") {
+		t.Errorf("progress:\n%s", out.String())
+	}
+	if len(f.Calls()) != 2 {
+		t.Errorf("the block theme isn't synced: %d calls", len(f.Calls()))
+	}
+}
