@@ -23,6 +23,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/createform"
+	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
@@ -70,6 +71,10 @@ type Deps struct {
 	TTY        string // the dashboard's terminal, to put Claude's window beside it; "" = unknown
 
 	CreateDefaults config.Create // the config's [create] section, for the n form
+
+	// GitHub reads the repositories' pull requests and deploys. nil = no
+	// PR and DEPLOY columns.
+	GitHub func(ctx context.Context, repos []string) map[string]site.RepoState
 
 	// Live checks the production sites (cached unless fresh). nil = no
 	// production view.
@@ -127,6 +132,10 @@ type Model struct {
 	liveFetching bool
 	liveAt       time.Time // when the last check finished
 	liveErr      error
+
+	repos         map[string]site.RepoState // pull requests and deploys by owner/name
+	reposFetching bool
+	reposAt       time.Time
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -347,11 +356,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case scanDoneMsg:
 		live.Apply(msg.rep.Sites, m.live)
+		github.ApplyRepos(msg.rep.Sites, m.repos)
 		m.applyScan(msg.rep, msg.err)
+		var cmds []tea.Cmd
 		if m.liveDue() {
-			return m.fetchLive(false)
+			model, cmd := m.fetchLive(false)
+			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		return m, nil
+		if m.reposDue() {
+			model, cmd := m.fetchRepos(false)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case reposDoneMsg:
+		return m.onRepos(msg)
 
 	case liveDoneMsg:
 		m.liveFetching, m.liveAt, m.liveErr = false, m.deps.Now(), msg.err
@@ -425,14 +444,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.deps.Refresh > 0 && !m.scanning && m.loaded && m.now.Sub(m.rep.ScannedAt) >= m.deps.Refresh {
 			return m, tea.Batch(tick(), m.startScan())
 		}
+		cmds := []tea.Cmd{tick()}
 		if m.liveDue() {
 			model, cmd := m.fetchLive(false)
-			return model, tea.Batch(tick(), cmd)
+			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		return m, tick()
+		if m.reposDue() {
+			model, cmd := m.fetchRepos(false)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 
 	case spinner.TickMsg:
-		if !m.scanning && !m.liveFetching && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
+		if !m.scanning && !m.liveFetching && !m.reposFetching && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -586,11 +610,20 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.startScan()
 		}
 	case key.Matches(msg, k.LiveRefresh):
-		if m.deps.Live == nil {
+		if m.deps.Live == nil && m.deps.GitHub == nil {
 			m.setFlash("no production view: add production_url to sites in the config", true)
 			return m, nil
 		}
-		return m.fetchLive(true)
+		var cmds []tea.Cmd
+		if m.deps.GitHub != nil {
+			model, cmd := m.fetchRepos(true)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		if m.deps.Live != nil {
+			model, cmd := m.fetchLive(true)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 	case key.Matches(msg, k.Help):
 		m.mode = modeHelp
 	case key.Matches(msg, k.New):

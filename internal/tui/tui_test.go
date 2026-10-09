@@ -976,3 +976,87 @@ func TestWorkOnASite(t *testing.T) {
 		t.Errorf("/vite filters to the theme with Vite running: %d rows", len(m.visible))
 	}
 }
+
+// reposMsg runs the command batch and returns the reposDoneMsg in it.
+func reposMsg(t *testing.T, cmd tea.Cmd) reposDoneMsg {
+	t.Helper()
+	var find func(tea.Msg) (reposDoneMsg, bool)
+	find = func(msg tea.Msg) (reposDoneMsg, bool) {
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					if r, ok := find(c()); ok {
+						return r, true
+					}
+				}
+			}
+		}
+		r, ok := msg.(reposDoneMsg)
+		return r, ok
+	}
+	if r, ok := find(cmd()); ok {
+		return r
+	}
+	t.Fatal("no reposDoneMsg")
+	return reposDoneMsg{}
+}
+
+func TestPRsAndDeploys(t *testing.T) {
+	var asked []string
+	state := site.RepoState{Repo: "Relmaur/client--theme", Default: "main", Head: "ccc3333", HeadCI: site.ChecksPassing,
+		PRs:    []site.PullRequest{{Number: 12, Title: "Update taw/core", Branch: "chore/taw-core-1.78.1", Checks: site.ChecksPassing, SameRepo: true}},
+		Deploy: &site.Deploy{Workflow: "Deploy", Deployed: "aaa1111", DeployedAt: now.Add(-2 * time.Hour), Behind: 2, Pending: []site.Commit{{SHA: "ccc3333", Title: "Fix the hero"}}}}
+	m := New(context.Background(), Deps{
+		Scan:   func(context.Context) (scan.Report, error) { return fixtureReport(), nil },
+		Doctor: func(r scan.Report) []site.Finding { return doctor.Run(r, doctor.Options{}) },
+		Paths:  paths.ForHome("/Users/me", nil), Version: "v1.5.0", Dark: true, Now: func() time.Time { return now },
+		GitHub: func(_ context.Context, repos []string) map[string]site.RepoState {
+			asked = repos
+			return map[string]site.RepoState{"Relmaur/client--theme": state}
+		},
+	})
+	m = step(t, m, tea.WindowSizeMsg{Width: 150, Height: 40})
+	next, cmd := m.Update(scanDoneMsg{rep: fixtureReport()})
+	m = next.(Model)
+	if !m.reposFetching {
+		t.Fatal("the first scan reads GitHub")
+	}
+	m = step(t, m, reposMsg(t, cmd))
+	if strings.Join(asked, ",") != "Relmaur/client--theme" {
+		t.Errorf("asked for %v", asked)
+	}
+	out := screen(m)
+	for _, want := range []string{"PR   DEPLOY", "1✓   ↑2", "#12 Update taw/core  ✓ CI passed", "↑2 on main, not deployed", "ccc3333 Fix the hero"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(fmt.Sprint(m.findings), "pr.ready") || !strings.Contains(fmt.Sprint(m.findings), "deploy.pending") {
+		t.Errorf("findings lack the GitHub rules: %v", m.findings)
+	}
+
+	// A rescan keeps the answer; a deploy on its way makes it refresh often.
+	m = step(t, m, scanDoneMsg{rep: fixtureReport()})
+	if m.rep.Sites[0].Themes[0].GitHub == nil {
+		t.Error("rescan dropped the GitHub state")
+	}
+	if m.reposDue() {
+		t.Error("not due right after an answer")
+	}
+	m.deps.Now = func() time.Time { return now.Add(20 * time.Second) }
+	if m.reposDue() {
+		t.Error("nothing deploying: every 5 minutes")
+	}
+	running := state
+	running.Deploy = &site.Deploy{Deployed: "aaa1111", Running: &site.Run{SHA: "ccc3333"}}
+	m.repos = map[string]site.RepoState{"Relmaur/client--theme": running}
+	if !m.reposDue() {
+		t.Error("a deploy running: every 15 seconds")
+	}
+
+	// L reads GitHub now.
+	m = press(t, m, "L")
+	if !m.reposFetching {
+		t.Error("L refreshes pull requests and deploys")
+	}
+}

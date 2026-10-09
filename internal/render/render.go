@@ -134,6 +134,16 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 		if t.Dev != "" {
 			row("vite", p.Fg(p.Accent).Render(t.Dev))
 		}
+		for i, l := range GitHubLines(p, t.GitHub, now) {
+			k := ""
+			switch {
+			case i == 0 && strings.HasPrefix(l.Key, "pr"):
+				k = "PRs"
+			case l.Key == "deploy":
+				k = "deploy"
+			}
+			row(k, l.Text)
+		}
 		cards = append(cards, strings.Join(rows, "\n"))
 	}
 
@@ -300,4 +310,78 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// Line is one GitHub line of a theme: Key says what it's about ("pr",
+// "deploy", "pending" for an undeployed commit).
+type Line struct{ Key, Text string }
+
+// GitHubLines describes a theme's open pull requests and its deploy.
+func GitHubLines(p style.Palette, st *site.RepoState, now time.Time) []Line {
+	if st == nil {
+		return nil
+	}
+	muted := p.Fg(p.Muted)
+	if st.Error != "" {
+		return []Line{{"pr", muted.Render("GitHub: " + st.Error)}}
+	}
+	var out []Line
+	for _, pr := range st.PRs {
+		var state string
+		switch {
+		case pr.Draft:
+			state = muted.Render("draft")
+		case pr.Conflicted:
+			state = p.Fg(p.Warn).Render("! conflicts")
+		case pr.Checks == site.ChecksFailing:
+			state = p.Fg(p.Err).Render("✗ CI failing")
+		case pr.Checks == site.ChecksPending:
+			state = p.Fg(p.Warn).Render("… CI running")
+		case pr.Checks == site.ChecksPassing:
+			state = p.Fg(p.OK).Render("✓ CI passed")
+		default:
+			state = muted.Render("no CI")
+		}
+		out = append(out, Line{"pr", fmt.Sprintf("#%d %s  %s  %s", pr.Number, pr.Title, state, muted.Render(pr.Branch))})
+	}
+	if len(st.PRs) == 0 {
+		out = append(out, Line{"pr", muted.Render("none open")})
+	}
+	d := st.Deploy
+	if d == nil {
+		return append(out, Line{"deploy", muted.Render("no deploy workflow")})
+	}
+	if d.Running != nil {
+		out = append(out, Line{"deploy", p.Fg(p.Accent).Render("⟳ deploying "+short(d.Running.SHA)) + muted.Render(", started "+Ago(now, d.Running.Started))})
+	}
+	if d.Failed != nil {
+		out = append(out, Line{"deploy", p.Fg(p.Err).Render("✗ deploy of "+short(d.Failed.SHA)+" failed") + muted.Render(" "+Ago(now, d.Failed.Started))})
+	}
+	switch d.Deployed {
+	case "":
+		out = append(out, Line{"deploy", muted.Render("never deployed successfully")})
+	case st.Head:
+		out = append(out, Line{"deploy", p.Fg(p.OK).Render("✓ production has "+st.Default) + muted.Render(" ("+short(d.Deployed)+", "+Ago(now, d.DeployedAt)+")")})
+	default:
+		why := ""
+		switch st.HeadCI {
+		case site.ChecksPending:
+			why = ", CI running"
+		case site.ChecksFailing:
+			why = ", CI failed"
+		}
+		out = append(out, Line{"deploy", p.Fg(p.Warn).Render(fmt.Sprintf("↑%d on %s, not deployed%s", d.Behind, st.Default, why)) +
+			muted.Render(" (production: "+short(d.Deployed)+", "+Ago(now, d.DeployedAt)+")")})
+		for _, c := range d.Pending {
+			out = append(out, Line{"pending", muted.Render(short(c.SHA)) + " " + c.Title})
+		}
+	}
+	return out
+}
+
+func short(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }

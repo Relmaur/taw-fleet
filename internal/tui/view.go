@@ -175,12 +175,15 @@ func (m Model) emptyState() string {
 
 // --- table ------------------------------------------------------------------
 
-type columns struct{ site, theme, kind, core, sync, live, git int }
+type columns struct{ site, theme, kind, core, sync, live, pr, deploy, git int }
 
 func (m Model) columns(width int) columns {
 	c := columns{site: 4, theme: 5, kind: 7, core: 8, sync: 4}
 	if m.deps.Live != nil { // only with production sites configured
 		c.live = 4
+	}
+	if m.deps.GitHub != nil {
+		c.pr, c.deploy = 3, 6
 	}
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
@@ -193,7 +196,7 @@ func (m Model) columns(width int) columns {
 	c.site = min(c.site, 24)
 	c.theme = min(c.theme, 20)
 	// marker + dot + spaces + six gaps of two.
-	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + c.liveWidth() + 10
+	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + c.liveWidth() + c.ghWidth() + 10
 	c.git = width - fixed
 	if c.git < 8 { // squeeze the names before the git column vanishes
 		over := 8 - c.git
@@ -201,7 +204,7 @@ func (m Model) columns(width int) columns {
 		c.site -= max(cut, 0)
 		over -= max(cut, 0)
 		c.theme -= min(max(over, 0), c.theme-10)
-		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+c.liveWidth()+10), 4)
+		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+c.liveWidth()+c.ghWidth()+10), 4)
 	}
 	return c
 }
@@ -212,6 +215,22 @@ func (c columns) liveWidth() int {
 		return 0
 	}
 	return c.live + 2
+}
+
+// ghWidth is the PR and DEPLOY columns with their gaps, or nothing.
+func (c columns) ghWidth() int {
+	if c.pr == 0 {
+		return 0
+	}
+	return c.pr + c.deploy + 4
+}
+
+// ghCols are the PR and DEPLOY cells with their gaps, when shown.
+func (c columns) ghCols(pr, deploy string) string {
+	if c.pr == 0 {
+		return ""
+	}
+	return pad(pr, c.pr) + "  " + pad(deploy, c.deploy) + "  "
 }
 
 // liveCol is a LIVE cell with its gap, when the column is shown.
@@ -238,7 +257,7 @@ func (m Model) table(width int) string {
 	c := m.columns(width)
 	head := p.Fg(p.Muted).Bold(true)
 	lines := []string{
-		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+"GIT"),
+		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+c.ghCols("PR", "DEPLOY")+"GIT"),
 		p.Fg(p.Faint).Render(strings.Repeat("─", width)),
 	}
 	if len(m.visible) == 0 {
@@ -287,6 +306,7 @@ func (m Model) table(width int) string {
 			pad(p.Core(t.Core), c.core) + "  " +
 			pad(p.Sync(t.Drift), c.sync) + "  " +
 			c.liveCol(liveCell) +
+			c.ghCols(p.PRs(t.GitHub), p.Deploy(t.GitHub)) +
 			ansi.Truncate(p.GitFit(t.Git, c.git), c.git, "…")
 		lines = append(lines, line)
 	}
@@ -371,8 +391,8 @@ func (m Model) helpScreen() string {
 	h.ShowAll = true
 	muted := p.Fg(p.Muted)
 	legend := []string{
-		p.Dot(site.StatusRunning) + " running   " + p.Dot(site.StatusHalted) + " halted   " + p.Dot(site.StatusBusy) + " starting/stopping",
-		muted.Render("↗") + " symlink (the umbrella's themes)   " + p.Fg(p.Accent).Render("vite") + " Vite is running (w stops it)",
+		p.Dot(site.StatusRunning) + " running   " + p.Dot(site.StatusHalted) + " halted   " + p.Dot(site.StatusBusy) + " starting/stopping   " +
+			muted.Render("↗") + " symlink   " + p.Fg(p.Accent).Render("vite") + " Vite is running",
 		p.Core(site.CoreInfo{Installed: "v1.59.2", Latest: "v1.76.1", Behind: true}) + "  taw/core installed ▲ newest",
 		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "main", Upstream: "origin/main", Dirty: 3, Ahead: 1, Behind: 2}) +
 			"  uncommitted ±, to push ↑, to pull ↓",
@@ -381,6 +401,8 @@ func (m Model) helpScreen() string {
 			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
 		p.Live(&site.Production{Reachable: true, Verified: true}) + " " + p.Live(&site.Production{Reachable: true}) + " " + p.Live(&site.Production{}) + " " + p.Live(nil) +
 			"  live: verified, answering but unverified, refused or down, no production URL",
+		p.Fg(p.OK).Render("2✓") + " " + p.Fg(p.Err).Render("2✗") + "  open PRs: CI passed, failed   " +
+			p.Fg(p.OK).Render("✓") + " " + p.Fg(p.Warn).Render("↑2") + " " + p.Fg(p.Accent).Render("⟳") + " " + p.Fg(p.Err).Render("✗") + "  deploy: current, behind, running, failed",
 	}
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Faint).Padding(1, 2)
 	content := lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Keys") + "\n\n" + h.View(m.keys) +
