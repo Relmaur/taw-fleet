@@ -1,0 +1,40 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+ ● acme-shop  http://acme.local  running                                                            
+   ~/Local Sites/acme-shop                                                                          
+   PHP 8.2.30  ·  id a1                                                                             
+   Local name: Acme                                                                                 
+                                                                                                    
+ ╭───────────────────────────────────────────────╮                                                  
+ │ acme   CLASSIC                                │                                                  
+ │                                               │                                                  
+ │ path       wp-content/themes/acme             │                                                  
+ │ taw/core   1.76.1  (latest)                   │                                                  
+ │ git        main  tracking origin/main         │                                                  
+ │ repo       github.com/Relmaur/client--theme   │                                                  
+ │ version    abc1234  ·  last commit 2 days ago │                                                  
+ │ bin/taw    yes                                │                                                  
+ ╰───────────────────────────────────────────────╯                                                  
+                                                                                                    
+ ● Production  https://acme.mx  checked just now                                                    
+   WordPress   ·  PHP   ·  taw/core 1.76.1                                                          
+   companion   ·  verified                                                                          
+                                                                                                    
+ ● Feedback  acme.mx  checked just now                                                              
+   3 open comments, the oldest 3 days ago                                                           
+   #108 /credito-pyme/ Actualizar texto por: "Buró de crédito Evaluación flexible." · 3 hours ago   
+   #107 /credito-pyme/ Cambiar texto por: Garantía… · 1 day ago                                     
+   #99 /multimedia/ Cambiar el nombre por: Despojo de inmuebles… un problema creciente. · 3 days ago
+                                                                                                    
+   ▲ 3 open comments in BugSmash, the oldest 3 days old  comments.open                              
+     → ask Claude in the TAW umbrella: "resolve comments on acme-shop" (skill taw-resolve-comments) 
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+
+ ↑/↓ scroll • pgdn page down • esc back • ? help • q quit

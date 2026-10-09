@@ -58,15 +58,19 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
-| `L` | check the production sites and GitHub now (see below); otherwise every 5 minutes |
+| `L` | check the production sites, the BugSmash comments and GitHub now (see below); otherwise every 5 minutes |
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
-| `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
+| `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, the BugSmash comments, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
 | `?` | keys and symbols |
 | `q` | quit |
 
-At 120 columns and wider, the selected site's details sit beside the table. The colors follow
+Each row is a two-line card: the site on top with its columns, and underneath its theme, the
+theme's kind, the production host (when there's room), the age of the oldest open BugSmash
+comment under **FB**, and how long ago the last commit was under **GIT**. At 120 columns and
+wider, the selected site's details sit beside the table (the pane narrows, or steps aside, when
+the table needs the room). The colors follow
 your terminal's light or dark background. When the output isn't a terminal (piped, CI),
 `taw-fleet` prints the `list` table instead.
 
@@ -85,6 +89,7 @@ taw-fleet pull <site>     # production content into the Local site (preview, the
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below); sync --all checks every theme
 taw-fleet refresh         # everything again, past the caches (the dashboard's ctrl+r)
+taw-fleet comments        # open BugSmash review comments per site (see below)
 taw-fleet version
 ```
 
@@ -92,15 +97,20 @@ Every read command takes `--json` (for scripts and Claude sessions) and `--offli
 GitHub; use the cached newest versions).
 
 ```
- taw-fleet  ·  8 sites  ·  9 TAW themes  ·  3 running
+ ◆ taw-fleet v1.9.0 · 9 sites · 10 themes · 6 running · 8 behind                 updated just now
 
-    SITE                 THEME            KIND      TAW/CORE         GIT
- ●  ch-capital---taw     chcapital        CLASSIC   1.76.1           master
- ○  eme-lambda-taw       emelambda        CLASSIC   1.59.2 ▲ 1.76.1  main
- ●  fsspx-taw            fsspx--theme     CLASSIC   1.76.1           chore/taw-core-1.76.1 ±5 ◇ unpushed
- ○  parallel-plus        parallelplus     CLASSIC   1.59.2 ▲ 1.76.1  staging
- ●  taw                  taw-gutenberg ↗  BLOCK     1.76.1           main
-                         taw-theme ↗      CLASSIC   1.76.1           main
+    SITE · THEME                       TAW/CORE         SYNC  LIVE  FB   PR   DEPLOY  GIT
+────────────────────────────────────────────────────────────────────────────────────────────────
+▌ ● ch-capital---taw                   1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       master ±1
+▌   chcapital   CLASSIC   chcapital.mx                                                2h ago
+  ● fsspx-taw                          1.87.1 ▲ 1.87.2  ▲2    ●     1    —    ✓       feat/chat… ±1
+    fsspx--theme   CLASSIC   fsspx.tempurl.host           1h                          1h ago
+  ● ls-mxico                           1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       main ±1
+    ls-mexico   CLASSIC   lsmexico.mx                                                 2h ago
+  ○ taw                                1.87.2           —     —     —    —    —       main
+    taw-gutenberg ↗   BLOCK                                                           23m ago
+    taw                                1.87.2           —                —    —       main ±1
+    taw-theme ↗   CLASSIC                                                             23m ago
 ```
 
 ### Start, stop and wp-cli
@@ -163,6 +173,28 @@ taw-fleet's Ed25519 signature, kept in your macOS Keychain (never in a file), an
 must carry the site's own signature, checked against the key pinned with `live trust`
 (`~/.config/taw-fleet/companion-keys.json`). A site trusts taw-fleet once it has taw-fleet's
 public key (`taw-fleet live key show`); the companion ships with each TAW theme as an mu-plugin.
+
+### Client feedback (BugSmash)
+
+```bash
+taw-fleet comments                   # open review comments on every site with a BugSmash project
+taw-fleet comments chcapital --json  # one site, every open comment, for scripts and Claude
+taw-fleet comments projects          # your BugSmash projects and their ids (for the settings)
+taw-fleet comments key import        # first time: store the BugSmash API key (Keychain)
+taw-fleet comments key show          # where the key comes from, and whether BugSmash accepts it
+```
+
+Clients review their live site in [BugSmash](https://bugsmash.io) and leave comments pinned to
+the page. With `bugsmash_project` set for a site (see Settings), the dashboard's **FB** column
+shows how many comments are open (`0` none, the count in the accent color, in the warning color
+once the oldest waited over two days, `?` when the check failed), the row's second line shows how
+old the oldest is, and the detail pane lists the latest ones with their page. `doctor` adds
+`comments.open` (a warning after two days), `comments.unreachable` and `comments.no-key`.
+
+It only reads (`GET` on BugSmash's REST API, cached for 5 minutes): resolving comments happens
+in the TAW umbrella's `taw-resolve-comments` skill ("resolve comments on chcapital"). The API key
+(BugSmash → Settings → API Key) lives in your macOS Keychain, never in a file;
+`BUGSMASH_API_KEY` is read when the Keychain has none.
 
 ### Sync, update, inspect
 
@@ -268,6 +300,7 @@ web_server = "nginx"
 [sites.ls-mxico]         # keyed by the site's folder in ~/Local Sites
 production_url = "https://lsmexico.mx"
 notes = "Deploys from main."   # included in the handoff prompt
+bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"   # its BugSmash project (taw-fleet comments projects)
 ```
 
 ### What `doctor` checks
@@ -284,6 +317,9 @@ notes = "Deploys from main."   # included in the handoff prompt
 | `scaffold.drift`, `scaffold.check-failed` | note, warning | the last `sync` check found Tier 1 differences, or failed |
 | `tools.php-missing` | warning | Local doesn't have the PHP build the site uses |
 | `scan.local`, `scan.github`, `site.read-error` | warning | Local not found, newest versions unknown, a site couldn't be fully read |
+| `comments.open` | note, warning | open BugSmash comments; a warning once the oldest waited over two days |
+| `comments.unreachable` | warning | the BugSmash project is gone (re-created?), the key was refused, or BugSmash didn't answer |
+| `comments.no-key` | note | a site has `bugsmash_project` but no API key is stored |
 
 The codes are stable: filter `doctor --json` on them. `doctor` only reads; it never changes
 anything.
@@ -323,6 +359,7 @@ A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.j
 | `TAW_FLEET_THEME` | `light` or `dark`: the color palette (default: from `COLORFGBG`, else dark) |
 | `NO_COLOR` | No colors. Piped output and `--json` are never colored. |
 | `GITHUB_TOKEN` / `GH_TOKEN` | Token for the newest-version lookup (else `gh auth token`, else none) |
+| `BUGSMASH_API_KEY` | BugSmash API key, when none is in the Keychain (`taw-fleet comments key import`) |
 
 ## Pull requests and deploys
 

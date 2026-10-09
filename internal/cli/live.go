@@ -231,7 +231,7 @@ func newLiveKeyCmd(d Deps) *cobra.Command {
 		Example: "  grep '^HUB_SIGNING_SECRET_KEY=' ~/Herd/taw-hub/.env | cut -d= -f2- | taw-fleet live key import",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			secret, err := readSecret(d, cmd.OutOrStdout())
+			secret, err := readSecret(d, cmd.OutOrStdout(), "Signing key (base64, not shown): ")
 			if err != nil {
 				return err
 			}
@@ -293,9 +293,9 @@ func newLiveKeyCmd(d Deps) *cobra.Command {
 }
 
 // readSecret reads one line from stdin, without echo when it's a terminal.
-func readSecret(d Deps, out io.Writer) (string, error) {
+func readSecret(d Deps, out io.Writer, prompt string) (string, error) {
 	if f, ok := d.In.(*os.File); ok && term.IsTerminal(f.Fd()) {
-		if _, err := fmt.Fprint(out, "Signing key (base64, not shown): "); err != nil {
+		if _, err := fmt.Fprint(out, prompt); err != nil {
 			return "", err
 		}
 		b, err := term.ReadPassword(f.Fd())

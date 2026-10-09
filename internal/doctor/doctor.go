@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -87,7 +88,55 @@ func checkSite(s site.Site, opts Options) []site.Finding {
 		out = append(out, checkGit(s, t)...)
 		out = append(out, checkGitHub(s, t)...)
 	}
-	return append(out, checkLive(s)...)
+	out = append(out, checkLive(s)...)
+	return append(out, checkFeedback(s)...)
+}
+
+// checkFeedback reads the site's BugSmash project (taw-fleet comments).
+func checkFeedback(s site.Site) []site.Finding {
+	f := s.Feedback
+	if f == nil {
+		return nil
+	}
+	finding := func(sev site.Severity, code, msg, fix string) []site.Finding {
+		return []site.Finding{{Severity: sev, Code: code, SiteID: s.ID, Site: s.Slug, Message: msg, Fix: fix}}
+	}
+	switch f.ErrorKind {
+	case "":
+	case "no-key":
+		return finding(site.Info, "comments.no-key", "BugSmash comments aren't checked: no API key",
+			"store it with `taw-fleet comments key import` (BugSmash → Settings → API Key)")
+	case "not-found":
+		return finding(site.Warn, "comments.unreachable", "its BugSmash project "+f.ProjectID+" is gone (deleted or re-created)",
+			"`taw-fleet comments projects` lists the projects; put the new id in bugsmash_project (`taw-fleet config path`)")
+	default:
+		return finding(site.Warn, "comments.unreachable", "BugSmash: "+f.Error,
+			"check the key (`taw-fleet comments key show`) and https://bugsmash.io")
+	}
+	if f.Open == 0 {
+		return nil
+	}
+	age := f.CheckedAt.Sub(f.Oldest)
+	sev, when := site.Info, ""
+	if !f.Oldest.IsZero() {
+		when = ", the oldest " + ageWords(age) + " old"
+		if f.Stale() {
+			sev = site.Warn
+		}
+	}
+	return finding(sev, "comments.open", fmt.Sprintf("%d open %s in BugSmash%s", f.Open, plural(f.Open, "comment", "comments"), when),
+		"ask Claude in the TAW umbrella: \"resolve comments on "+s.Slug+"\" (skill taw-resolve-comments)")
+}
+
+func ageWords(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return "under an hour"
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d %s", int(d.Hours()), plural(int(d.Hours()), "hour", "hours"))
+	}
+	days := int(d.Hours() / 24)
+	return fmt.Sprintf("%d days", days)
 }
 
 // checkLive reads what the production site's companion said (taw-fleet live).

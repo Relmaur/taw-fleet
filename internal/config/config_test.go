@@ -36,12 +36,14 @@ terminal = "Ghostty"
 [sites.ls-mxico]
 production_url = "https://lsmexico.mx"
 notes = "deploys from main"
+bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"
 `)
 	c, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Editor != "code" || c.Terminal != "Ghostty" || c.Site("ls-mxico").ProductionURL != "https://lsmexico.mx" {
+	if c.Editor != "code" || c.Terminal != "Ghostty" || c.Site("ls-mxico").ProductionURL != "https://lsmexico.mx" ||
+		c.Site("ls-mxico").BugSmashProject != "a2f16102-91d0-4968-a010-fca3146f4596" {
 		t.Errorf("c = %+v", c)
 	}
 }
@@ -55,6 +57,10 @@ func TestLoadRejectsTyposAndBadURLs(t *testing.T) {
 	write(t, p, "[sites.x]\nproduction_url = \"lsmexico.mx\"")
 	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "must start with https://") {
 		t.Errorf("bad url: %v", err)
+	}
+	write(t, p, "[sites.x]\nbugsmash_project = \"https://emelambda.bugsmash.io/review/z4KWg\"")
+	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "bugsmash_project must be the project's id") {
+		t.Errorf("bad project id: %v", err)
 	}
 	write(t, p, `editor = `)
 	if _, err := Load(p); err == nil {
@@ -77,8 +83,8 @@ func TestInitWritesAValidTemplateOnce(t *testing.T) {
 	// Uncommented, the examples are valid too.
 	var c Config
 	uncommented := strings.NewReplacer("# editor", "editor", "# terminal", "terminal", "# [sites", "[sites",
-		"# production_url", "production_url", "# notes", "notes").Replace(Template)
-	if _, err := toml.Decode(uncommented, &c); err != nil || c.Site("ls-mxico").ProductionURL == "" {
+		"# production_url", "production_url", "# notes", "notes", "# bugsmash_project", "bugsmash_project").Replace(Template)
+	if _, err := toml.Decode(uncommented, &c); err != nil || c.Site("ls-mxico").ProductionURL == "" || c.Site("ls-mxico").BugSmashProject == "" {
 		t.Errorf("examples: %+v %v", c, err)
 	}
 }

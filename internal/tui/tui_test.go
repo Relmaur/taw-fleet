@@ -147,17 +147,42 @@ func golden(t *testing.T, name, got string) {
 	}
 }
 
+// fleetModel is the fixture with production sites and BugSmash projects: the
+// LIVE and FB columns and the Feedback block.
+func fleetModel(t *testing.T, w, h int) Model {
+	t.Helper()
+	rep := fixtureReport()
+	m := newModel(t, w, h, &rep)
+	m.deps.Live = func(context.Context, bool) (map[string]site.Production, error) { return nil, nil }
+	m.deps.Feedback = func(context.Context, bool) (map[string]site.Feedback, error) { return nil, nil }
+	m = step(t, m, liveDoneMsg{results: map[string]site.Production{
+		"acme-shop": {URL: "https://acme.mx", CheckedAt: now, Reachable: true, Verified: true, TawCore: "v1.76.1"},
+		"bistro":    {URL: "https://bistro.mx", CheckedAt: now, Reachable: true, Verified: true, TawCore: "v1.59.2"},
+	}})
+	return step(t, m, feedbackDoneMsg{results: map[string]site.Feedback{
+		"acme-shop": {ProjectID: "p1", Project: "acme.mx", CheckedAt: now, Open: 3, Oldest: now.Add(-72 * time.Hour), Comments: []site.Comment{
+			{Number: 108, Page: "https://acme.mx/credito-pyme/", Text: `Actualizar texto por: "Buró de crédito Evaluación flexible."`, Author: "Paola", CreatedAt: now.Add(-3 * time.Hour)},
+			{Number: 107, Page: "https://acme.mx/credito-pyme/", Text: "Cambiar texto por: Garantía…", Author: "Paola", CreatedAt: now.Add(-26 * time.Hour)},
+			{Number: 99, Page: "https://acme.mx/multimedia/", Text: "Cambiar el nombre por: Despojo de inmuebles… un problema creciente.", Author: "Paola", CreatedAt: now.Add(-72 * time.Hour)},
+		}},
+		"bistro": {ProjectID: "p2", CheckedAt: now},
+	}})
+}
+
 func TestGoldenScreens(t *testing.T) {
 	rep := fixtureReport()
 	cases := map[string]Model{
-		"table-80x24":   newModel(t, 80, 24, &rep),
-		"wide-140x40":   newModel(t, 140, 40, &rep),
-		"detail-100x30": press(t, newModel(t, 100, 30, &rep), "j", "enter"),
-		"help-100x30":   press(t, newModel(t, 100, 30, &rep), "?"),
-		"filter-100x20": press(t, newModel(t, 100, 20, &rep), "/", "b", "e", "h", "i", "n", "d"),
-		"nomatch-80x12": press(t, newModel(t, 80, 12, &rep), "/", "z", "z", "enter"),
-		"loading-80x12": newModel(t, 80, 12, nil),
-		"tiny-50x8":     newModel(t, 50, 8, &rep),
+		"table-80x24":         newModel(t, 80, 24, &rep),
+		"wide-140x40":         newModel(t, 140, 40, &rep),
+		"detail-100x30":       press(t, newModel(t, 100, 30, &rep), "j", "enter"),
+		"help-100x30":         press(t, newModel(t, 100, 30, &rep), "?"),
+		"filter-100x20":       press(t, newModel(t, 100, 20, &rep), "/", "b", "e", "h", "i", "n", "d"),
+		"nomatch-80x12":       press(t, newModel(t, 80, 12, &rep), "/", "z", "z", "enter"),
+		"fleet-120x30":        fleetModel(t, 120, 30),
+		"fleet-140x34":        fleetModel(t, 140, 34),
+		"fleet-detail-100x40": press(t, fleetModel(t, 100, 40), "enter"),
+		"loading-80x12":       newModel(t, 80, 12, nil),
+		"tiny-50x8":           newModel(t, 50, 8, &rep),
 		"empty-80x12": newModel(t, 80, 12, &scan.Report{ScannedAt: now,
 			Errors: []site.SourceError{{Stage: "local", Err: "no Local by Flywheel sites found (sites.json is missing)"}}}),
 	}

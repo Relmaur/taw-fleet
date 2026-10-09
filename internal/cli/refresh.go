@@ -32,8 +32,8 @@ func newRefreshCmd(d Deps, g *globals) *cobra.Command {
 		Short: "Fetch the state of every site again, skipping the caches",
 		Long: "Everything the dashboard shows, read again for every site (the dashboard's ctrl+r):\n" +
 			"the Local sites with the latest versions from GitHub now, the pull requests, CI and\n" +
-			"deploys, the production sites through their companion, and the sync check of every\n" +
-			"classic TAW theme against the scaffold. Writes nothing.",
+			"deploys, the production sites through their companion, the open BugSmash comments, and\n" +
+			"the sync check of every classic TAW theme against the scaffold. Writes nothing.",
 		Example: "  taw-fleet refresh",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -94,6 +94,15 @@ func newRefreshCmd(d Deps, g *globals) *cobra.Command {
 						msg += p.Fg(p.Warn).Render(" · check " + strings.Join(bad, ", "))
 					}
 					line(msg)
+				}
+			}
+
+			if cfg, err := config.Load(d.Paths); err == nil && len(feedbackTargets(cfg)) > 0 {
+				res, err := d.checkFeedback(ctx, feedbackTargets(cfg), true)
+				if err != nil {
+					line(p.Fg(p.Err).Render("✗") + " BugSmash: " + err.Error())
+				} else {
+					line(feedbackSummary(p, res))
 				}
 			}
 

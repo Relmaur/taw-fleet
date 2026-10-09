@@ -20,6 +20,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/bugsmash"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/createform"
@@ -85,6 +86,10 @@ type Deps struct {
 	// Live checks the production sites (cached unless fresh). nil = no
 	// production view.
 	Live func(ctx context.Context, fresh bool) (map[string]site.Production, error)
+
+	// Feedback reads the open BugSmash comments (cached unless fresh). nil =
+	// no FB column.
+	Feedback func(ctx context.Context, fresh bool) (map[string]site.Feedback, error)
 }
 
 type mode int
@@ -140,6 +145,11 @@ type Model struct {
 	liveFetching bool
 	liveAt       time.Time // when the last check finished
 	liveErr      error
+
+	feedback         map[string]site.Feedback // open BugSmash comments by site slug
+	feedbackFetching bool
+	feedbackAt       time.Time
+	feedbackErr      error
 
 	full fullRefresh // a ctrl+r in progress
 
@@ -384,6 +394,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case scanDoneMsg:
 		live.Apply(msg.rep.Sites, m.live)
+		bugsmash.Apply(msg.rep.Sites, m.feedback)
 		github.ApplyRepos(msg.rep.Sites, m.repos)
 		m.applyScan(msg.rep, msg.err)
 		var cmds []tea.Cmd
@@ -393,6 +404,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.liveDue() {
 			model, cmd := m.fetchLive(false)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		if m.feedbackDue() {
+			model, cmd := m.fetchFeedback(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
 		if m.reposDue() {
@@ -417,6 +432,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setFlash("production check: "+msg.err.Error(), true)
 		}
 		return m, nil
+
+	case feedbackDoneMsg:
+		return m.onFeedback(msg)
 
 	case fleetPlannedMsg:
 		return m.fleetPlanned(msg.plan)
@@ -482,6 +500,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchLive(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
+		if m.feedbackDue() {
+			model, cmd := m.fetchFeedback(false)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
 		if m.reposDue() {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
@@ -489,7 +511,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case spinner.TickMsg:
-		if !m.scanning && !m.liveFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
+		if !m.scanning && !m.liveFetching && !m.feedbackFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -661,7 +683,7 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.RefreshAll):
 		return m.refreshAll()
 	case key.Matches(msg, k.LiveRefresh):
-		if m.deps.Live == nil && m.deps.GitHub == nil {
+		if m.deps.Live == nil && m.deps.GitHub == nil && m.deps.Feedback == nil {
 			m.setFlash("no production view: add production_url to sites in the config", true)
 			return m, nil
 		}
@@ -672,6 +694,10 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.deps.Live != nil {
 			model, cmd := m.fetchLive(true)
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
+		if m.deps.Feedback != nil {
+			model, cmd := m.fetchFeedback(true)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)

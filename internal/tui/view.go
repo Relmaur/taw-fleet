@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
@@ -48,10 +49,23 @@ func (m Model) render() string {
 
 func (m Model) bodyHeight() int { return max(m.height-headerLines-footerLines, 1) }
 
-// tableRows is how many data rows fit under the column header and rule.
-func (m Model) tableRows() int { return max(m.bodyHeight()-2, 1) }
+func (m Model) wide() bool { return m.detailWidth() > 0 }
 
-func (m Model) wide() bool { return m.width >= sideBySide }
+// detailWidth is the side pane's width: about a third of the window, less
+// when the table needs the room, none under sideBySide or 40 columns.
+func (m Model) detailWidth() int {
+	if m.width < sideBySide {
+		return 0
+	}
+	w := min(max(m.width*36/100, 48), 80)
+	if need := m.columns(m.width).need(); m.width-w-3 < need {
+		w = m.width - 3 - need
+	}
+	if w < 40 {
+		return 0
+	}
+	return w
+}
 
 // --- header -----------------------------------------------------------------
 
@@ -154,7 +168,7 @@ func (m Model) body() string {
 	if !m.wide() {
 		return block(m.table(m.width), m.width, h)
 	}
-	detailW := min(max(m.width*36/100, 48), 80)
+	detailW := m.detailWidth()
 	tableW := m.width - detailW - 3
 	sep := strings.TrimRight(strings.Repeat(p.Fg(p.Faint).Render(" │ ")+"\n", h), "\n")
 	return lipgloss.JoinHorizontal(lipgloss.Top,
@@ -178,38 +192,57 @@ func (m Model) emptyState() string {
 
 // --- table ------------------------------------------------------------------
 
-type columns struct{ site, theme, kind, core, sync, live, pr, deploy, git int }
+// rowLines is how tall a row is: the site on top, its theme underneath.
+const rowLines = 2
+
+// minGit is the narrowest GIT column before the cards give up room.
+const minGit = 14
+
+type columns struct {
+	card, core, sync, live, fb, pr, deploy, git int
+	base                                        int  // the cards without the production host
+	host                                        bool // the cards have room for the production host
+}
 
 func (m Model) columns(width int) columns {
-	c := columns{site: 4, theme: 5, kind: 7, core: 8, sync: 4}
+	c := columns{card: 16, core: 8, sync: 4}
 	if m.deps.Live != nil { // only with production sites configured
 		c.live = 4
+	}
+	if m.deps.Feedback != nil { // only with BugSmash projects configured
+		c.fb = 3
 	}
 	if m.deps.GitHub != nil {
 		c.pr, c.deploy = 3, 6
 	}
+	full := c.card // the cards with the production host
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
-		c.site = max(c.site, ansi.StringWidth(s.Slug))
-		c.theme = max(c.theme, ansi.StringWidth(themeLabel(t)))
-		c.kind = max(c.kind, ansi.StringWidth(m.pal.Kind(t.Kind)))
+		c.card = max(c.card, ansi.StringWidth(s.Slug), ansi.StringWidth(m.subline(s, t, false, false)))
+		full = max(full, c.card, ansi.StringWidth(m.subline(s, t, false, true)))
 		c.core = max(c.core, ansi.StringWidth(m.pal.Core(t.Core)))
 	}
-	c.site = min(c.site, 24)
-	c.theme = min(c.theme, 20)
-	// marker + dot + spaces + six gaps of two.
-	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + c.liveWidth() + c.ghWidth() + 10
-	c.git = width - fixed
-	if c.git < 8 { // squeeze the names before the git column vanishes
-		over := 8 - c.git
-		cut := min(over, c.site-10)
-		c.site -= max(cut, 0)
-		over -= max(cut, 0)
-		c.theme -= min(max(over, 0), c.theme-10)
-		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+c.liveWidth()+c.ghWidth()+10), 4)
+	c.card, full = min(c.card, 40), min(full, 40)
+	c.base = c.card
+	if width-c.fixed()-(full-c.card) >= minGit { // room for the hosts too
+		c.card, c.host = full, true
+	}
+	c.git = width - c.fixed()
+	if c.git < minGit { // narrow the cards before the git column vanishes
+		c.card = max(c.card-(minGit-c.git), 16)
+		c.git = max(width-c.fixed(), 4)
 	}
 	return c
+}
+
+// need is the narrowest table that keeps the cards (without hosts) and GIT
+// readable.
+func (c columns) need() int { return c.fixed() - c.card + c.base + minGit }
+
+// fixed is every column but GIT, with the marker, the dot and the gaps.
+func (c columns) fixed() int {
+	return 4 + c.card + c.core + c.sync + 6 + c.liveWidth() + c.fbWidth() + c.ghWidth()
 }
 
 // liveWidth is the LIVE column with its gap, or nothing.
@@ -218,6 +251,14 @@ func (c columns) liveWidth() int {
 		return 0
 	}
 	return c.live + 2
+}
+
+// fbWidth is the FB column with its gap, or nothing.
+func (c columns) fbWidth() int {
+	if c.fb == 0 {
+		return 0
+	}
+	return c.fb + 2
 }
 
 // ghWidth is the PR and DEPLOY columns with their gaps, or nothing.
@@ -244,15 +285,56 @@ func (c columns) liveCol(s string) string {
 	return pad(s, c.live) + "  "
 }
 
-func themeLabel(t site.Theme) string {
-	l := t.Dir
+// fbCol is an FB cell with its gap, when the column is shown.
+func (c columns) fbCol(s string) string {
+	if c.fb == 0 {
+		return ""
+	}
+	return pad(s, c.fb) + "  "
+}
+
+// subline is a row's second line: the theme (↗ symlink, ✓ the active one of
+// several, vite running), its kind, and, with host, the production host.
+func (m Model) subline(s site.Site, t site.Theme, sel, host bool) string {
+	p := m.pal
+	name := p.Fg(p.Muted)
+	if sel {
+		name = p.Fg(p.Accent)
+	}
+	out := name.Render(t.Dir)
 	if t.Symlink {
-		l += " ↗"
+		out += p.Fg(p.Muted).Render(" ↗")
+	}
+	if s.ActiveTheme == t.Dir && len(s.TAWThemes()) > 1 {
+		out += p.Fg(p.OK).Render(" ✓") // the one WordPress uses
 	}
 	if t.Dev != "" {
-		l += " vite"
+		out += p.Fg(p.Accent).Render(" vite")
 	}
-	return l
+	out += "  " + p.Kind(t.Kind)
+	if h := prodHost(s); host && h != "" {
+		out += "  " + p.Fg(p.Brand).Render(h)
+	}
+	return out
+}
+
+// prodHost is the production site's host, when there is one.
+func prodHost(s site.Site) string {
+	if s.Production == nil || s.Production.URL == "" {
+		return ""
+	}
+	h := strings.TrimPrefix(strings.TrimPrefix(s.Production.URL, "https://"), "http://")
+	return strings.TrimSuffix(h, "/")
+}
+
+// tableRows is how many rows fit under the column header and rule, keeping a
+// line for "x–y of n" when they don't all fit.
+func (m Model) tableRows() int {
+	room := m.bodyHeight() - 2
+	if len(m.visible)*rowLines > room {
+		room--
+	}
+	return max(room/rowLines, 1)
 }
 
 func (m Model) table(width int) string {
@@ -260,7 +342,7 @@ func (m Model) table(width int) string {
 	c := m.columns(width)
 	head := p.Fg(p.Muted).Bold(true)
 	lines := []string{
-		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+c.ghCols("PR", "DEPLOY")+"GIT"),
+		"    " + head.Render(pad("SITE · THEME", c.card)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+c.fbCol("FB")+c.ghCols("PR", "DEPLOY")+"GIT"),
 		p.Fg(p.Faint).Render(strings.Repeat("─", width)),
 	}
 	if len(m.visible) == 0 {
@@ -275,49 +357,65 @@ func (m Model) table(width int) string {
 		t := s.Themes[r.theme]
 		sel := vi == m.cursor
 
-		// The site is named once per group of rows, like `list`.
+		// Site-wide cells (dot, LIVE, FB) once per group of rows, like
+		// `list`; a site's other themes repeat its name, quieter.
 		first := vi == m.offset || m.rows[m.visible[vi-1]].site != r.site
-		dot, name, liveCell := " ", "", ""
+		dot, liveCell, fbCell, fbAge := " ", "", "", ""
+		nameStyle := lipgloss.NewStyle().Bold(true)
 		if first {
-			liveCell = p.Live(s.Production)
-			dot, name = p.Dot(s.Status), s.Slug
+			liveCell, fbCell = p.Live(s.Production), p.Feedback(s.Feedback)
+			if f := s.Feedback; f != nil && f.Error == "" && f.Open > 0 && !f.Oldest.IsZero() {
+				fbAge = p.Fg(p.Muted).Render(shortAge(m.now.Sub(f.Oldest)))
+			}
+			dot = p.Dot(s.Status)
 			if _, busy := m.busy[s.ID]; busy {
 				dot = p.Dot(site.StatusBusy)
 			}
+		} else {
+			nameStyle = p.Fg(p.Muted)
 		}
-		theme := t.Dir
 		marker := " "
-		nameStyle := lipgloss.NewStyle()
 		if sel {
 			marker = p.Fg(p.Accent).Render("▌")
 			nameStyle = nameStyle.Bold(true).Foreground(p.Accent)
 		}
-		themeCell := nameStyle.Render(theme)
-		if t.Symlink {
-			themeCell += p.Fg(p.Muted).Render(" ↗")
+		lastCommit := ""
+		if t.Git != nil && !t.Git.LastCommit.IsZero() {
+			lastCommit = p.Fg(p.Muted).Render(shortAge(m.now.Sub(t.Git.LastCommit)) + " ago") // the last commit
 		}
-		if s.ActiveTheme == t.Dir && len(s.TAWThemes()) > 1 {
-			themeCell += p.Fg(p.OK).Render(" ✓") // the one WordPress uses
-		}
-		if t.Dev != "" {
-			themeCell += p.Fg(p.Accent).Render(" vite")
-		}
-		line := marker + " " + dot + " " +
-			pad(nameStyle.Render(name), c.site) + "  " +
-			pad(themeCell, c.theme) + "  " +
-			pad(p.Kind(t.Kind), c.kind) + "  " +
+		top := marker + " " + dot + " " +
+			pad(nameStyle.Render(s.Slug), c.card) + "  " +
 			pad(p.Core(t.Core), c.core) + "  " +
 			pad(p.Sync(t.Drift), c.sync) + "  " +
 			c.liveCol(liveCell) +
+			c.fbCol(fbCell) +
 			c.ghCols(p.PRs(t.GitHub), p.Deploy(t.GitHub)) +
 			gitCell(p, t, c.git)
-		lines = append(lines, line)
+		bottom := marker + "   " +
+			pad(m.subline(s, t, sel, c.host), c.card) + "  " +
+			pad("", c.core) + "  " +
+			pad("", c.sync) + "  " +
+			c.liveCol("") +
+			c.fbCol(fbAge) +
+			c.ghCols("", "") +
+			ansi.Truncate(lastCommit, c.git, "…")
+		lines = append(lines, top, strings.TrimRight(bottom, " "))
 	}
 	if len(m.visible) > m.tableRows() {
-		lines = append(lines[:min(len(lines), m.tableRows()+1)],
-			p.Fg(p.Muted).Render(fmt.Sprintf("    %d–%d of %d", m.offset+1, end, len(m.visible))))
+		lines = append(lines, p.Fg(p.Muted).Render(fmt.Sprintf("    %d–%d of %d", m.offset+1, end, len(m.visible))))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// shortAge is an age in one short word: 40m, 5h, 3d.
+func shortAge(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", max(int(d.Minutes()), 1))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
 // --- detail -----------------------------------------------------------------
@@ -407,6 +505,10 @@ func (m Model) helpScreen() string {
 			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
 		p.Live(&site.Production{Reachable: true, Verified: true}) + " " + p.Live(&site.Production{Reachable: true}) + " " + p.Live(&site.Production{}) + " " + p.Live(nil) +
 			"  live: verified, answering but unverified, refused or down, no production URL",
+		p.Feedback(&site.Feedback{Open: 3}) + " " +
+			p.Feedback(&site.Feedback{Open: 2, Oldest: time.Unix(0, 0), CheckedAt: time.Unix(0, 0).Add(72 * time.Hour)}) + " " +
+			p.Feedback(&site.Feedback{}) + " " + p.Feedback(&site.Feedback{Error: "x"}) +
+			"  FB: open BugSmash comments, one waiting over 2 days, none open, check failed",
 		p.Fg(p.OK).Render("2✓") + " " + p.Fg(p.Err).Render("2✗") + "  open PRs: CI passed, failed   " +
 			p.Fg(p.OK).Render("✓") + " " + p.Fg(p.Warn).Render("↑2") + " " + p.Fg(p.Accent).Render("⟳") + " " + p.Fg(p.Err).Render("✗") + "  deploy: current, behind, running, failed",
 	}
@@ -445,6 +547,8 @@ func (m Model) footer() string {
 		status = " " + m.spin.View() + " " + muted.Render("Local is working: "+strings.Join(parts, ", ")+"…")
 	case m.liveFetching && m.flash == "":
 		status = " " + m.spin.View() + " " + muted.Render("checking the production sites…")
+	case m.feedbackFetching && m.flash == "":
+		status = " " + m.spin.View() + " " + muted.Render("reading the BugSmash comments…")
 	case m.flash != "" && m.mode != modeOutput: // the output view shows the result itself
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.filtering:

@@ -133,6 +133,23 @@ func (p Palette) Live(r *site.Production) string {
 	return p.Fg(p.OK).Render("●")
 }
 
+// Feedback is the FB cell: how many BugSmash comments are open, accented,
+// and a warning once the oldest waited over two days. — not checked, 0 none
+// open, ? the check failed (no key, project gone, BugSmash down).
+func (p Palette) Feedback(f *site.Feedback) string {
+	switch {
+	case f == nil:
+		return p.Fg(p.Faint).Render("—")
+	case f.Error != "":
+		return p.Fg(p.Faint).Render("?")
+	case f.Open == 0:
+		return p.Fg(p.Faint).Render("0")
+	case f.Stale():
+		return p.Fg(p.Warn).Bold(true).Render(strconv.Itoa(f.Open))
+	}
+	return p.Fg(p.Accent).Bold(true).Render(strconv.Itoa(f.Open))
+}
+
 // PRs is the PR cell: how many pull requests are open, marked with the
 // most pressing state among them.
 func (p Palette) PRs(st *site.RepoState) string {

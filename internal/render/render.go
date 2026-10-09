@@ -5,6 +5,7 @@ package render
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -27,6 +28,10 @@ func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding,
 	b.WriteString("\n")
 	if s.Production != nil {
 		b.WriteString(Production(p, s.Production, now, width))
+		b.WriteString("\n")
+	}
+	if s.Feedback != nil {
+		b.WriteString(Feedback(p, s.Feedback, now, width))
 		b.WriteString("\n")
 	}
 	b.WriteString(Findings(p, findings, false, width))
@@ -259,6 +264,80 @@ func unit(n int, name string) string {
 		return "1 " + name + " ago"
 	}
 	return fmt.Sprintf("%d %ss ago", n, name)
+}
+
+// Feedback is the site's BugSmash block: the open review comments.
+func Feedback(p style.Palette, f *site.Feedback, now time.Time, width int) string {
+	muted := p.Fg(p.Muted)
+	dot := p.Fg(p.OK).Render("●") // nothing open
+	switch {
+	case f.Error != "":
+		dot = p.Fg(p.Faint).Render("?")
+	case f.Stale():
+		dot = p.Fg(p.Warn).Render("●")
+	case f.Open > 0:
+		dot = p.Fg(p.Accent).Render("●")
+	}
+	head := " " + dot + " " + lipgloss.NewStyle().Bold(true).Render("Feedback")
+	if f.Project != "" {
+		head += "  " + p.Fg(p.Brand).Render(f.Project)
+	}
+	lines := []string{head + muted.Render("  checked "+Ago(now, f.CheckedAt))}
+	switch {
+	case f.Error != "":
+		lines = append(lines, "   "+p.Fg(p.Warn).Render(f.Error))
+		return fit(lines, width)
+	case f.Open == 0:
+		lines = append(lines, "   "+muted.Render("no open comments in BugSmash"))
+		return fit(lines, width)
+	}
+	sum := fmt.Sprintf("%d open %s", f.Open, plural(f.Open, "comment", "comments"))
+	if !f.Oldest.IsZero() {
+		age := muted.Render(", the oldest " + Ago(now, f.Oldest))
+		if f.Stale() {
+			age = p.Fg(p.Warn).Render(", the oldest " + Ago(now, f.Oldest))
+		}
+		sum += age
+	}
+	lines = append(lines, "   "+sum)
+	inner := width - 3
+	if width <= 0 {
+		inner = 0
+	}
+	for _, c := range f.Comments[:min(len(f.Comments), 3)] {
+		lines = append(lines, "   "+CommentLine(p, c, now, inner))
+	}
+	if more := f.Open - min(len(f.Comments), 3); more > 0 {
+		lines = append(lines, "   "+muted.Render(fmt.Sprintf("… %d more: taw-fleet comments", more)))
+	}
+	return fit(lines, width)
+}
+
+// CommentLine is one comment in a line: "#108 /credito-pyme/ Actualizar
+// texto por… · 2 days ago", the text cut to fit width (0 = no limit).
+func CommentLine(p style.Palette, c site.Comment, now time.Time, width int) string {
+	muted := p.Fg(p.Muted)
+	left := p.Fg(p.Accent).Render(fmt.Sprintf("#%d", c.Number))
+	if path := pagePath(c.Page); path != "" {
+		left += " " + muted.Render(path)
+	}
+	right := muted.Render(" · " + Ago(now, c.CreatedAt))
+	text := c.Text
+	if width > 0 {
+		room := width - ansi.StringWidth(left) - ansi.StringWidth(right) - 1
+		text = ansi.Truncate(text, max(room, 8), "…")
+	}
+	return left + " " + text + right
+}
+
+// pagePath is a comment's page as a path ("/credito-pyme/"), or the URL as
+// given when it doesn't parse.
+func pagePath(u string) string {
+	pu, err := url.Parse(u)
+	if err != nil || pu.Path == "" {
+		return u
+	}
+	return pu.Path
 }
 
 // Production is the live site's block: what its companion said.

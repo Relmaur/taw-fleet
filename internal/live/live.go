@@ -18,6 +18,7 @@ import (
 
 	"github.com/Relmaur/taw-fleet/internal/companion"
 	"github.com/Relmaur/taw-fleet/internal/exec"
+	"github.com/Relmaur/taw-fleet/internal/keychain"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
@@ -30,43 +31,29 @@ var ErrNoKey = errors.New("no signing key: import it with `taw-fleet live key im
 
 // --- Keychain -----------------------------------------------------------------
 
-const (
-	keychainService = "taw-fleet"
-	keychainAccount = "companion-signing-key"
-)
+// keychainItem is the signing key's place in the login keychain, stored as
+// "id|base64".
+var keychainItem = keychain.Item{Account: "companion-signing-key", Label: "taw-fleet companion signing key"}
 
-// Keychain stores the fleet's signing key in the login keychain through
-// /usr/bin/security. The secret goes in on stdin (`security -i`), never on
-// the command line where other processes could see it.
+// Keychain stores the fleet's signing key in the login keychain (see package
+// keychain: the secret never reaches a command line or a file).
 type Keychain struct{ Exec exec.Runner }
 
 // Save stores the key, replacing an earlier one.
 func (k Keychain) Save(ctx context.Context, key companion.Key) error {
-	cmd := fmt.Sprintf("add-generic-password -U -s %s -a %s -l \"taw-fleet companion signing key\" -w \"%s|%s\"\n",
-		keychainService, keychainAccount, key.ID, key.Encode())
-	res, err := k.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/security", Args: []string{"-i"}, Stdin: strings.NewReader(cmd)})
-	if err != nil {
-		return err
-	}
-	if res.Code != 0 || strings.Contains(string(res.Stderr), "rror") {
-		return fmt.Errorf("keychain: %s", strings.TrimSpace(string(res.Stderr)))
-	}
-	return nil
+	return keychain.Keychain{Exec: k.Exec}.Save(ctx, keychainItem, key.ID+"|"+key.Encode())
 }
 
 // Load reads the key; ErrNoKey when there is none.
 func (k Keychain) Load(ctx context.Context) (companion.Key, error) {
-	res, err := k.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/security", Args: []string{"find-generic-password", "-s", keychainService, "-a", keychainAccount, "-w"}})
+	v, err := keychain.Keychain{Exec: k.Exec}.Load(ctx, keychainItem)
+	if errors.Is(err, keychain.ErrNotFound) {
+		return companion.Key{}, ErrNoKey
+	}
 	if err != nil {
 		return companion.Key{}, err
 	}
-	if res.Code == 44 { // errSecItemNotFound
-		return companion.Key{}, ErrNoKey
-	}
-	if res.Code != 0 {
-		return companion.Key{}, fmt.Errorf("keychain: %s", strings.TrimSpace(string(res.Stderr)))
-	}
-	id, b64, ok := strings.Cut(strings.TrimSpace(string(res.Stdout)), "|")
+	id, b64, ok := strings.Cut(v, "|")
 	if !ok {
 		return companion.Key{}, errors.New("keychain: the stored signing key is unreadable; import it again")
 	}

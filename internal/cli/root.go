@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/bugsmash"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/exec"
@@ -44,9 +45,10 @@ type Deps struct {
 	Dark   bool           // the terminal has a dark background
 	GitHub *github.Client // newest-release lookups; nil = built from Paths
 
-	Updater    *selfupdate.Updater                         // self-update; nil = the real one
-	Executable func() (string, error)                      // the running binary; nil = os.Executable
-	Live       func(context.Context) (*live.Prober, error) // production checks; nil = Keychain key + pinned keys
+	Updater    *selfupdate.Updater                             // self-update; nil = the real one
+	Executable func() (string, error)                          // the running binary; nil = os.Executable
+	Live       func(context.Context) (*live.Prober, error)     // production checks; nil = Keychain key + pinned keys
+	Feedback   func(context.Context) (*bugsmash.Prober, error) // BugSmash comments; nil = the Keychain's API key
 
 	// Interactive is true when stdin and stdout are a terminal: only then
 	// does `taw-fleet` alone open the dashboard, and only then are y/N
@@ -210,6 +212,11 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 				return pr.ProbeAll(ctx, targets, fresh), nil
 			}
 		}
+		if cfg, err := config.Load(d.Paths); err == nil && len(feedbackTargets(cfg)) > 0 {
+			deps.Feedback = func(ctx context.Context, fresh bool) (map[string]site.Feedback, error) {
+				return d.checkFeedback(ctx, feedbackTargets(cfg), fresh)
+			}
+		}
 		// A broken config only disables the shortcuts; the dashboard still opens.
 		if a, err := d.actions(); err != nil {
 			deps.ActionsErr = err
@@ -231,7 +238,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g))
 	return root
 }
 
