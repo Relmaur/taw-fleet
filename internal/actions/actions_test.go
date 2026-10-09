@@ -154,7 +154,7 @@ func TestLaunchWritesScriptAndOpensTerminal(t *testing.T) {
 	if b, _ := os.ReadFile(promptFile); string(b) != "# do it\n" {
 		t.Errorf("prompt file = %q", b)
 	}
-	if !strings.Contains(string(script), "cd '"+th.RealPath+"' || exit 1") || !strings.Contains(string(script), "'"+claude+"' \"$(cat ") {
+	if !strings.Contains(string(script), "cd '"+th.RealPath+"' || exit 1") || !strings.Contains(string(script), "'"+claude+"' -- \"$(cat ") {
 		t.Errorf("script:\n%s", script)
 	}
 }
@@ -176,7 +176,7 @@ func TestLauncherScriptRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	claude := filepath.Join(dir, "fake claude")
-	if err := os.WriteFile(claude, []byte("#!/bin/sh\npwd\nprintf '%s|' \"$#\" \"$1\"\n"), 0o755); err != nil {
+	if err := os.WriteFile(claude, []byte("#!/bin/sh\npwd\nprintf '%s|' \"$#\" \"$@\"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	prompt := filepath.Join(dir, "prompt.md")
@@ -186,14 +186,15 @@ func TestLauncherScriptRuns(t *testing.T) {
 	}
 	script := filepath.Join(dir, "run.command")
 	done := filepath.Join(dir, "it.done")
-	if err := os.WriteFile(script, []byte(LaunchScript{Title: "t", Dir: theme, Claude: claude, Prompt: prompt, Done: done}.String()), 0o700); err != nil {
+	if err := os.WriteFile(script, []byte(LaunchScript{Title: "t", Dir: theme, Claude: claude, Args: []string{"--add-dir", "/other theme"}, Prompt: prompt, Done: done}.String()), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	out, err := osexec.CommandContext(context.Background(), script).CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	want := theme + "\n1|" + text + "|"
+	// The prompt arrives whole, after "--": --add-dir would take it as a folder.
+	want := theme + "\n4|--add-dir|/other theme|--|" + text + "|"
 	if string(out) != want {
 		t.Errorf("out = %q\nwant  %q", out, want)
 	}
