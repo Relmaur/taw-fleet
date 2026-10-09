@@ -104,8 +104,9 @@ type Theme struct {
 	Version  string       `json:"version,omitempty"`
 	Core     CoreInfo     `json:"core"`
 	Scaffold ScaffoldInfo `json:"scaffold"`
-	Git      *GitInfo     `json:"git,omitempty"`   // nil when the folder isn't its own git repo
-	Drift    *Drift       `json:"drift,omitempty"` // the last `bin/taw sync` taw-fleet ran; nil = never
+	Git      *GitInfo     `json:"git,omitempty"`        // nil when the folder isn't its own git repo
+	Drift    *Drift       `json:"drift,omitempty"`      // the last `bin/taw sync` taw-fleet ran; nil = never
+	Dev      string       `json:"dev_server,omitempty"` // the running Vite dev server's URL; "" = not running
 }
 
 // Production is what the live site's companion said.

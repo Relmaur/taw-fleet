@@ -5,10 +5,10 @@
     │  Keys                                                                                   │     
     │                                                                                         │     
     │  ↑/k  up           enter details             e editor        y sync check               │     
-    │  ↓/j  down         esc   back                f Finder        S apply Tier 1             │     
-    │  pgup page up      /     filter              t terminal      u update taw/core          │     
-    │  pgdn page down    r     refresh             b site          A update with agent        │     
-    │  home first        L     check production    B wp-admin      U update all with agents   │     
+    │  ↓/j  down         /     filter              f Finder        S apply Tier 1             │     
+    │  pgup page up      r     refresh             t terminal      u update taw/core          │     
+    │  pgdn page down    L     check production    b site          A update with agent        │     
+    │  home first        w     work on it          B wp-admin      U update all with agents   │     
     │  end  last         s     start/stop          P production    o last output              │     
     │  ?    help         R     restart             g GitHub        h hand off                 │     
     │  q    quit         n     new site            G PRs           c copy prompt              │     
@@ -16,7 +16,7 @@
     │  Symbols                                                                                │     
     │                                                                                         │     
     │  ● running   ○ halted   ◐ starting/stopping                                             │     
-    │  ↗ theme is a symlink (the umbrella's taw-theme / taw-gutenberg)                        │     
+    │  ↗ symlink (the umbrella's themes)   vite Vite is running (w stops it)                  │     
     │  1.59.2 ▲ 1.76.1  taw/core installed ▲ newest                                           │     
     │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓                                     │     
     │  feature ◇ unpushed  not the default branch, not pushed                                 │     
@@ -27,4 +27,4 @@
     │                                                                                         │     
     ╰─────────────────────────────────────────────────────────────────────────────────────────╯     
 
- enter details • e editor • g GitHub • s start/stop • u update taw/core • A update with agent …
+ enter details • w work on it • e editor • g GitHub • s start/stop • u update taw/core …

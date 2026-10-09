@@ -52,7 +52,9 @@ func (m Model) startTask(task actions.Task) (tea.Model, tea.Cmd) {
 	}
 	ch := make(chan taskEvent, 256)
 	m.task = &taskState{title: task.Title, running: true, started: m.deps.Now(), ch: ch, follow: true}
-	m.mode = modeOutput
+	if !task.Quiet {
+		m.mode = modeOutput
+	}
 	ctx := m.ctx
 	go func() {
 		w := taw.NewLineWriter(func(l string) { ch <- taskEvent{line: l} })
@@ -90,7 +92,10 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 
 // askTask asks before a task that writes; read-only tasks start at once.
 func (m Model) askTask(task actions.Task, question string) (tea.Model, tea.Cmd) {
-	if !task.Writes {
+	if task.Ask != "" {
+		question = task.Ask
+	}
+	if !task.Writes && task.Ask == "" {
 		return m.startTask(task)
 	}
 	m.confirm = question
@@ -238,4 +243,35 @@ func (m Model) outputScreen(height int) string {
 	all := append([]string{head, rule}, shown...)
 	all = append(all, foot...)
 	return block(strings.Join(all, "\n"), m.width, height)
+}
+
+// askWork asks before w: get the theme ready to work on, or, when its Vite
+// is running, stop it and the site.
+func (m Model) askWork() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	if _, busy := m.busy[s.ID]; busy {
+		m.setFlash(s.Slug+" is busy; wait for it to finish", true)
+		return m, nil
+	}
+	var op actions.SiteOp
+	if m.deps.SiteOp != nil {
+		op = m.deps.SiteOp
+	}
+	work := m.deps.Actions.WorkTask
+	if t.Dev != "" {
+		work = m.deps.Actions.StopWorkTask
+	}
+	task, err := work(s, t, op)
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, "")
 }
