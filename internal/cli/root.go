@@ -180,6 +180,10 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		deps.SiteOp = d.runSiteOp
 		if cfg, err := config.Load(d.Paths); err == nil && len(liveTargets(cfg)) > 0 {
 			targets := liveTargets(cfg)
+			deps.Production = map[string]bool{}
+			for _, t := range targets {
+				deps.Production[t.Slug] = true
+			}
 			deps.Live = func(ctx context.Context, fresh bool) (map[string]site.Production, error) {
 				pr, err := d.prober(ctx)
 				if err != nil {

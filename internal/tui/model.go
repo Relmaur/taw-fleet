@@ -7,6 +7,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,7 +62,10 @@ type Deps struct {
 	// one, keeping its scrollback empty: for a window of its own, where
 	// scrolling up should find nothing behind the dashboard.
 	Inline bool
-	TTY    string // the dashboard's terminal, to put Claude's window beside it; "" = unknown
+	// Production is the sites (by folder) with a production URL in the
+	// config: they're listed first, and `/live` filters to them.
+	Production map[string]bool
+	TTY        string // the dashboard's terminal, to put Claude's window beside it; "" = unknown
 
 	CreateDefaults config.Create // the config's [create] section, for the n form
 
@@ -663,6 +667,10 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 			}
 		}
 	}
+	// Live sites first; otherwise the scan's order (by name).
+	sort.SliceStable(m.rows, func(i, j int) bool {
+		return m.deps.Production[rep.Sites[m.rows[i].site].Slug] && !m.deps.Production[rep.Sites[m.rows[j].site].Slug]
+	})
 	m.applyFilter()
 	for vi, ri := range m.visible {
 		r := m.rows[ri]
@@ -698,6 +706,9 @@ func (m Model) matches(r row, q string) bool {
 	hay := []string{s.Slug, s.Name, s.Domain, t.Dir, string(t.Kind), string(s.Status), t.Core.Installed}
 	if t.Core.Behind {
 		hay = append(hay, "behind")
+	}
+	if m.deps.Production[s.Slug] {
+		hay = append(hay, "live")
 	}
 	if g := t.Git; g != nil {
 		hay = append(hay, g.Branch)

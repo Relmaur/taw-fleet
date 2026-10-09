@@ -43,7 +43,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 |---|---|
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
-| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running` |
+| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live` |
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
