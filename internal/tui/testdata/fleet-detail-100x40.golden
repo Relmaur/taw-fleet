@@ -1,12 +1,13 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
+ LOCAL ──────────────────────────────────────────────────────────────────────────── this Mac · Local
  ● acme-shop  http://acme.local  running                                                            
    ~/Local Sites/acme-shop                                                                          
    PHP 8.2.30  ·  id a1                                                                             
    Local name: Acme                                                                                 
                                                                                                     
  ╭───────────────────────────────────────────────╮                                                  
- │ acme   CLASSIC                                │                                                  
+ │ acme  classic                                 │                                                  
  │                                               │                                                  
  │ path       wp-content/themes/acme             │                                                  
  │ taw/core   1.76.1  (latest)                   │                                                  
@@ -16,25 +17,24 @@
  │ bin/taw    yes                                │                                                  
  ╰───────────────────────────────────────────────╯                                                  
                                                                                                     
- ● Production  https://acme.mx  checked just now                                                    
+ LIVE ─────────────────────────────────────────────────────────────────────── production · companion
+ ● https://acme.mx  checked just now                                                                
    WordPress   ·  PHP   ·  taw/core 1.76.1                                                          
    companion   ·  verified                                                                          
                                                                                                     
- ● Feedback  acme.mx  checked just now                                                              
+ FEEDBACK ─────────────────────────────────────────────────────────────── client comments · BugSmash
+ ● acme.mx  checked just now                                                                        
    3 open comments, the oldest 3 days ago                                                           
-   #108 /credito-pyme/ Actualizar texto por: "Buró de crédito Evaluación flexible." · 3 hours ago   
-   #107 /credito-pyme/ Cambiar texto por: Garantía… · 1 day ago                                     
-   #99 /multimedia/ Cambiar el nombre por: Despojo de inmuebles… un problema creciente. · 3 days ago
+   ▎ Actualizar texto por: "Buró de crédito Evaluación flexible."                                   
+     #108 · /credito-pyme/ · Paola · 3 hours ago                                                    
+   ▎ Cambiar texto por: Garantía…                                                                   
+     #107 · /credito-pyme/ · Paola · 1 day ago                                                      
+   ▎ Cambiar el nombre por: Despojo de inmuebles… un problema creciente.                            
+     #99 · /multimedia/ · Paola · 3 days ago                                                        
                                                                                                     
+ FINDINGS ─────────────────────────────────────────────────────────────────────────────────── doctor
    ▲ 3 open comments in BugSmash, the oldest 3 days old  comments.open                              
-     → ask Claude in the TAW umbrella: "resolve comments on acme-shop" (skill taw-resolve-comments) 
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
+     → X in the dashboard hands them to Claude (skill taw-resolve-comments), or ask Claude in the T…
                                                                                                     
 
  ↑/↓ scroll • pgdn page down • esc back • ? help • q quit

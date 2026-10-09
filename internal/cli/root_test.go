@@ -112,7 +112,7 @@ func TestListTable(t *testing.T) {
 	}
 	for _, want := range []string{
 		"1 site", "2 TAW themes", "1 running",
-		"acme", "acme-theme", "taw-gutenberg ↗", "CLASSIC", "BLOCK", "acme.local",
+		"acme", "acme-theme", "taw-gutenberg ↗", "classic", "block", "acme.local",
 		"1.59.2 ▲ 1.76.1", "1.76.1", "no git", "TAW/CORE",
 		"1 more site without a TAW theme (--all)",
 	} {
@@ -184,7 +184,7 @@ func TestShow(t *testing.T) {
 	}
 	for _, want := range []string{
 		"acme", "http://acme.local", "running", "PHP 8.2.30", "id a1",
-		"acme-theme", "CLASSIC", "taw-gutenberg", "BLOCK", "↗ symlink", "links to   ~/umbrella/taw-gutenberg", "wp-content/themes/acme-theme",
+		"acme-theme", "classic", "taw-gutenberg", "block", "↗ symlink", "links to   ~/umbrella/taw-gutenberg", "wp-content/themes/acme-theme",
 		"1.59.2 ▲ 1.76.1", "1.76.1  (latest)", "not its own repository",
 		"taw/core v1.59.2, latest is v1.76.1", "core.behind", "→ composer update taw/core",
 	} {

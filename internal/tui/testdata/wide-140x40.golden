@@ -1,21 +1,23 @@
  ◆ taw-fleet v0.3.0  ·  3 sites  ·  4 TAW themes  ·  2 running  ·  1 behind on taw/core                                    updated just now 
 
-    SITE · THEME              TAW/CORE         SYNC  GIT                                │  ● acme-shop  http://acme.local  running          
-─────────────────────────────────────────────────────────────────────────────────────── │    ~/Local Sites/acme-shop                        
-▌ ● acme-shop                 1.76.1           —     main                               │    PHP 8.2.30  ·  id a1                           
-▌   acme   CLASSIC                                   2d ago                             │    Local name: Acme                               
-  ○ bistro                    1.59.2 ▲ 1.76.1  —     chore/update-core ±5 ◇ unpushed    │                                                   
-    bistro-theme   CLASSIC                           2d ago                             │  ╭───────────────────────────────────────────────╮
-  ● taw                       1.76.1           —     main                               │  │ acme   CLASSIC                                │
-    taw-gutenberg ↗   BLOCK                          2d ago                             │  │                                               │
-    taw                       1.76.1           —     main                               │  │ path       wp-content/themes/acme             │
-    taw-theme   CLASSIC                              2d ago                             │  │ taw/core   1.76.1  (latest)                   │
-                                                                                        │  │ git        main  tracking origin/main         │
-                                                                                        │  │ repo       github.com/Relmaur/client--theme   │
+    SITE · THEME             TAW/CORE          SYNC   GIT                               │  LOCAL ────────────────────────── this Mac · Local
+─────────────────────────────────────────────────────────────────────────────────────── │  ● acme-shop  http://acme.local  running          
+▌ ● acme-shop                1.76.1            —      main                              │    ~/Local Sites/acme-shop                        
+    acme  classic                                     2d ago                            │    PHP 8.2.30  ·  id a1                           
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ │    Local name: Acme                               
+  ○ bistro                   1.59.2 ▲ 1.76.1   —      chore/update-core ±5 ◇ unpushed   │                                                   
+    bistro-theme  classic                             2d ago                            │  ╭───────────────────────────────────────────────╮
+                                                                                        │  │ acme  classic                                 │
+  ● taw                      1.76.1            —      main                              │  │                                               │
+    taw-gutenberg ↗  block                            2d ago                            │  │ path       wp-content/themes/acme             │
+                                                                                        │  │ taw/core   1.76.1  (latest)                   │
+    taw                      1.76.1            —      main                              │  │ git        main  tracking origin/main         │
+    taw-theme  classic                                2d ago                            │  │ repo       github.com/Relmaur/client--theme   │
                                                                                         │  │ version    abc1234  ·  last commit 2 days ago │
                                                                                         │  │ bin/taw    yes                                │
                                                                                         │  ╰───────────────────────────────────────────────╯
                                                                                         │                                                   
+                                                                                        │  FINDINGS ───────────────────────────────── doctor
                                                                                         │  ✓ Nothing to report.                             
                                                                                         │                                                   
                                                                                         │                                                   
@@ -34,7 +36,5 @@
                                                                                         │                                                   
                                                                                         │                                                   
                                                                                         │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
 
- enter details • w work on it • e editor • g GitHub • s start/stop • u update taw/core • A update with agent • U update all with agents …
+ enter details • e editor • t terminal • U update all with agents • : all actions • / filter • ? help • q quit

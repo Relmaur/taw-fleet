@@ -17,6 +17,7 @@ type keyMap struct {
 	StartStop, Restart, Work, Yes, No                                 key.Binding
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
 	New, CopySecret, LiveRefresh, Merge, Pull                         key.Binding
+	Comments, Resolve                                                 key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -63,6 +64,8 @@ func newKeyMap() keyMap {
 		LiveRefresh: key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "check production")),
 		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge PR")),
 		Pull:        key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "pull content")),
+		Comments:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "comments")),
+		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
 	}
 }
 
@@ -130,7 +133,7 @@ func (c confirmKeys) FullHelp() [][]key.Binding { return c.k.FullHelp() }
 
 // ShortHelp is the one-line help bar.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Detail, k.Work, k.Editor, k.GitHub, k.StartStop, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.New, k.Filter, k.Help, k.Quit}
+	return []key.Binding{k.Detail, k.Editor, k.Terminal, k.UpdateAll, k.Menu, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the help screen, in columns.
@@ -138,8 +141,8 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Quit},
 		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.Pull},
-		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
-		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy},
+		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments},
+		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve},
 	}
 }
 

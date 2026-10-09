@@ -146,6 +146,7 @@ type Production struct {
 type Feedback struct {
 	ProjectID string    `json:"project_id"`
 	Project   string    `json:"project,omitempty"` // the project's name in BugSmash
+	URL       string    `json:"url,omitempty"`     // its review page, where the comments are
 	CheckedAt time.Time `json:"checked_at"`
 	Open      int       `json:"open"`
 	Oldest    time.Time `json:"oldest_at,omitzero"` // the oldest open comment

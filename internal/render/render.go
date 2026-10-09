@@ -5,6 +5,7 @@ package render
 
 import (
 	"fmt"
+	"image/color"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -22,20 +23,39 @@ import (
 // caps the cards (0 = as wide as their content).
 func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding, now time.Time, width int) string {
 	var b strings.Builder
+	b.WriteString(Section(p, "LOCAL", p.OK, "this Mac · Local", width))
 	b.WriteString(Header(p, ps, s, width))
 	b.WriteString("\n")
 	b.WriteString(Cards(p, ps, s, now, width))
-	b.WriteString("\n")
 	if s.Production != nil {
-		b.WriteString(Production(p, s.Production, now, width))
 		b.WriteString("\n")
+		b.WriteString(Section(p, "LIVE", p.Brand, "production · companion", width))
+		b.WriteString(Production(p, s.Production, now, width))
 	}
 	if s.Feedback != nil {
-		b.WriteString(Feedback(p, s.Feedback, now, width))
 		b.WriteString("\n")
+		b.WriteString(Section(p, "FEEDBACK", p.Accent, "client comments · BugSmash", width))
+		b.WriteString(Feedback(p, s.Feedback, now, width))
 	}
+	b.WriteString("\n")
+	b.WriteString(Section(p, "FINDINGS", p.Muted, "doctor", width))
 	b.WriteString(Findings(p, findings, false, width))
 	return b.String()
+}
+
+// Section is a labelled rule saying where the lines under it come from:
+// " LIVE ──────── production · companion". width 0 draws a 72-cell rule.
+func Section(p style.Palette, label string, c color.Color, note string, width int) string {
+	if width <= 0 {
+		width = 72
+	}
+	head := " " + lipgloss.NewStyle().Bold(true).Foreground(c).Render(label) + " "
+	tail := " " + p.Fg(p.Muted).Render(note)
+	fill := width - ansi.StringWidth(head) - ansi.StringWidth(tail)
+	if fill < 3 { // too narrow for the note
+		tail, fill = "", width-ansi.StringWidth(head)
+	}
+	return head + p.Fg(p.Faint).Render(strings.Repeat("─", max(fill, 1))) + tail + "\n"
 }
 
 // Header is the site's title line and facts.
@@ -278,11 +298,11 @@ func Feedback(p style.Palette, f *site.Feedback, now time.Time, width int) strin
 	case f.Open > 0:
 		dot = p.Fg(p.Accent).Render("●")
 	}
-	head := " " + dot + " " + lipgloss.NewStyle().Bold(true).Render("Feedback")
-	if f.Project != "" {
-		head += "  " + p.Fg(p.Brand).Render(f.Project)
+	project := f.Project
+	if project == "" {
+		project = "BugSmash"
 	}
-	lines := []string{head + muted.Render("  checked "+Ago(now, f.CheckedAt))}
+	lines := []string{" " + dot + " " + lipgloss.NewStyle().Bold(true).Render(project) + muted.Render("  checked "+Ago(now, f.CheckedAt))}
 	switch {
 	case f.Error != "":
 		lines = append(lines, "   "+p.Fg(p.Warn).Render(f.Error))
@@ -300,17 +320,28 @@ func Feedback(p style.Palette, f *site.Feedback, now time.Time, width int) strin
 		sum += age
 	}
 	lines = append(lines, "   "+sum)
-	inner := width - 3
-	if width <= 0 {
-		inner = 0
-	}
 	for _, c := range f.Comments[:min(len(f.Comments), 3)] {
-		lines = append(lines, "   "+CommentLine(p, c, now, inner))
+		lines = append(lines, Quote(p, c, now)...)
 	}
 	if more := f.Open - min(len(f.Comments), 3); more > 0 {
 		lines = append(lines, "   "+muted.Render(fmt.Sprintf("… %d more: taw-fleet comments", more)))
 	}
 	return fit(lines, width)
+}
+
+// Quote is one comment as a quote: its text after a bar, then its number,
+// page and age underneath.
+func Quote(p style.Palette, c site.Comment, now time.Time) []string {
+	muted := p.Fg(p.Muted)
+	meta := p.Fg(p.Accent).Render(fmt.Sprintf("#%d", c.Number))
+	if path := pagePath(c.Page); path != "" {
+		meta += muted.Render(" · " + path)
+	}
+	if c.Author != "" {
+		meta += muted.Render(" · " + c.Author)
+	}
+	meta += muted.Render(" · " + Ago(now, c.CreatedAt))
+	return []string{"   " + p.Fg(p.Accent).Render("▎") + " " + c.Text, "     " + meta}
 }
 
 // CommentLine is one comment in a line: "#108 /credito-pyme/ Actualizar
@@ -343,7 +374,7 @@ func pagePath(u string) string {
 // Production is the live site's block: what its companion said.
 func Production(p style.Palette, r *site.Production, now time.Time, width int) string {
 	muted := p.Fg(p.Muted)
-	lines := []string{" " + p.Live(r) + " " + lipgloss.NewStyle().Bold(true).Render("Production") + "  " + p.Fg(p.Brand).Render(r.URL) +
+	lines := []string{" " + p.Live(r) + " " + lipgloss.NewStyle().Bold(true).Foreground(p.Brand).Render(r.URL) +
 		muted.Render("  checked "+Ago(now, r.CheckedAt))}
 	if !r.Reachable {
 		lines = append(lines, "   "+p.Fg(p.Err).Render(r.Error))

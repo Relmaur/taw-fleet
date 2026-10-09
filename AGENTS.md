@@ -23,10 +23,10 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/doctor` | Rules → `site.Finding` (stable codes, severity, fix). Rules read the report only |
 | `internal/style` | Palette (light/dark), status dots, badges, `Core`/`GitFit` cells; shared by CLI and dashboard |
 | `internal/render` | Site header, theme cards, findings: the `show` output and the dashboard's detail pane |
-| `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/`. Rows are two-line cards (`rowLines`): site + columns, then theme/kind/host + ages; `tableRows()` counts cards |
+| `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/`. Rows are two-line cards (`cardLines`): site + columns, then theme/kind/host + ages, with a blank line between them while all fit (`airy()`); `tableRows()` counts cards. The TAW ecosystem's themes (`ecosystem()`: the umbrella's taw-theme/taw-gutenberg) sort last under their own label and aren't counted in the header. `stress_test.go` draws a 20-site fleet at several sizes |
 | `internal/tools` | Installed editors/terminals (`Detect`, `Pick`) and `Opener` (`/usr/bin/open` with argument lists) |
 | `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes/BugSmash project); unknown keys are errors |
-| `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
+| `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`), BugSmash comments (`OpenComments`, `ResolvePrompt`, `Umbrella`, `LaunchResolve`: Claude in the umbrella with the theme `--add-dir`ed); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 | `internal/create` | New site: `Normalize`/`Check` a `Request`, `Creator.Run` (Local `addSite` → taw-create → npm build → `wp theme activate` → git), `Password` |
 | `internal/createform` | The new-site form (charm.land/huh): `New`, `Defaults`, `Summary`, `Theme` (huh in taw-fleet's palette); shared by `create` and the dashboard's `n` |

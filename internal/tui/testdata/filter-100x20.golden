@@ -1,9 +1,9 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
-    SITE · THEME              TAW/CORE         SYNC  GIT                                            
+    SITE · THEME                  TAW/CORE               SYNC        GIT                            
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-▌ ○ bistro                    1.59.2 ▲ 1.76.1  —     chore/update-core ±5 ◇ unpushed                
-▌   bistro-theme   CLASSIC                           2d ago                                         
+▌ ○ bistro                        1.59.2 ▲ 1.76.1        —           chore/update-core ±5 ◇ unpushed
+    bistro-theme  classic                                            2d ago                         
                                                                                                     
                                                                                                     
                                                                                                     
@@ -17,4 +17,4 @@
                                                                                                     
                                                                                                     
  / behind 
- enter details • w work on it • e editor • g GitHub • s start/stop • u update taw/core …
+ enter details • e editor • t terminal • U update all with agents • : all actions • / filter …

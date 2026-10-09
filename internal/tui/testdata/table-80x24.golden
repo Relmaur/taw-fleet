@@ -1,18 +1,18 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind        just now 
 
-    SITE · THEME              TAW/CORE         SYNC  GIT                        
+    SITE · THEME            TAW/CORE         SYNC  GIT                          
 ────────────────────────────────────────────────────────────────────────────────
-▌ ● acme-shop                 1.76.1           —     main                       
-▌   acme   CLASSIC                                   2d ago                     
-  ○ bistro                    1.59.2 ▲ 1.76.1  —     chore/update… ±5 ◇ unpushed
-    bistro-theme   CLASSIC                           2d ago                     
-  ● taw                       1.76.1           —     main                       
-    taw-gutenberg ↗   BLOCK                          2d ago                     
-    taw                       1.76.1           —     main                       
-    taw-theme   CLASSIC                              2d ago                     
+▌ ● acme-shop               1.76.1           —     main                         
+    acme  classic                                  2d ago                       
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+  ○ bistro                  1.59.2 ▲ 1.76.1  —     chore/update-c… ±5 ◇ unpushed
+    bistro-theme  classic                          2d ago                       
                                                                                 
+  ● taw                     1.76.1           —     main                         
+    taw-gutenberg ↗  block                         2d ago                       
                                                                                 
-                                                                                
+    taw                     1.76.1           —     main                         
+    taw-theme  classic                             2d ago                       
                                                                                 
                                                                                 
                                                                                 
@@ -21,4 +21,4 @@
                                                                                 
                                                                                 
 
- enter details • w work on it • e editor • g GitHub • s start/stop …
+ enter details • e editor • t terminal • U update all with agents …

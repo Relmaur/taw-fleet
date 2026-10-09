@@ -19,6 +19,7 @@ type Palette struct {
 	Text, Muted, Faint, Accent, Brand color.Color
 	OK, Warn, Err, Info               color.Color
 	BadgeText                         color.Color
+	Selected                          color.Color // the selected row's background
 }
 
 // New returns the palette for a dark or light background.
@@ -35,6 +36,7 @@ func New(dark bool) Palette {
 		Err:       ld(lipgloss.Color("#CF222E"), lipgloss.Color("#F85149")),
 		Info:      ld(lipgloss.Color("#0969DA"), lipgloss.Color("#58A6FF")),
 		BadgeText: ld(lipgloss.Color("#FFFFFF"), lipgloss.Color("#0D1117")),
+		Selected:  ld(lipgloss.Color("#EFE9FB"), lipgloss.Color("#2E2845")),
 	}
 }
 
@@ -72,13 +74,13 @@ func (p Palette) Badge(text string, bg color.Color) string {
 	return lipgloss.NewStyle().Background(bg).Foreground(p.BadgeText).Bold(true).Padding(0, 1).Render(text)
 }
 
-// Kind is the badge for a theme kind.
+// Kind is a theme's kind as a quiet colored word: classic or block.
 func (p Palette) Kind(k site.ThemeKind) string {
 	switch k {
 	case site.KindClassic:
-		return p.Badge("CLASSIC", p.Brand)
+		return p.Fg(p.Muted).Render("classic")
 	case site.KindGutenberg:
-		return p.Badge("BLOCK", p.Accent)
+		return p.Fg(p.Accent).Render("block")
 	}
 	return p.Fg(p.Muted).Render("—")
 }

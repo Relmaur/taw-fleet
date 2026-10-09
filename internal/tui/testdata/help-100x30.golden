@@ -12,6 +12,7 @@
    │  o   last output    R      restart             P production    U update all with agents   │    
    │  n   new site       M      merge PR            g GitHub        h hand off                 │    
    │  q   quit           C      pull content        G PRs           c copy prompt              │    
+   │                                                F comments      X resolve comments         │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
@@ -25,6 +26,5 @@
    │  2✓ 2✗  open PRs: CI passed, failed   ✓ ↑2 ⟳ ✗  deploy: current, behind, running, failed  │    
    │                                                                                           │    
    │  esc or ? to go back                                                                      │    
-   │                                                                                           │    
 
- enter details • w work on it • e editor • g GitHub • s start/stop • u update taw/core …
+ enter details • e editor • t terminal • U update all with agents • : all actions • / filter …
