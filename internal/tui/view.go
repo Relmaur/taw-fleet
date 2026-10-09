@@ -152,10 +152,8 @@ func (m Model) body() string {
 	switch {
 	case m.mode == modeHelp:
 		return block(m.helpScreen(), m.width, h)
-	case m.mode == modeMenu:
-		return block(m.menuScreen(h), m.width, h)
-	case m.mode == modeSkills:
-		return block(m.skillsScreen(h), m.width, h)
+	case m.mode == modeMenu, m.mode == modeSkills:
+		return block(m.paletteScreen(h), m.width, h)
 	case !m.loaded && m.err != nil:
 		return block(center(p.Fg(p.Err).Render("✗ "+m.err.Error()), m.width, h), m.width, h)
 	case m.mode == modeCreate && m.form != nil:

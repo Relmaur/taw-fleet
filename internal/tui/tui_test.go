@@ -1245,11 +1245,11 @@ func TestCommandMenu(t *testing.T) {
 	f := &fakeActions{}
 	m := withActions(t, 30, f)
 	m = press(t, m, ":")
-	if m.mode != modeMenu || !strings.Contains(screen(m), "All actions  on acme") || !strings.Contains(screen(m), "work on it") {
+	if m.mode != modeMenu || !strings.Contains(screen(m), "All actions  on acme") || !strings.Contains(screen(m), "Work on it") {
 		t.Fatalf("the menu lists the actions:\n%s", screen(m))
 	}
 	m = press(t, m, "f", "i", "n", "d")
-	if out := screen(m); !strings.Contains(out, "Finder") || strings.Contains(out, "work on it") {
+	if out := screen(m); !strings.Contains(out, "Show in Finder") || strings.Contains(out, "Work on it") {
 		t.Errorf("typing filters:\n%s", out)
 	}
 	m = runCmd(t, m, keyMsg("enter"))
@@ -1257,7 +1257,7 @@ func TestCommandMenu(t *testing.T) {
 		t.Errorf("enter runs the action: mode %v, did %v", m.mode, f.did)
 	}
 	m = press(t, m, ":", "z", "z", "z")
-	if !strings.Contains(screen(m), "No action matches.") {
+	if !strings.Contains(screen(m), "No action matches “zzz”.") {
 		t.Errorf("no match:\n%s", screen(m))
 	}
 	m = press(t, m, "esc")
@@ -1334,8 +1334,8 @@ func TestRefreshEverything(t *testing.T) {
 		}
 	}
 
-	m = press(t, m, ":", "a", "l", "l")
-	if !strings.Contains(screen(m), "refresh all") {
+	m = press(t, m, ":", "r", "e", "f", "r", "e", "s", "h", " ", "e")
+	if !strings.Contains(screen(m), "Refresh everything") {
 		t.Fatalf("the menu offers it:\n%s", screen(m))
 	}
 	next, _ = m.Update(keyMsg("enter"))
@@ -1498,12 +1498,13 @@ func TestAskClaudePicker(t *testing.T) {
 
 	m = press(t, m, "a")
 	out := screen(m)
-	if m.mode != modeSkills || !strings.Contains(out, "Ask Claude  in acme, with one of its skills") ||
-		!strings.Contains(out, "Use when iterating on a live site's performance.") || !strings.Contains(out, "publish-news  this site's own") {
+	if m.mode != modeSkills || !strings.Contains(out, "Ask Claude  in acme (acme-shop), with one of its skills") ||
+		!strings.Contains(out, "Use when iterating on a live site's performance.") || !strings.Contains(out, "‹site skill›") ||
+		!strings.Contains(out, "Ask for it with: x") && !strings.Contains(out, "Ask for it with") {
 		t.Fatalf("picker:\n%s", out)
 	}
 	m = press(t, m, "n", "e", "w", "s") // filter: publish-news
-	if got := m.skillMatches(); len(got) != 1 || got[0].Name != "publish-news" {
+	if got := m.paletteItems(); len(got) != 1 || got[0].title != "publish-news" {
 		t.Fatalf("filter: %+v", got)
 	}
 	m = runCmd(t, m, keyMsg("enter"))
@@ -1516,5 +1517,43 @@ func TestAskClaudePicker(t *testing.T) {
 	m = press(t, m, "a")
 	if m.mode != modeTable || !strings.Contains(screen(m), "has no skills in .claude/skills/ yet") {
 		t.Errorf("no skills:\n%s", screen(m))
+	}
+}
+
+func TestPaletteCatalogCoversTheKeys(t *testing.T) {
+	m := newModel(t, 120, 30, nil)
+	docs := map[string]bool{}
+	for _, d := range actionDocs {
+		docs[d.key] = true
+	}
+	skip := map[string]bool{"up": true, "down": true, ":": true, "c": true} // c only copies on the handoff screen
+	for _, col := range m.keys.FullHelp() {
+		for _, b := range col {
+			if k := b.Keys()[0]; !skip[k] && !docs[k] {
+				t.Errorf("key %q (%s) has no entry in the : menu's catalog", k, b.Help().Desc)
+			}
+		}
+	}
+}
+
+func TestPaletteSaysWhyNot(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 40, f)
+	m.width = 160
+	m = press(t, m, ":", "m", "e", "r", "g", "e")
+	out := screen(m)
+	if !strings.Contains(out, "Merge a pull request") || !strings.Contains(out, "Not now: no open pull request") || !strings.Contains(out, "‹action›") {
+		t.Fatalf("detail pane:\n%s", out)
+	}
+	m = press(t, m, "enter")
+	if m.mode != modeTable || !strings.Contains(m.flash, "Merge a pull request: no open pull request") {
+		t.Errorf("enter on an unavailable entry explains: %q", m.flash)
+	}
+
+	// Recent actions come first.
+	m = runCmd(t, press(t, m, ":", "f", "i", "n", "d"), keyMsg("enter"))
+	m = press(t, m, ":")
+	if items := m.paletteItems(); items[0].group != "Recent" || items[0].key != "f" {
+		t.Errorf("recent first: %+v", items[0])
 	}
 }

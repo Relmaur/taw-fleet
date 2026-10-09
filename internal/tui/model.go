@@ -200,6 +200,7 @@ type Model struct {
 	menuCursor int
 	menuFrom   mode            // where the menu goes back to
 	skills     []actions.Skill // the skills the a picker offers
+	recent     []string        // the : menu's last-run action keys
 
 	filtering bool
 	filter    textinput.Model
@@ -602,10 +603,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch m.mode {
-	case modeMenu:
-		return m.onMenuKey(msg)
-	case modeSkills:
-		return m.onSkillsKey(msg)
+	case modeMenu, modeSkills:
+		return m.onPaletteKey(msg)
 	case modeOutput:
 		return m.onOutputKey(msg)
 	case modeHandoff:
