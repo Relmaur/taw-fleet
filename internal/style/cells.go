@@ -117,3 +117,17 @@ func (p Palette) Severity(s site.Severity) string {
 	}
 	return p.Fg(p.Info).Render("•")
 }
+
+// Live is the production mark: ● verified, ◐ answering but unverified,
+// ✗ refused or unreachable, — not checked.
+func (p Palette) Live(r *site.Production) string {
+	switch {
+	case r == nil:
+		return p.Fg(p.Faint).Render("—")
+	case !r.Reachable:
+		return p.Fg(p.Err).Render("✗")
+	case !r.Verified:
+		return p.Fg(p.Warn).Render("◐")
+	}
+	return p.Fg(p.OK).Render("●")
+}

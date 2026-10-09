@@ -37,6 +37,9 @@ func newDoctorCmd(d Deps, g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !g.offline {
+				d.applyLive(cmd.Context(), &rep, false)
+			}
 			if len(args) == 1 {
 				s, err := scan.Resolve(rep.Sites, args[0])
 				if err != nil {

@@ -175,10 +175,13 @@ func (m Model) emptyState() string {
 
 // --- table ------------------------------------------------------------------
 
-type columns struct{ site, theme, kind, core, sync, git int }
+type columns struct{ site, theme, kind, core, sync, live, git int }
 
 func (m Model) columns(width int) columns {
 	c := columns{site: 4, theme: 5, kind: 7, core: 8, sync: 4}
+	if m.deps.Live != nil { // only with production sites configured
+		c.live = 4
+	}
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
@@ -189,8 +192,8 @@ func (m Model) columns(width int) columns {
 	}
 	c.site = min(c.site, 24)
 	c.theme = min(c.theme, 20)
-	// marker + dot + spaces + five gaps of two.
-	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + 10
+	// marker + dot + spaces + six gaps of two.
+	fixed := 4 + c.site + c.theme + c.kind + c.core + c.sync + c.liveWidth() + 10
 	c.git = width - fixed
 	if c.git < 8 { // squeeze the names before the git column vanishes
 		over := 8 - c.git
@@ -198,9 +201,25 @@ func (m Model) columns(width int) columns {
 		c.site -= max(cut, 0)
 		over -= max(cut, 0)
 		c.theme -= min(max(over, 0), c.theme-10)
-		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+10), 4)
+		c.git = max(width-(4+c.site+c.theme+c.kind+c.core+c.sync+c.liveWidth()+10), 4)
 	}
 	return c
+}
+
+// liveWidth is the LIVE column with its gap, or nothing.
+func (c columns) liveWidth() int {
+	if c.live == 0 {
+		return 0
+	}
+	return c.live + 2
+}
+
+// liveCol is a LIVE cell with its gap, when the column is shown.
+func (c columns) liveCol(s string) string {
+	if c.live == 0 {
+		return ""
+	}
+	return pad(s, c.live) + "  "
 }
 
 func themeLabel(t site.Theme) string {
@@ -215,7 +234,7 @@ func (m Model) table(width int) string {
 	c := m.columns(width)
 	head := p.Fg(p.Muted).Bold(true)
 	lines := []string{
-		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  GIT"),
+		"    " + head.Render(pad("SITE", c.site)+"  "+pad("THEME", c.theme)+"  "+pad("KIND", c.kind)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+"GIT"),
 		p.Fg(p.Faint).Render(strings.Repeat("─", width)),
 	}
 	if len(m.visible) == 0 {
@@ -232,8 +251,9 @@ func (m Model) table(width int) string {
 
 		// The site is named once per group of rows, like `list`.
 		first := vi == m.offset || m.rows[m.visible[vi-1]].site != r.site
-		dot, name := " ", ""
+		dot, name, liveCell := " ", "", ""
 		if first {
+			liveCell = p.Live(s.Production)
 			dot, name = p.Dot(s.Status), s.Slug
 			if _, busy := m.busy[s.ID]; busy {
 				dot = p.Dot(site.StatusBusy)
@@ -259,6 +279,7 @@ func (m Model) table(width int) string {
 			pad(p.Kind(t.Kind), c.kind) + "  " +
 			pad(p.Core(t.Core), c.core) + "  " +
 			pad(p.Sync(t.Drift), c.sync) + "  " +
+			c.liveCol(liveCell) +
 			ansi.Truncate(p.GitFit(t.Git, c.git), c.git, "…")
 		lines = append(lines, line)
 	}
@@ -344,6 +365,8 @@ func (m Model) helpScreen() string {
 		p.Git(&site.GitInfo{Branch: "feature", DefaultBranch: "main"}) + "  not the default branch, not pushed",
 		p.Sync(nil) + " " + p.Sync(&site.Drift{}) + " " + p.Sync(&site.Drift{Tier1: []string{"a", "b"}}) + " " + p.Sync(&site.Drift{Errors: []string{"x"}}) +
 			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
+		p.Live(&site.Production{Reachable: true, Verified: true}) + " " + p.Live(&site.Production{Reachable: true}) + " " + p.Live(&site.Production{}) + " " + p.Live(nil) +
+			"  live: verified, answering but unverified, refused or down, no production URL",
 	}
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Faint).Padding(1, 2)
 	content := lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Keys") + "\n\n" + h.View(m.keys) +
@@ -376,6 +399,8 @@ func (m Model) footer() string {
 		}
 		sort.Strings(parts)
 		status = " " + m.spin.View() + " " + muted.Render("Local is working: "+strings.Join(parts, ", ")+"…")
+	case m.liveFetching && m.flash == "":
+		status = " " + m.spin.View() + " " + muted.Render("checking the production sites…")
 	case m.flash != "" && m.mode != modeOutput: // the output view shows the result itself
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.filtering:

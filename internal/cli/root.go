@@ -13,9 +13,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/github"
+	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
@@ -42,8 +44,9 @@ type Deps struct {
 	Dark   bool           // the terminal has a dark background
 	GitHub *github.Client // newest-release lookups; nil = built from Paths
 
-	Updater    *selfupdate.Updater    // self-update; nil = the real one
-	Executable func() (string, error) // the running binary; nil = os.Executable
+	Updater    *selfupdate.Updater                         // self-update; nil = the real one
+	Executable func() (string, error)                      // the running binary; nil = os.Executable
+	Live       func(context.Context) (*live.Prober, error) // production checks; nil = Keychain key + pinned keys
 
 	// Interactive is true when stdin and stdout are a terminal: only then
 	// does `taw-fleet` alone open the dashboard, and only then are y/N
@@ -122,11 +125,22 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Refresh: time.Minute,
 		}
 		deps.SiteOp = d.runSiteOp
+		if cfg, err := config.Load(d.Paths); err == nil && len(liveTargets(cfg)) > 0 {
+			targets := liveTargets(cfg)
+			deps.Live = func(ctx context.Context, fresh bool) (map[string]site.Production, error) {
+				pr, err := d.prober(ctx)
+				if err != nil {
+					return nil, err
+				}
+				return pr.ProbeAll(ctx, targets, fresh), nil
+			}
+		}
 		// A broken config only disables the shortcuts; the dashboard still opens.
 		if a, err := d.actions(); err != nil {
 			deps.ActionsErr = err
 		} else {
 			deps.Actions = a
+			deps.CreateDefaults = a.Config.Create
 		}
 		return tui.Run(cmd.Context(), deps)
 	}
@@ -137,7 +151,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g))
 	return root
 }
 

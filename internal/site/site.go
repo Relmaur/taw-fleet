@@ -79,6 +79,8 @@ type Site struct {
 
 	ActiveTheme string `json:"active_theme,omitempty"` // the theme WordPress uses; known only while the site runs
 
+	Production *Production `json:"production,omitempty"` // the live site, through its companion (nil = not checked)
+
 	Hosts  []HostConnection `json:"hosts,omitempty"`
 	Themes []Theme          `json:"themes"`
 	Errors []SourceError    `json:"errors,omitempty"`
@@ -104,6 +106,51 @@ type Theme struct {
 	Scaffold ScaffoldInfo `json:"scaffold"`
 	Git      *GitInfo     `json:"git,omitempty"`   // nil when the folder isn't its own git repo
 	Drift    *Drift       `json:"drift,omitempty"` // the last `bin/taw sync` taw-fleet ran; nil = never
+}
+
+// Production is what the live site's companion said.
+type Production struct {
+	URL       string    `json:"url"`
+	CheckedAt time.Time `json:"checked_at"`
+	TookMS    int64     `json:"took_ms"`
+
+	Reachable bool   `json:"reachable"` // the companion answered /health
+	Verified  bool   `json:"verified"`  // its answers carried the pinned key's signature
+	KeyID     string `json:"key_id,omitempty"`
+	Error     string `json:"error,omitempty"`
+	ErrorKind string `json:"error_kind,omitempty"` // unreachable | signature | auth | companion | no-key
+
+	WP        string `json:"wp_version,omitempty"`
+	PHP       string `json:"php_version,omitempty"`
+	TawCore   string `json:"taw_core_version,omitempty"`
+	Companion string `json:"companion_version,omitempty"`
+
+	HasInventory  bool     `json:"has_inventory"` // /inventory answered (companion ≥ 0.2)
+	HasVulns      bool     `json:"has_vulnerabilities"`
+	Plugins       int      `json:"plugins"`
+	PluginUpdates []string `json:"plugin_updates,omitempty"` // "slug 1.2 → 1.3"
+
+	Scanner       string     `json:"scanner,omitempty"` // Defender, Wordfence; "" = none
+	Vulns         []LiveVuln `json:"vulnerabilities,omitempty"`
+	WorstSeverity string     `json:"worst_severity,omitempty"`
+
+	Logs []LiveLog `json:"logs,omitempty"`
+}
+
+// LiveVuln is one known vulnerability on a live site.
+type LiveVuln struct {
+	Component string `json:"component"` // "plugin akismet 5.1"
+	Severity  string `json:"severity"`
+	Title     string `json:"title"`
+	Link      string `json:"link,omitempty"`
+}
+
+// LiveLog is one taw/core log line from a live site.
+type LiveLog struct {
+	TS      string `json:"ts"`
+	Level   string `json:"level"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // Drift is what the last scaffold sync check found.

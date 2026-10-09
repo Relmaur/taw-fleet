@@ -23,6 +23,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/createform"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
+	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
@@ -56,6 +57,10 @@ type Deps struct {
 	Refresh    time.Duration    // re-scan this often; 0 = only on `r`
 
 	CreateDefaults config.Create // the config's [create] section, for the n form
+
+	// Live checks the production sites (cached unless fresh). nil = no
+	// production view.
+	Live func(ctx context.Context, fresh bool) (map[string]site.Production, error)
 }
 
 type mode int
@@ -103,6 +108,11 @@ type Model struct {
 	confirm string                           // question on screen; "" = none
 	onYes   func(Model) (tea.Model, tea.Cmd) // what "yes" does
 	pending local.Op                         // the site operation asked about, if any
+
+	live         map[string]site.Production // production checks by site slug
+	liveFetching bool
+	liveAt       time.Time // when the last check finished
+	liveErr      error
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -317,7 +327,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case scanDoneMsg:
+		live.Apply(msg.rep.Sites, m.live)
 		m.applyScan(msg.rep, msg.err)
+		if m.liveDue() {
+			return m.fetchLive(false)
+		}
+		return m, nil
+
+	case liveDoneMsg:
+		m.liveFetching, m.liveAt, m.liveErr = false, m.deps.Now(), msg.err
+		if msg.err == nil {
+			m.live = msg.results
+			live.Apply(m.rep.Sites, m.live)
+			m.applyScan(m.rep, nil) // findings include the live.* rules
+			if msg.fresh {
+				m.setFlash(liveSummary(msg.results), false)
+			}
+		} else if msg.fresh {
+			m.setFlash("production check: "+msg.err.Error(), true)
+		}
 		return m, nil
 
 	case siteOpDoneMsg:
@@ -357,10 +385,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.deps.Refresh > 0 && !m.scanning && m.loaded && m.now.Sub(m.rep.ScannedAt) >= m.deps.Refresh {
 			return m, tea.Batch(tick(), m.startScan())
 		}
+		if m.liveDue() {
+			model, cmd := m.fetchLive(false)
+			return model, tea.Batch(tick(), cmd)
+		}
 		return m, tick()
 
 	case spinner.TickMsg:
-		if !m.scanning && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
+		if !m.scanning && !m.liveFetching && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -509,6 +541,12 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if !m.scanning {
 			return m, m.startScan()
 		}
+	case key.Matches(msg, k.LiveRefresh):
+		if m.deps.Live == nil {
+			m.setFlash("no production view: add production_url to sites in the config", true)
+			return m, nil
+		}
+		return m.fetchLive(true)
 	case key.Matches(msg, k.Help):
 		m.mode = modeHelp
 	case key.Matches(msg, k.New):

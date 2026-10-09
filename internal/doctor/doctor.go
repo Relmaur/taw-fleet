@@ -86,6 +86,70 @@ func checkSite(s site.Site, opts Options) []site.Finding {
 		out = append(out, checkCore(s, t)...)
 		out = append(out, checkGit(s, t)...)
 	}
+	return append(out, checkLive(s)...)
+}
+
+// checkLive reads what the production site's companion said (taw-fleet live).
+func checkLive(s site.Site) []site.Finding {
+	p := s.Production
+	if p == nil {
+		return nil
+	}
+	var out []site.Finding
+	add := func(sev site.Severity, code, msg, fix string) {
+		out = append(out, site.Finding{Severity: sev, Code: code, SiteID: s.ID, Site: s.Slug, Message: msg, Fix: fix})
+	}
+	switch {
+	case p.ErrorKind == "signature":
+		add(site.Error, "live.signature", p.URL+": "+p.Error,
+			"if the site's key was rotated on purpose, pin the new one with `taw-fleet live trust "+s.Slug+"`; otherwise find out who answers for this site")
+		return out
+	case p.ErrorKind == "auth":
+		add(site.Warn, "live.refused", p.URL+": "+p.Error,
+			"give the site taw-fleet's public key (`taw-fleet live key show`): the companion mu-plugin rollout, or TAW_HUB_PUBLIC_KEY + TAW_HUB_KEY_ID in wp-config.php")
+		return out
+	case !p.Reachable:
+		add(site.Warn, "live.unreachable", p.URL+": "+p.Error, "check the site in a browser and in WPMUDev")
+		return out
+	case p.ErrorKind == "no-key":
+		add(site.Info, "live.untrusted", p.URL+": answers aren't verified (no pinned key for this site)",
+			"`taw-fleet live trust "+s.Slug+"` pins the key it presents")
+	}
+	if !p.HasInventory && p.Companion != "" {
+		add(site.Info, "live.companion-outdated", "production runs companion "+p.Companion+", without the inventory and vulnerability routes",
+			"update the companion (it ships with the theme as an mu-plugin from companion 0.3.0)")
+	}
+	if p.TawCore != "" {
+		var local []string
+		match := false
+		for _, t := range s.TAWThemes() {
+			if t.Core.Installed == "" {
+				continue
+			}
+			local = append(local, strings.TrimPrefix(t.Core.Installed, "v"))
+			if strings.TrimPrefix(t.Core.Installed, "v") == strings.TrimPrefix(p.TawCore, "v") {
+				match = true
+			}
+		}
+		if len(local) > 0 && !match {
+			add(site.Info, "live.core-mismatch",
+				fmt.Sprintf("production runs taw/core %s; this Mac has %s", strings.TrimPrefix(p.TawCore, "v"), strings.Join(local, ", ")),
+				"deploy the theme (push to main), or pull if production is ahead")
+		}
+	}
+	if n := len(p.Vulns); n > 0 {
+		sev := site.Warn
+		if p.WorstSeverity == "high" || p.WorstSeverity == "critical" {
+			sev = site.Error
+		}
+		add(sev, "live.vulnerable",
+			fmt.Sprintf("%d known %s on production (worst: %s), per %s", n, plural(n, "vulnerability", "vulnerabilities"), p.WorstSeverity, p.Scanner),
+			"update the affected plugins or themes (taw-fleet live "+s.Slug+" lists them)")
+	}
+	if n := len(p.PluginUpdates); n > 0 {
+		add(site.Info, "live.plugin-updates", fmt.Sprintf("%d %s waiting on production: %s", n, plural(n, "plugin update", "plugin updates"), strings.Join(p.PluginUpdates, ", ")),
+			"update them in WPMUDev or wp-admin")
+	}
 	return out
 }
 

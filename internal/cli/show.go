@@ -25,6 +25,9 @@ func newShowCmd(d Deps, g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !g.offline {
+				d.applyLive(cmd.Context(), &rep, false)
+			}
 			s, err := scan.Resolve(rep.Sites, args[0])
 			if err != nil {
 				return err

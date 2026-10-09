@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"image/color"
 	"io"
 	"os"
@@ -693,5 +694,77 @@ func TestNewSiteForm(t *testing.T) {
 	m.fields = &createform.Fields{Name: "x", Confirmed: false}
 	if next, _ := m.finishCreate(); next.(Model).mode != modeTable {
 		t.Error("backing out closes the form")
+	}
+}
+
+// liveMsg runs a batch and returns its liveDoneMsg (the spinner tick is skipped).
+func liveMsg(t *testing.T, cmd tea.Cmd) liveDoneMsg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("no command")
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c == nil {
+				continue
+			}
+			if ld, ok := c().(liveDoneMsg); ok {
+				return ld
+			}
+		}
+	}
+	if ld, ok := msg.(liveDoneMsg); ok {
+		return ld
+	}
+	t.Fatalf("no liveDoneMsg in %T", msg)
+	return liveDoneMsg{}
+}
+
+func TestProductionView(t *testing.T) {
+	var freshCalls int
+	results := map[string]site.Production{
+		"acme-shop": {URL: "https://acme.mx", Reachable: true, Verified: true, WP: "6.8.3", PHP: "8.2.29", TawCore: "v1.59.2",
+			Companion: "0.3.0", HasInventory: true, HasVulns: true, Plugins: 12, Scanner: "Defender",
+			Vulns: []site.LiveVuln{{Component: "plugin akismet 5.1", Severity: "high", Title: "RCE"}}, WorstSeverity: "high", CheckedAt: now},
+		"bistro": {URL: "https://bistro.mx", Error: "connection refused", ErrorKind: "unreachable", CheckedAt: now},
+	}
+	m := New(context.Background(), Deps{
+		Scan:   func(context.Context) (scan.Report, error) { return fixtureReport(), nil },
+		Doctor: func(r scan.Report) []site.Finding { return doctor.Run(r, doctor.Options{}) },
+		Paths:  paths.ForHome("/Users/me", nil), Version: "v1.1.0", Dark: true, Now: func() time.Time { return now },
+		Live: func(_ context.Context, fresh bool) (map[string]site.Production, error) {
+			if fresh {
+				freshCalls++
+			}
+			return results, nil
+		},
+	})
+	m = step(t, m, tea.WindowSizeMsg{Width: 150, Height: 40})
+	next, cmd := m.Update(scanDoneMsg{rep: fixtureReport()})
+	m = next.(Model)
+	if !m.liveFetching {
+		t.Fatal("the first scan starts the production check")
+	}
+	m = step(t, m, liveMsg(t, cmd))
+	out := screen(m)
+	for _, want := range []string{"LIVE", "Production  https://acme.mx", "WordPress 6.8.3", "1 known vulnerability (worst high) per Defender"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(fmt.Sprint(m.findings), "live.vulnerable") || !strings.Contains(fmt.Sprint(m.findings), "live.core-mismatch") {
+		t.Errorf("findings lack live rules: %v", m.findings)
+	}
+	// A later scan keeps the production results.
+	m = step(t, m, scanDoneMsg{rep: fixtureReport()})
+	if m.rep.Sites[0].Production == nil {
+		t.Error("rescan dropped the production view")
+	}
+	// L checks again, fresh, and says how it went.
+	next, cmd = m.Update(keyMsg("L"))
+	m = step(t, next.(Model), liveMsg(t, cmd))
+	if freshCalls != 1 || !strings.Contains(screen(m), "1 of 2 production sites verified · no answer from bistro") {
+		t.Errorf("fresh=%d\n%s", freshCalls, screen(m))
 	}
 }

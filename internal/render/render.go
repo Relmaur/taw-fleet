@@ -25,6 +25,10 @@ func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding,
 	b.WriteString("\n")
 	b.WriteString(Cards(p, ps, s, now, width))
 	b.WriteString("\n")
+	if s.Production != nil {
+		b.WriteString(Production(p, s.Production, now, width))
+		b.WriteString("\n")
+	}
 	b.WriteString(Findings(p, findings, false, width))
 	return b.String()
 }
@@ -239,4 +243,58 @@ func unit(n int, name string) string {
 		return "1 " + name + " ago"
 	}
 	return fmt.Sprintf("%d %ss ago", n, name)
+}
+
+// Production is the live site's block: what its companion said.
+func Production(p style.Palette, r *site.Production, now time.Time, width int) string {
+	muted := p.Fg(p.Muted)
+	lines := []string{" " + p.Live(r) + " " + lipgloss.NewStyle().Bold(true).Render("Production") + "  " + p.Fg(p.Brand).Render(r.URL) +
+		muted.Render("  checked "+Ago(now, r.CheckedAt))}
+	if !r.Reachable {
+		lines = append(lines, "   "+p.Fg(p.Err).Render(r.Error))
+		return fit(lines, width)
+	}
+	trust := p.Fg(p.OK).Render("verified")
+	if !r.Verified {
+		trust = p.Fg(p.Warn).Render("not verified")
+	}
+	lines = append(lines, "   "+muted.Render("WordPress ")+r.WP+muted.Render("  ·  PHP ")+r.PHP+muted.Render("  ·  taw/core ")+strings.TrimPrefix(r.TawCore, "v"))
+	lines = append(lines, "   "+muted.Render("companion ")+r.Companion+muted.Render("  ·  ")+trust)
+	if r.HasInventory {
+		up := muted.Render("no updates waiting")
+		if n := len(r.PluginUpdates); n > 0 {
+			up = p.Fg(p.Warn).Render(fmt.Sprintf("%d %s waiting", n, plural(n, "update", "updates")))
+		}
+		lines = append(lines, "   "+fmt.Sprintf("%d plugins", r.Plugins)+muted.Render("  ·  ")+up)
+	}
+	if r.HasVulns {
+		switch {
+		case len(r.Vulns) > 0:
+			c := p.Warn
+			if r.WorstSeverity == "high" || r.WorstSeverity == "critical" {
+				c = p.Err
+			}
+			lines = append(lines, "   "+p.Fg(c).Render(fmt.Sprintf("%d known %s (worst %s)", len(r.Vulns), plural(len(r.Vulns), "vulnerability", "vulnerabilities"), r.WorstSeverity))+muted.Render(" per "+r.Scanner))
+		case r.Scanner != "":
+			lines = append(lines, "   "+muted.Render("no known vulnerabilities, per "+r.Scanner))
+		}
+	}
+	for _, l := range r.Logs {
+		lines = append(lines, "   "+muted.Render(shortTS(l.TS)+" ")+l.Level+" "+l.Code+muted.Render(" "+l.Message))
+	}
+	return fit(lines, width)
+}
+
+func shortTS(ts string) string {
+	if t, err := time.Parse(time.RFC3339, ts); err == nil {
+		return t.Local().Format("Jan 2 15:04")
+	}
+	return ts
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
