@@ -17,8 +17,8 @@ type fullRefresh struct {
 }
 
 // refreshAll re-reads every site (ctrl+r): the Local scan with fresh latest
-// versions, GitHub's pull requests and deploys, the production sites, and
-// then the sync check of every classic theme.
+// versions, GitHub's pull requests and deploys, the production sites, the
+// BugSmash comments, and then the sync check of every classic theme.
 func (m Model) refreshAll() (tea.Model, tea.Cmd) {
 	if m.full.active {
 		m.setFlash("already refreshing everything", true)
@@ -35,6 +35,10 @@ func (m Model) refreshAll() (tea.Model, tea.Cmd) {
 	}
 	if m.deps.Live != nil {
 		model, cmd := m.fetchLive(true)
+		m, cmds = model.(Model), append(cmds, cmd)
+	}
+	if m.deps.Feedback != nil {
+		model, cmd := m.fetchFeedback(true)
 		m, cmds = model.(Model), append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
@@ -72,6 +76,9 @@ func (m Model) refreshPending() []string {
 	if m.liveFetching {
 		parts = append(parts, "production")
 	}
+	if m.feedbackFetching {
+		parts = append(parts, "BugSmash")
+	}
 	if m.full.syncPending || (m.full.syncTitle != "" && m.task != nil && m.task.running && m.task.title == m.full.syncTitle) {
 		parts = append(parts, "sync check")
 	}
@@ -90,6 +97,9 @@ func (m Model) finishRefresh() Model {
 	parts := []string{fmt.Sprintf("refreshed %d sites, %d TAW themes", len(m.rep.Sites), themes)}
 	if m.live != nil {
 		parts = append(parts, liveSummary(m.live))
+	}
+	if m.feedback != nil {
+		parts = append(parts, feedbackSummary(m.feedback))
 	}
 	if m.full.syncResult != "" {
 		parts = append(parts, m.full.syncResult)

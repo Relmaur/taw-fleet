@@ -205,3 +205,39 @@ func TestGitHubRules(t *testing.T) {
 		}
 	}
 }
+
+func TestFeedbackRules(t *testing.T) {
+	checked := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name string
+		f    site.Feedback
+		want string
+		sev  site.Severity
+		msg  string
+	}{
+		{"none open", site.Feedback{CheckedAt: checked}, "", 0, ""},
+		{"fresh", site.Feedback{CheckedAt: checked, Open: 3, Oldest: checked.Add(-5 * time.Hour)}, "comments.open", site.Info, "3 open comments in BugSmash, the oldest 5 hours old"},
+		{"stale", site.Feedback{CheckedAt: checked, Open: 1, Oldest: checked.Add(-72 * time.Hour)}, "comments.open", site.Warn, "1 open comment in BugSmash, the oldest 3 days old"},
+		{"no key", site.Feedback{ErrorKind: "no-key", Error: "x"}, "comments.no-key", site.Info, ""},
+		{"gone", site.Feedback{ProjectID: "p1", ErrorKind: "not-found", Error: "x"}, "comments.unreachable", site.Warn, "its BugSmash project p1 is gone (deleted or re-created)"},
+		{"down", site.Feedback{ErrorKind: "unreachable", Error: "timeout"}, "comments.unreachable", site.Warn, "BugSmash: timeout"},
+	}
+	for _, c := range cases {
+		f := c.f
+		rep := scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", PHPVersion: "8.2.30", Themes: []site.Theme{clean()}, Feedback: &f}}}
+		fs := Run(rep, Options{})
+		if strings.Join(codes(fs), ",") != c.want {
+			t.Errorf("%s: %v, want %s", c.name, codes(fs), c.want)
+			continue
+		}
+		if c.want == "" {
+			continue
+		}
+		if fs[0].Severity != c.sev || (c.msg != "" && fs[0].Message != c.msg) {
+			t.Errorf("%s: %v %q", c.name, fs[0].Severity, fs[0].Message)
+		}
+	}
+	if fs := Run(scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", Themes: []site.Theme{clean()}, Feedback: &site.Feedback{Open: 2, CheckedAt: checked, Oldest: checked}}}}, Options{}); !strings.Contains(fs[0].Fix, `"resolve comments on client"`) {
+		t.Errorf("fix = %q", fs[0].Fix)
+	}
+}

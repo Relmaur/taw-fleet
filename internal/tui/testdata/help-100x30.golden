@@ -21,10 +21,10 @@
    │  feature ◇ unpushed  not the default branch, not pushed                                   │    
    │  — ✓ ▲2 ✗  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed        │    
    │  ● ◐ ✗ —  live: verified, answering but unverified, refused or down, no production URL    │    
+   │  3 2 0 ?  FB: open BugSmash comments, one waiting over 2 days, none open, check failed    │    
    │  2✓ 2✗  open PRs: CI passed, failed   ✓ ↑2 ⟳ ✗  deploy: current, behind, running, failed  │    
    │                                                                                           │    
    │  esc or ? to go back                                                                      │    
    │                                                                                           │    
-   ╰───────────────────────────────────────────────────────────────────────────────────────────╯    
 
  enter details • w work on it • e editor • g GitHub • s start/stop • u update taw/core …

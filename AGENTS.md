@@ -23,15 +23,17 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/doctor` | Rules → `site.Finding` (stable codes, severity, fix). Rules read the report only |
 | `internal/style` | Palette (light/dark), status dots, badges, `Core`/`GitFit` cells; shared by CLI and dashboard |
 | `internal/render` | Site header, theme cards, findings: the `show` output and the dashboard's detail pane |
-| `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/` |
+| `internal/tui` | The dashboard (Bubble Tea v2): `Model`/`Update`/`View`, keymap, golden tests in `testdata/`. Rows are two-line cards (`rowLines`): site + columns, then theme/kind/host + ages; `tableRows()` counts cards |
 | `internal/tools` | Installed editors/terminals (`Detect`, `Pick`) and `Opener` (`/usr/bin/open` with argument lists) |
-| `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes); unknown keys are errors |
+| `internal/config` | Optional `~/.config/taw-fleet/config.toml` (editor, terminal, per-site production URL/notes/BugSmash project); unknown keys are errors |
 | `internal/actions` | Shortcuts (`Do`), agent handoff (`Handoff`, `Copy`, `Launch`); shared by CLI and dashboard |
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 | `internal/create` | New site: `Normalize`/`Check` a `Request`, `Creator.Run` (Local `addSite` → taw-create → npm build → `wp theme activate` → git), `Password` |
 | `internal/createform` | The new-site form (charm.land/huh): `New`, `Defaults`, `Summary`, `Theme` (huh in taw-fleet's palette); shared by `create` and the dashboard's `n` |
 | `internal/companion` | The companion's wire protocol (TAW-HUB-v1): `Canonical`, `Key` (sign), `VerifyResponse`, a signed GET `Client`, typed answers. Tested against taw-hub's `hub-signing-vectors.json` (in `testdata/`) |
-| `internal/live` | Production checks: `Keychain` (signing key via `security -i`, never argv), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
+| `internal/keychain` | Secrets in the login keychain (`Item`, `Save` via `security -i` on stdin, never argv; `Load`, `ErrNotFound`); used by `live` and `bugsmash` |
+| `internal/live` | Production checks: `Keychain` (the signing key, through `internal/keychain`), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
+| `internal/bugsmash` | Open BugSmash review comments per site (read-only REST, `X-API-Key`): `KeyStore` (Keychain, then `$BUGSMASH_API_KEY`), `Client` (`Project`, `Projects`, `OpenComments`), `Prober.Check`/`CheckAll` (5-min cache), `NoKey`, `Apply` → `Site.Feedback` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
@@ -76,7 +78,7 @@ go run ./cmd/taw-fleet version
 - **Filesystem and environment come in through `paths.Paths`. Commands run through
   `exec.Runner`.** No package calls `os.UserHomeDir()` or `exec.Command` directly, except the two
   default implementations.
-- **Tests never touch the real `~/Library`, `~/Local Sites`, GitHub or Local's API.** Use
+- **Tests never touch the real `~/Library`, `~/Local Sites`, GitHub, BugSmash or Local's API.** Use
   `t.TempDir()`, `testdata/`, `FakeRunner` and `httptest`. CI runs on a clean macOS runner, which
   would catch it.
 - **Every subprocess gets an argument list and a context timeout. Never a shell string.** The one
@@ -94,6 +96,11 @@ go run ./cmd/taw-fleet version
   (`/framework/sync`, `/taw`, `/keys/rotate`) are deliberately unused. The signing key lives only
   in the Keychain: never print it, never pass it on a command line, never write it to a file.
   Change the wire format only together with the companion, and keep the vectors test passing.
+- **BugSmash is read-only too.** `internal/bugsmash` only GETs (`/project/{id}`, `/projects`,
+  `/comments?status=active`); resolving and replying belong to the umbrella's
+  `taw-resolve-comments` skill. The API key follows the signing key's rules (Keychain only; the
+  `BUGSMASH_API_KEY` fallback is read, never written). A deleted project still answers `/comments`,
+  so `Check` asks `/project/{id}` first: its 404 is how a re-created project shows up.
 - **Read-only by default.** Anything that changes a site, a theme or a file asks first in the
   dashboard and needs `--yes` on the command line.
 - **Never use `style.css` `Version:` as a theme's version.** It is stale in every TAW theme. Use

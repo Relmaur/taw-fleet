@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -41,6 +42,10 @@ type Site struct {
 	ProductionURL string `toml:"production_url"`
 	Notes         string `toml:"notes"`
 	GitHubAccount string `toml:"github_account"` // the GitHub account the site's theme belongs to, when it isn't the owner's (before it has a remote)
+
+	// BugSmashProject is the id of the site's project in BugSmash, where
+	// reviewers leave comments on the live site (FB column, doctor).
+	BugSmashProject string `toml:"bugsmash_project"`
 }
 
 // File is the config file's path.
@@ -76,9 +81,15 @@ func Load(p paths.Paths) (Config, error) {
 		if s.ProductionURL != "" && !strings.HasPrefix(s.ProductionURL, "https://") && !strings.HasPrefix(s.ProductionURL, "http://") {
 			return c, fmt.Errorf("%s: sites.%s.production_url must start with https://", File(p), slug)
 		}
+		if s.BugSmashProject != "" && !uuid.MatchString(s.BugSmashProject) {
+			return c, fmt.Errorf("%s: sites.%s.bugsmash_project must be the project's id (a UUID like a15552c8-a3d9-4bce-9a06-7859fbb7f27c)", File(p), slug)
+		}
 	}
 	return c, nil
 }
+
+// uuid is a BugSmash project id.
+var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // OpensWindow reports whether the dashboard opens in its own window.
 func (c Config) OpensWindow() bool { return c.Window == nil || *c.Window }
@@ -118,6 +129,10 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # [sites.ls-mxico]
 # production_url = "https://lsmexico.mx"
 # notes = "Client: LS México. Deploys from main."
+# The site's BugSmash project (its id is in the project's URL, or
+# "taw-fleet comments projects"): open review comments show in the FB column
+# and in doctor. The API key goes in the Keychain: taw-fleet comments key import
+# bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"
 `
 
 // Init writes the template. It refuses to overwrite an existing file.

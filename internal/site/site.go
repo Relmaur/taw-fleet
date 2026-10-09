@@ -80,6 +80,7 @@ type Site struct {
 	ActiveTheme string `json:"active_theme,omitempty"` // the theme WordPress uses; known only while the site runs
 
 	Production *Production `json:"production,omitempty"` // the live site, through its companion (nil = not checked)
+	Feedback   *Feedback   `json:"feedback,omitempty"`   // open comments in its BugSmash project (nil = not checked)
 
 	Hosts  []HostConnection `json:"hosts,omitempty"`
 	Themes []Theme          `json:"themes"`
@@ -138,6 +139,38 @@ type Production struct {
 	WorstSeverity string     `json:"worst_severity,omitempty"`
 
 	Logs []LiveLog `json:"logs,omitempty"`
+}
+
+// Feedback is the site's BugSmash project: the comments reviewers left on
+// it that nobody resolved yet.
+type Feedback struct {
+	ProjectID string    `json:"project_id"`
+	Project   string    `json:"project,omitempty"` // the project's name in BugSmash
+	CheckedAt time.Time `json:"checked_at"`
+	Open      int       `json:"open"`
+	Oldest    time.Time `json:"oldest_at,omitzero"` // the oldest open comment
+	Comments  []Comment `json:"comments,omitempty"` // the open ones, newest first
+	Error     string    `json:"error,omitempty"`
+	ErrorKind string    `json:"error_kind,omitempty"` // no-key | auth | not-found | unreachable | bugsmash
+}
+
+// FeedbackStale is when an open comment has waited too long.
+const FeedbackStale = 48 * time.Hour
+
+// Stale reports whether the oldest open comment has waited longer than
+// FeedbackStale (measured at the check, so a cached result doesn't age).
+func (f Feedback) Stale() bool {
+	return f.Open > 0 && !f.Oldest.IsZero() && f.CheckedAt.Sub(f.Oldest) > FeedbackStale
+}
+
+// Comment is one open BugSmash comment.
+type Comment struct {
+	ID        string    `json:"id"`
+	Number    int       `json:"number"`
+	Author    string    `json:"author,omitempty"`
+	Page      string    `json:"page,omitempty"` // the page it was left on (a full URL)
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // LiveVuln is one known vulnerability on a live site.
