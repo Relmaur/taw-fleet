@@ -115,6 +115,9 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 				state += muted.Render("  (default " + gi.DefaultBranch + ")")
 			}
 			row("git", state)
+			if t.Account != "" {
+				row("account", p.Fg(p.Brand).Render("@"+t.Account)+muted.Render("  another GitHub account"))
+			}
 			if gi.Repo != nil {
 				row("repo", p.Fg(p.Brand).Render(strings.TrimPrefix(gi.Repo.WebURL(), "https://")))
 			} else if gi.RemoteURL != "" {

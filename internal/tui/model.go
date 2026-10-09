@@ -46,6 +46,7 @@ type Actions interface {
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
+	PullTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
 }
 
@@ -683,6 +684,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, k.Merge):
 		model, cmd := m.askMerge()
 		return model, cmd, true
+	case key.Matches(msg, k.Pull):
+		model, cmd := m.askPull()
+		return model, cmd, true
 	case key.Matches(msg, k.Output):
 		if m.task == nil {
 			m.setFlash("nothing has run yet (y checks the scaffold, u updates taw/core)", false)
@@ -768,6 +772,9 @@ func (m Model) matches(r row, q string) bool {
 	}
 	if t.Dev != "" {
 		hay = append(hay, "vite")
+	}
+	if t.Account != "" {
+		hay = append(hay, "@"+t.Account, "other")
 	}
 	if g := t.Git; g != nil {
 		hay = append(hay, g.Branch)

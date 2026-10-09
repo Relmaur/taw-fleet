@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
+	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/tools"
@@ -24,6 +26,13 @@ func (d Deps) actions() (*actions.Actions, error) {
 	}
 	a := actions.New(d.Paths, d.Runner, cfg)
 	a.Merger = d.github(&globals{})
+	a.Content = func(ctx context.Context, slug, url string) ([]byte, error) {
+		pr, err := d.prober(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return pr.Content(ctx, live.Target{Slug: slug, URL: url})
+	}
 	return a, nil
 }
 

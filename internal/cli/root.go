@@ -74,6 +74,18 @@ func (d Deps) github(g *globals) *github.Client {
 	return c
 }
 
+// accounts marks themes of other GitHub accounts, from the config.
+func (d Deps) accounts() scan.Accounts {
+	cfg, _ := config.Load(d.Paths)
+	a := scan.Accounts{Mine: cfg.GitHubOwners, Sites: map[string]string{}}
+	for slug, s := range cfg.Sites {
+		if s.GitHubAccount != "" {
+			a.Sites[slug] = s.GitHubAccount
+		}
+	}
+	return a
+}
+
 func (d Deps) scanner(g *globals) *scan.Scanner {
 	src := scan.NewLocalSource(d.Paths)
 	src.Live = func(ctx context.Context) (map[string]site.Status, error) {
@@ -87,6 +99,7 @@ func (d Deps) scanner(g *globals) *scan.Scanner {
 		Sources:   []scan.Source{src},
 		Enrichers: []scan.Enricher{scan.GitEnricher{Runner: d.Runner}, scan.CoreEnricher{}, scan.DriftEnricher{CacheDir: d.Paths.CacheDir}, scan.DevEnricher{}},
 		Lookups:   []scan.Lookup{scan.GitHubLookup{Client: d.github(g)}},
+		After:     []func([]site.Site){d.accounts().Apply},
 	}
 	if d.active != nil {
 		sc.Sites = []scan.SiteEnricher{d.active}
@@ -217,7 +230,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g))
 	return root
 }
 

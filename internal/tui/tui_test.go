@@ -454,6 +454,19 @@ func (f *fakeActions) MergeTask(_ site.Site, t site.Theme, pr site.PullRequest) 
 		}}, nil
 }
 
+func (f *fakeActions) PullTask(s site.Site, _ site.Theme, _ actions.SiteOp) (actions.Task, error) {
+	apply := actions.Task{Title: "Pull: acme.mx → " + s.Slug, Writes: true, Ask: "Import acme.mx's content into " + s.Slug + "? 1 new, 2 changed; production wins.",
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			f.worked = "pulled " + s.Slug
+			return actions.Summary{Headline: "Pulled acme.mx into " + s.Slug + ": 1 created, 2 updated, 0 media downloaded"}, nil
+		}}
+	return actions.Task{Title: "Pull preview: acme.mx → " + s.Slug, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		_, _ = out.Write([]byte("Fetching the published content of https://acme.mx…\n"))
+		return actions.Summary{Headline: "acme.mx → " + s.Slug + ": 1 new, 2 changed, 9 unchanged", Lines: []string{"update  post:page:about  (title: changed)"},
+			Report: actions.PullPreview{Create: 1, Change: 2, Same: 9, Apply: apply}}, nil
+	}}, nil
+}
+
 // runCmd executes a command returned by Update and feeds its message back.
 func runCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
@@ -1123,5 +1136,40 @@ func TestMergeAndFollowTheDeploy(t *testing.T) {
 	m = step(t, m, reposDoneMsg{states: map[string]site.RepoState{"Relmaur/client--theme": done}})
 	if len(m.followed) != 0 || !strings.Contains(screen(m), "acme.mx has #12: deployed") {
 		t.Errorf("deployed:\n%s", screen(m))
+	}
+}
+
+func TestPullPreviewThenImport(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 24, f)
+	next, cmd := m.Update(keyMsg("C"))
+	m = drain(t, next.(Model), cmd)
+	out := screen(m)
+	for _, want := range []string{"Fetching the published content", "update  post:page:about  (title: changed)", "Import acme.mx's content into acme-shop? 1 new, 2 changed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if m.mode != modeOutput || f.worked != "" {
+		t.Fatalf("the preview stays on screen and imports nothing yet (mode %v, %q)", m.mode, f.worked)
+	}
+	next, cmd = m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	if f.worked != "pulled acme-shop" || !strings.Contains(screen(m), "Pulled acme.mx into acme-shop") {
+		t.Errorf("y imports (%q):\n%s", f.worked, screen(m))
+	}
+}
+
+func TestOtherAccountTag(t *testing.T) {
+	rep := fixtureReport()
+	rep.Sites[1].Themes[0].Account = "parallelplus"
+	m := newModel(t, 150, 30, &rep)
+	if !strings.Contains(screen(m), "@parallelplus chore/u") {
+		t.Errorf("the GIT cell leads with the account:\n%s", screen(m))
+	}
+	m.filter.SetValue("other")
+	m.applyFilter()
+	if len(m.visible) != 1 {
+		t.Errorf("/other filters to themes of other accounts: %d rows", len(m.visible))
 	}
 }

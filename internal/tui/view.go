@@ -14,6 +14,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/selfupdate"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/style"
 )
 
 // Layout constants.
@@ -307,7 +308,7 @@ func (m Model) table(width int) string {
 			pad(p.Sync(t.Drift), c.sync) + "  " +
 			c.liveCol(liveCell) +
 			c.ghCols(p.PRs(t.GitHub), p.Deploy(t.GitHub)) +
-			ansi.Truncate(p.GitFit(t.Git, c.git), c.git, "…")
+			gitCell(p, t, c.git)
 		lines = append(lines, line)
 	}
 	if len(m.visible) > m.tableRows() {
@@ -398,7 +399,7 @@ func (m Model) helpScreen() string {
 			muted.Render("↗") + " symlink   " + p.Fg(p.Accent).Render("vite") + " Vite is running",
 		p.Core(site.CoreInfo{Installed: "v1.59.2", Latest: "v1.76.1", Behind: true}) + "  taw/core installed ▲ newest",
 		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "main", Upstream: "origin/main", Dirty: 3, Ahead: 1, Behind: 2}) +
-			"  uncommitted ±, to push ↑, to pull ↓",
+			"  uncommitted ±, to push ↑, to pull ↓   " + p.Fg(p.Brand).Render("@acct") + " another GitHub account",
 		p.Git(&site.GitInfo{Branch: "feature", DefaultBranch: "main"}) + "  not the default branch, not pushed",
 		p.Sync(nil) + " " + p.Sync(&site.Drift{}) + " " + p.Sync(&site.Drift{Tier1: []string{"a", "b"}}) + " " + p.Sync(&site.Drift{Errors: []string{"x"}}) +
 			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
@@ -503,4 +504,15 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// gitCell is the GIT cell, led by @account for a theme of another GitHub
+// account.
+func gitCell(p style.Palette, t site.Theme, width int) string {
+	if t.Account == "" {
+		return ansi.Truncate(p.GitFit(t.Git, width), width, "…")
+	}
+	tag := "@" + t.Account + " "
+	rest := max(width-ansi.StringWidth(tag), 4)
+	return ansi.Truncate(p.Fg(p.Brand).Render(tag)+p.GitFit(t.Git, rest), width, "…")
 }

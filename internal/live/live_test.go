@@ -65,6 +65,12 @@ func fakeCompanion(t *testing.T, signWith companion.Key, calls *atomic.Int32) *h
 			reply(200, `{"schema_version":1,"wp_version":"6.8.3","plugins":[{"slug":"akismet","version":"5.1","active":true,"update_version":"5.3"},{"slug":"wpmudev","version":"4.0","active":true,"update_version":""}],"mu_plugins":[]}`)
 		case "/vulnerabilities":
 			reply(200, `{"scanner":{"name":"Defender","version":"4.1","last_scan_at":"2026-10-08T00:00:00Z"},"count":2,"findings":[{"component_type":"plugin","slug":"akismet","installed_version":"5.1","severity":"medium","title":"XSS"},{"component_type":"plugin","slug":"old","installed_version":"1.0","severity":"HIGH","title":"RCE"}]}`)
+		case "/content":
+			src := "http://" + r.Host
+			if v := contentFrom.Load(); v != nil && v.(string) != "" {
+				src = v.(string)
+			}
+			reply(200, `{"meta":{"schema":"1.2","source":{"url":"`+src+`"}},"posts":[{"slug":"about"}],"media":[]}`)
 		case "/logs":
 			if r.URL.Query().Get("limit") != "5" {
 				t.Errorf("limit = %q", r.URL.Query().Get("limit"))
@@ -77,6 +83,9 @@ func fakeCompanion(t *testing.T, signWith companion.Key, calls *atomic.Int32) *h
 	t.Cleanup(srv.Close)
 	return srv
 }
+
+// contentFrom overrides the snapshot's meta.source.url in fakeCompanion.
+var contentFrom atomic.Value
 
 func prober(pins Pins) *Prober {
 	return &Prober{Client: companion.NewClient(hubKey), Pins: pins}
@@ -221,5 +230,26 @@ func TestKeychain(t *testing.T) {
 	k, err := kc.Load(context.Background())
 	if err != nil || k.Public() != hubKey.Public() || k.ID != "hub-local" {
 		t.Errorf("load: %v", err)
+	}
+}
+
+func TestContent(t *testing.T) {
+	var calls atomic.Int32
+	srv := fakeCompanion(t, siteKey, &calls)
+	pins := Pins{"acme": {ID: "site-acme", Public: siteKey.Public()}}
+	body, err := prober(pins).Content(context.Background(), Target{Slug: "acme", URL: srv.URL})
+	if err != nil || !strings.Contains(string(body), `"slug":"about"`) {
+		t.Fatalf("Content = %s, %v", body, err)
+	}
+	if _, err := prober(Pins{}).Content(context.Background(), Target{Slug: "acme", URL: srv.URL}); err == nil || !strings.Contains(err.Error(), "live trust") {
+		t.Errorf("unpinned: %v", err)
+	}
+	if _, err := prober(Pins{"acme": {ID: "site-acme", Public: hubKey.Public()}}).Content(context.Background(), Target{Slug: "acme", URL: srv.URL}); err == nil {
+		t.Error("a bad signature isn't imported")
+	}
+	contentFrom.Store("https://elsewhere.example")
+	defer contentFrom.Store("")
+	if _, err := prober(pins).Content(context.Background(), Target{Slug: "acme", URL: srv.URL}); err == nil || !strings.Contains(err.Error(), "comes from https://elsewhere.example") {
+		t.Errorf("another site's snapshot: %v", err)
 	}
 }

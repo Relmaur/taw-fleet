@@ -87,7 +87,7 @@ func (c *Client) Get(ctx context.Context, s Site, route string, query url.Values
 		return Response{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
 		return Response{}, err
 	}

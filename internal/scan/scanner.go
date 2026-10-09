@@ -41,8 +41,9 @@ type Scanner struct {
 	Enrichers []Enricher
 	Sites     []SiteEnricher
 	Lookups   []Lookup
-	Limit     int           // concurrent enrichers; default 8
-	Timeout   time.Duration // per enricher call; default 5s
+	After     []func([]site.Site) // run once every enricher is done (rules that read several)
+	Limit     int                 // concurrent enrichers; default 8
+	Timeout   time.Duration       // per enricher call; default 5s
 	Now       func() time.Time
 }
 
@@ -98,6 +99,9 @@ func (sc *Scanner) Run(ctx context.Context) (Report, error) {
 		return rep, enrichErr
 	}
 	applyLatest(rep.Sites, rep.Latest)
+	for _, f := range sc.After {
+		f(rep.Sites)
+	}
 	rep.ScannedAt = now()
 	return rep, nil
 }

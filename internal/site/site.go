@@ -108,6 +108,7 @@ type Theme struct {
 	Drift    *Drift       `json:"drift,omitempty"`      // the last `bin/taw sync` taw-fleet ran; nil = never
 	Dev      string       `json:"dev_server,omitempty"` // the running Vite dev server's URL; "" = not running
 	GitHub   *RepoState   `json:"github,omitempty"`     // open PRs and deploys (nil = not checked)
+	Account  string       `json:"account,omitempty"`    // the GitHub account, when it isn't one of the owner's
 }
 
 // Production is what the live site's companion said.
@@ -203,6 +204,7 @@ type Repo struct {
 	Host  string `json:"host"` // github.com (SSH aliases like github.com-work are mapped back)
 	Owner string `json:"owner"`
 	Name  string `json:"name"`
+	Alias string `json:"ssh_alias,omitempty"` // the SSH host alias the remote uses (github.com-parallel): usually a second account
 }
 
 // FullName is "owner/name".
