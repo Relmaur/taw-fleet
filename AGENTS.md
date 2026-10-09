@@ -30,6 +30,8 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 | `internal/create` | New site: `Normalize`/`Check` a `Request`, `Creator.Run` (Local `addSite` → taw-create → npm build → `wp theme activate` → git), `Password` |
 | `internal/createform` | The new-site form (charm.land/huh): `New`, `Defaults`, `Summary`, `Theme` (huh in taw-fleet's palette); shared by `create` and the dashboard's `n` |
+| `internal/companion` | The companion's wire protocol (TAW-HUB-v1): `Canonical`, `Key` (sign), `VerifyResponse`, a signed GET `Client`, typed answers. Tested against taw-hub's `hub-signing-vectors.json` (in `testdata/`) |
+| `internal/live` | Production checks: `Keychain` (signing key via `security -i`, never argv), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
@@ -88,6 +90,10 @@ go run ./cmd/taw-fleet version
   before push; taw/core update approved; Tier 2 needs confirmation; dirty tree or unexpected
   branch = stop and ask. Change those rules only when the owner asks. Review the golden prompts in
   `internal/handoff/testdata/` whenever the template changes.
+- **The production view only reads.** `live` uses the companion's GET routes; the write routes
+  (`/framework/sync`, `/taw`, `/keys/rotate`) are deliberately unused. The signing key lives only
+  in the Keychain: never print it, never pass it on a command line, never write it to a file.
+  Change the wire format only together with the companion, and keep the vectors test passing.
 - **Read-only by default.** Anything that changes a site, a theme or a file asks first in the
   dashboard and needs `--yes` on the command line.
 - **Never use `style.css` `Version:` as a theme's version.** It is stale in every TAW theme. Use

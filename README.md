@@ -49,6 +49,7 @@ Run `taw-fleet` on its own for the dashboard:
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
+| `L` | check the production sites now (see below); otherwise every 5 minutes |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -124,6 +125,27 @@ dashboard); taw-fleet never stores it. Folder, domain (`<name>.local`) and theme
 from the name; a name, domain or folder Local already has is refused before anything starts. If
 a step fails, the message says what exists so far. Local's API can't delete sites: remove one in
 Local's window.
+
+### Production sites
+
+```bash
+taw-fleet live                      # every site with a production_url
+taw-fleet live chcapital --logs 20  # one site, with its plugin updates and vulnerabilities
+taw-fleet live trust chcapital      # pin the key the site signs its answers with
+taw-fleet live key new              # first time: create taw-fleet's signing key (Keychain)
+```
+
+`live` asks each production site's TAW companion plugin for its health: WordPress, PHP, taw/core
+and companion versions, plugins with updates waiting, known vulnerabilities (from Defender or
+Wordfence) and the last taw/core log lines. In the dashboard that's the **LIVE** column (`●`
+verified, `◐` answering but not verified, `✗` refused or down) and a Production section in the
+detail pane; `doctor` adds `live.*` findings. Sites come from `production_url` in the settings.
+
+It's read-only and signed both ways (the companion's `TAW-HUB-v1` protocol): requests carry
+taw-fleet's Ed25519 signature, kept in your macOS Keychain (never in a file), and every answer
+must carry the site's own signature, checked against the key pinned with `live trust`
+(`~/.config/taw-fleet/companion-keys.json`). A site trusts taw-fleet once it has taw-fleet's
+public key (`taw-fleet live key show`); the companion ships with each TAW theme as an mu-plugin.
 
 ### Sync, update, inspect
 

@@ -131,3 +131,39 @@ func TestSeverityJSON(t *testing.T) {
 		t.Error("severity text")
 	}
 }
+
+func TestLiveRules(t *testing.T) {
+	ok := site.Production{URL: "https://client.mx", Reachable: true, Verified: true, TawCore: "v1.76.1", HasInventory: true, HasVulns: true, Companion: "0.3.0"}
+	cases := []struct {
+		name   string
+		mutate func(*site.Production)
+		want   []string
+	}{
+		{"healthy", func(*site.Production) {}, nil},
+		{"unreachable", func(p *site.Production) { p.Reachable, p.Error, p.ErrorKind = false, "timeout", "unreachable" }, []string{"live.unreachable"}},
+		{"signature", func(p *site.Production) { p.Reachable, p.ErrorKind = false, "signature" }, []string{"live.signature"}},
+		{"refused", func(p *site.Production) { p.Reachable, p.ErrorKind = false, "auth" }, []string{"live.refused"}},
+		{"old companion", func(p *site.Production) { p.HasInventory, p.Companion = false, "0.1.2" }, []string{"live.companion-outdated"}},
+		{"untrusted", func(p *site.Production) { p.Verified, p.ErrorKind = false, "no-key" }, []string{"live.untrusted"}},
+		{"core mismatch", func(p *site.Production) { p.TawCore = "v1.59.2" }, []string{"live.core-mismatch"}},
+		{"vulnerable high", func(p *site.Production) {
+			p.Vulns, p.WorstSeverity, p.Scanner = []site.LiveVuln{{Severity: "high"}}, "high", "Defender"
+		}, []string{"live.vulnerable"}},
+		{"plugin updates", func(p *site.Production) { p.PluginUpdates = []string{"akismet 5.1 → 5.3"} }, []string{"live.plugin-updates"}},
+	}
+	for _, c := range cases {
+		p := ok
+		c.mutate(&p)
+		rep := scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", PHPVersion: "8.2.30", Themes: []site.Theme{clean()}, Production: &p}}}
+		got := codes(Run(rep, Options{}))
+		if strings.Join(got, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+	p := ok
+	p.Vulns, p.WorstSeverity = []site.LiveVuln{{Severity: "medium"}}, "medium"
+	fs := Run(scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", Themes: []site.Theme{clean()}, Production: &p}}}, Options{})
+	if len(fs) != 1 || fs[0].Severity != site.Warn {
+		t.Errorf("medium is a warning: %+v", fs)
+	}
+}

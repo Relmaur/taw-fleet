@@ -12,7 +12,7 @@ type keyMap struct {
 	Handoff, Copy, Launch                                             key.Binding
 	StartStop, Restart, Yes, No                                       key.Binding
 	SyncCheck, SyncApply, UpdateCore, Output                          key.Binding
-	New, CopySecret                                                   key.Binding
+	New, CopySecret, LiveRefresh                                      key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -30,27 +30,28 @@ func newKeyMap() keyMap {
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 
-		Editor:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "editor")),
-		Finder:     key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "Finder")),
-		Browser:    key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "site")),
-		Admin:      key.NewBinding(key.WithKeys("B"), key.WithHelp("B", "wp-admin")),
-		GitHub:     key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "GitHub")),
-		PRs:        key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "PRs")),
-		Terminal:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "terminal")),
-		Production: key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "production")),
-		Handoff:    key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off")),
-		Copy:       key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
-		Launch:     key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "launch Claude")),
-		StartStop:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
-		Restart:    key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
-		Yes:        key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y", "yes")),
-		No:         key.NewBinding(key.WithKeys("n", "esc"), key.WithHelp("n", "no")),
-		SyncCheck:  key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "sync check")),
-		SyncApply:  key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "apply Tier 1")),
-		UpdateCore: key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update taw/core")),
-		Output:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "last output")),
-		New:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new site")),
-		CopySecret: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
+		Editor:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "editor")),
+		Finder:      key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "Finder")),
+		Browser:     key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "site")),
+		Admin:       key.NewBinding(key.WithKeys("B"), key.WithHelp("B", "wp-admin")),
+		GitHub:      key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "GitHub")),
+		PRs:         key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "PRs")),
+		Terminal:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "terminal")),
+		Production:  key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "production")),
+		Handoff:     key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off")),
+		Copy:        key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
+		Launch:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "launch Claude")),
+		StartStop:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
+		Restart:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
+		Yes:         key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y", "yes")),
+		No:          key.NewBinding(key.WithKeys("n", "esc"), key.WithHelp("n", "no")),
+		SyncCheck:   key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "sync check")),
+		SyncApply:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "apply Tier 1")),
+		UpdateCore:  key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update taw/core")),
+		Output:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "last output")),
+		New:         key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new site")),
+		CopySecret:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
+		LiveRefresh: key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "check production")),
 	}
 }
 
@@ -112,7 +113,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Help, k.Quit},
-		{k.Detail, k.Back, k.Filter, k.Refresh, k.StartStop, k.Restart, k.New},
+		{k.Detail, k.Back, k.Filter, k.Refresh, k.LiveRefresh, k.StartStop, k.Restart, k.New},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
 		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Output, k.Handoff, k.Copy, k.Launch},
 	}
