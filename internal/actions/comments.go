@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	"github.com/Relmaur/taw-fleet/internal/config"
@@ -13,8 +12,9 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
-// resolveSkill is the umbrella skill that resolves BugSmash comments.
-const resolveSkill = "taw-resolve-comments"
+// ResolveSkill is the site skill that resolves BugSmash comments (shipped by
+// taw/core, installed in the theme by bin/taw sync or skills:sync).
+const ResolveSkill = "resolve-comments"
 
 // OpenComments opens the site's BugSmash review page, where its comments are.
 func (a *Actions) OpenComments(ctx context.Context, s site.Site) (string, error) {
@@ -28,33 +28,6 @@ func (a *Actions) OpenComments(ctx context.Context, s site.Site) (string, error)
 	return "Opened " + f.URL, a.open.URL(ctx, f.URL)
 }
 
-// Umbrella finds the TAW umbrella checkout that has the resolve skill: the
-// umbrella setting, else the folder that a theme linked into Local from
-// taw-theme or taw-gutenberg lives in.
-func (a *Actions) Umbrella(sites []site.Site) (string, error) {
-	if u := a.Config.Umbrella; u != "" {
-		if rest, ok := strings.CutPrefix(u, "~/"); ok {
-			u = filepath.Join(a.Paths.Home, rest)
-		}
-		if !hasResolveSkill(u) {
-			return "", fmt.Errorf("the umbrella %s has no %s skill (.claude/skills/%s)", u, resolveSkill, resolveSkill)
-		}
-		return u, nil
-	}
-	for _, s := range sites {
-		for _, t := range s.Themes {
-			if dir := filepath.Dir(t.RealPath); t.Symlink && handoff.IsUmbrella(t) && hasResolveSkill(dir) {
-				return dir, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("can't find the TAW umbrella with the %s skill: set umbrella = \"~/…/TAW\" in %s", resolveSkill, config.File(a.Paths))
-}
-
-func hasResolveSkill(dir string) bool {
-	return fileExists(filepath.Join(dir, ".claude", "skills", resolveSkill, "SKILL.md"))
-}
-
 // ResolvePrompt is the first message for Claude: resolve the site's open
 // comments with the skill, with what taw-fleet already knows as a head start.
 func (a *Actions) ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, error) {
@@ -66,6 +39,8 @@ func (a *Actions) ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, erro
 		return handoff.Prompt{}, fmt.Errorf("BugSmash: %s", f.Error)
 	case f.Open == 0:
 		return handoff.Prompt{}, fmt.Errorf("no open comments on %s", s.Slug)
+	case !HasSkill(t, ResolveSkill):
+		return handoff.Prompt{}, fmt.Errorf("%s doesn't have the %s skill yet: it comes with taw/core 1.89+ (S syncs a classic theme; a block theme: php bin/taw skills:sync --apply)", t.Dir, ResolveSkill)
 	}
 	now := a.now()
 	project := f.Project
@@ -73,8 +48,8 @@ func (a *Actions) ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, erro
 		project = "the BugSmash project"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Use the %s skill to resolve the open BugSmash comments on %s.\n\n", resolveSkill, s.Slug)
-	fmt.Fprintf(&b, "- Local site: %s (%s), theme %s at %s\n", s.Slug, s.URL, t.Dir, t.RealPath)
+	fmt.Fprintf(&b, "Use the %s skill to resolve the open BugSmash comments on %s.\n\n", ResolveSkill, s.Slug)
+	fmt.Fprintf(&b, "- Local site: %s (%s), theme %s (this folder)\n", s.Slug, s.URL, t.Dir)
 	if u := a.Config.Site(s.Slug).ProductionURL; u != "" {
 		fmt.Fprintf(&b, "- Production: %s\n", u)
 	}
@@ -104,23 +79,4 @@ func (a *Actions) ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, erro
 	}
 	b.WriteString("\nFollow the skill's owner rules: triage first and show me the plan, ask before anything reaches production, and resolve a comment only once its change is live.\n")
 	return handoff.Prompt{Title: "resolve comments on " + s.Slug, Text: b.String()}, nil
-}
-
-// LaunchResolve opens Claude Code in the umbrella, with the theme folder
-// added, and the prompt as its first message (beside the dashboard, like
-// Launch).
-func (a *Actions) LaunchResolve(ctx context.Context, s site.Site, t site.Theme, umbrella string, p handoff.Prompt, beside string) (Launched, error) {
-	dir := filepath.Join(a.Paths.CacheDir, "handoff")
-	base := fmt.Sprintf("%s-comments-%s", safeName(s.Slug), a.now().Format("20060102-150405"))
-	ls := LaunchScript{Title: p.Title, Dir: umbrella, Args: []string{"--add-dir", t.RealPath},
-		Prompt: filepath.Join(dir, base+".md"), Done: filepath.Join(dir, base+".done")}
-	used, placed, err := a.launch(ctx, ls, p.Text, filepath.Join(dir, base+".command"), beside)
-	if err != nil {
-		return Launched{}, err
-	}
-	msg := fmt.Sprintf("Started Claude Code in %s on %s's comments", used, s.Slug)
-	if placed {
-		msg = fmt.Sprintf("Claude Code is on %s's comments in the window on the right", s.Slug)
-	}
-	return Launched{Message: msg, Done: ls.Done}, nil
 }

@@ -327,3 +327,26 @@ func TestActiveThemeCachesAndSkipsHalted(t *testing.T) {
 		t.Errorf("args = %v", c.Args)
 	}
 }
+
+func TestMissingSkills(t *testing.T) {
+	theme := t.TempDir()
+	if missingSkills(theme) != nil {
+		t.Error("a taw/core without skills: none missing")
+	}
+	for _, rel := range []string{
+		"vendor/taw/core/resources/skills/resolve-comments/SKILL.md",
+		"vendor/taw/core/resources/skills/perf-audit/SKILL.md",
+		".claude/skills/perf-audit/SKILL.md",
+	} {
+		p := filepath.Join(theme, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("---\n---\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := missingSkills(theme); len(got) != 1 || got[0] != "resolve-comments" {
+		t.Errorf("missing = %v", got)
+	}
+}

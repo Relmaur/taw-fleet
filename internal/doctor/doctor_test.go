@@ -241,3 +241,19 @@ func TestFeedbackRules(t *testing.T) {
 		t.Errorf("fix = %q", fs[0].Fix)
 	}
 }
+
+func TestSkillsMissing(t *testing.T) {
+	th := clean()
+	th.SkillsMissing = []string{"perf-audit", "resolve-comments"}
+	fs := Run(scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", Themes: []site.Theme{th}}}}, Options{})
+	var got *site.Finding
+	for i := range fs {
+		if fs[i].Code == "skills.missing" {
+			got = &fs[i]
+		}
+	}
+	if got == nil || got.Severity != site.Info || got.Message != "2 site skills from taw/core aren't installed: perf-audit, resolve-comments" ||
+		!strings.HasPrefix(got.Fix, "S (sync the scaffold)") {
+		t.Errorf("finding = %+v", got)
+	}
+}

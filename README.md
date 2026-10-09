@@ -61,7 +61,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `L` | check the production sites, the BugSmash comments and GitHub now (see below); otherwise every 5 minutes |
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
 | `F` | open the site's BugSmash review page, where its comments are |
-| `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the TAW umbrella (with the theme folder added), asked to use the `taw-resolve-comments` skill on them |
+| `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
+| `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
 | `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, the BugSmash comments, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
@@ -221,17 +222,42 @@ number, page, author and age. `doctor` adds `comments.open` (a warning after two
 `comments.unreachable` and `comments.no-key`.
 
 In the dashboard, `F` opens the site's review page in BugSmash, and `X` hands the open comments
-to Claude Code: a window beside the dashboard, started in the TAW umbrella (found through the
-taw-theme/taw-gutenberg links in Local, or the `umbrella` setting) with the theme folder added,
-and a first message asking for the umbrella's `taw-resolve-comments` skill with what taw-fleet
-already knows (project, review page, the open comments). The skill's rules apply: it shows its
-plan first and asks before anything reaches production. When that window closes, the dashboard
-asks BugSmash again.
+to Claude Code: a window beside the dashboard, started in the theme folder, with a first message
+asking for the theme's `resolve-comments` skill and what taw-fleet already knows (project,
+review page, the open comments). The skill's rules apply: it shows its plan first and asks before
+anything reaches production. When that window closes, the dashboard asks BugSmash again.
 
-taw-fleet itself only reads (`GET` on BugSmash's REST API, cached for 5 minutes): resolving
-happens in the skill (`X`, or "resolve comments on chcapital" in the umbrella). The API key
+taw-fleet itself only reads BugSmash (`GET` on its REST API, cached for 5 minutes): resolving
+happens in the skill. The API key
 (BugSmash → Settings → API Key) lives in your macOS Keychain, never in a file;
 `BUGSMASH_API_KEY` is read when the Keychain has none.
+
+### Site skills and production writes
+
+Every TAW theme carries Claude Code skills in `.claude/skills/`: the scaffold's (`update-theme`,
+`audit-seo`, `visual-check`…) and, from taw/core 1.89, the site skills taw/core ships
+(`resolve-comments`, `perf-audit`). `bin/taw sync` (`S`) installs them in classic themes,
+`php bin/taw skills:sync --apply` in block themes, and `doctor` says when some are missing
+(`skills.missing`). They need nothing but taw-fleet on the Mac: the site comes from
+`taw-fleet show|comments <site> --json`, and production writes go through taw-fleet.
+
+`a` in the dashboard lists the selected theme's skills; pick one and Claude Code starts on it in
+the theme folder, beside the dashboard. `X` is the shortcut for `resolve-comments`.
+
+```bash
+printf 'claude-bot:xxxx xxxx xxxx xxxx' | taw-fleet wp-remote key import ls-mxico   # once per site and Mac
+taw-fleet wp-remote key show ls-mxico                        # the bot and its role, never the password
+taw-fleet wp-remote ls-mxico GET '/wp/v2/pages?slug=nosotros&context=edit'
+taw-fleet wp-remote ls-mxico POST /wp/v2/pages/12 --data @meta.json   # or --data - (stdin), or inline JSON
+taw-fleet wp-remote ls-mxico POST /wp/v2/media --file hero.webp
+```
+
+`wp-remote` calls the production site's WordPress REST API as the site's bot user: an Editor
+with an Application Password (wp-admin → Users → Add New, then its Application Passwords), kept
+in the Keychain, one item per site. It uses the `?rest_route=` form (some hosts' firewalls refuse
+`/wp-json/wp/v2/users…`), HTTP/1.1, and retries a host's empty answers; the JSON answer goes to
+stdout, a WordPress error exits non-zero with its code and message. There's no DELETE: taw-fleet
+never deletes on production.
 
 ### Sync, update, inspect
 
@@ -326,7 +352,6 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
 window = false           # the dashboard in the current terminal (default: a new window)
-umbrella = "~/Documents/TAW"   # where X resolves comments (default: found through the theme links)
 
 [create]                 # defaults for taw-fleet create / n (all optional)
 kind = "classic"         # or "block"
@@ -358,6 +383,7 @@ bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"   # its BugSmash proje
 | `comments.open` | note, warning | open BugSmash comments; a warning once the oldest waited over two days |
 | `comments.unreachable` | warning | the BugSmash project is gone (re-created?), the key was refused, or BugSmash didn't answer |
 | `comments.no-key` | note | a site has `bugsmash_project` but no API key is stored |
+| `skills.missing` | note | the theme's taw/core ships site skills its `.claude/skills/` lacks (`S`, or `php bin/taw skills:sync --apply`) |
 
 The codes are stable: filter `doctor --json` on them. `doctor` only reads; it never changes
 anything.

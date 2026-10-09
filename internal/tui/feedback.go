@@ -95,8 +95,9 @@ func (m Model) openComments() (tea.Model, tea.Cmd) {
 	return m, m.run(func() (string, error) { return a.OpenComments(ctx, s) })
 }
 
-// resolveComments opens Claude Code in the umbrella on the selected site's
-// open comments (X), beside the dashboard.
+// resolveComments opens Claude Code in the theme folder on the selected
+// site's open comments with its resolve-comments skill (X), beside the
+// dashboard.
 func (m Model) resolveComments() (tea.Model, tea.Cmd) {
 	s, t, ok := m.selectedTheme()
 	if !ok {
@@ -112,15 +113,10 @@ func (m Model) resolveComments() (tea.Model, tea.Cmd) {
 		m.setFlash(err.Error(), true)
 		return m, nil
 	}
-	umbrella, err := a.Umbrella(m.rep.Sites)
-	if err != nil {
-		m.setFlash(err.Error(), true)
-		return m, nil
-	}
 	m.mode, m.scroll = modeTable, 0
 	ctx, tty := m.ctx, m.deps.TTY
 	return m, func() tea.Msg {
-		l, err := a.LaunchResolve(ctx, s, t, umbrella, p, tty)
+		l, err := a.LaunchSkill(ctx, s, t, "comments", p, tty)
 		return launchedMsg{s.Slug + "'s comments", l, err}
 	}
 }

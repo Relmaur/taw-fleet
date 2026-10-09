@@ -12,7 +12,7 @@
    │  o   last output    R      restart             P production    U update all with agents   │    
    │  n   new site       M      merge PR            g GitHub        h hand off                 │    
    │  q   quit           C      pull content        G PRs           c copy prompt              │    
-   │                                                F comments      X resolve comments         │    
+   │                     a      ask Claude…         F comments      X resolve comments         │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    

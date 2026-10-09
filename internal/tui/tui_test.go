@@ -455,14 +455,16 @@ func (f *fakeActions) ResolvePrompt(s site.Site, _ site.Theme) (handoff.Prompt, 
 	if s.Feedback == nil || s.Feedback.Open == 0 {
 		return handoff.Prompt{}, errors.New("no open comments on " + s.Slug)
 	}
-	return handoff.Prompt{Title: "resolve comments on " + s.Slug, Text: "Use the taw-resolve-comments skill"}, nil
+	return handoff.Prompt{Title: "resolve comments on " + s.Slug, Text: "Use the resolve-comments skill"}, nil
 }
 
-func (f *fakeActions) Umbrella([]site.Site) (string, error) { return "/Users/me/TAW", nil }
+func (f *fakeActions) SkillPrompt(s site.Site, _ site.Theme, sk actions.Skill, _ []site.Finding) handoff.Prompt {
+	return handoff.Prompt{Title: sk.Name + " on " + s.Slug, Text: "Use the " + sk.Name + " skill on this site."}
+}
 
-func (f *fakeActions) LaunchResolve(_ context.Context, s site.Site, _ site.Theme, umbrella string, _ handoff.Prompt, beside string) (actions.Launched, error) {
-	f.launched, f.beside = s.Slug+" in "+umbrella, beside
-	return actions.Launched{Message: "Claude Code is on " + s.Slug + "'s comments", Done: filepath.Join(f.doneDir, s.Slug+"-comments-1.done")}, nil
+func (f *fakeActions) LaunchSkill(_ context.Context, s site.Site, t site.Theme, kind string, p handoff.Prompt, beside string) (actions.Launched, error) {
+	f.launched, f.beside = s.Slug+" "+kind+" in "+t.Dir+": "+p.Text, beside
+	return actions.Launched{Message: "Claude Code is on " + t.Dir, Done: filepath.Join(f.doneDir, s.Slug+"-"+kind+"-1.done")}, nil
 }
 
 func (f *fakeActions) PlanFleet(context.Context, []site.Site) actions.FleetPlan { return f.plan }
@@ -1352,7 +1354,7 @@ func TestCommentKeys(t *testing.T) {
 		t.Errorf("F: %v\n%s", f.did, screen(m))
 	}
 	m = runCmd(t, m, keyMsg("X"))
-	if f.launched != "acme-shop in /Users/me/TAW" || f.beside != "/dev/ttys004" || len(m.agents) != 1 {
+	if !strings.HasPrefix(f.launched, "acme-shop comments in acme: Use the resolve-comments skill") || f.beside != "/dev/ttys004" || len(m.agents) != 1 {
 		t.Fatalf("X: %q %q agents=%v", f.launched, f.beside, m.agents)
 	}
 
@@ -1472,5 +1474,47 @@ func TestLeftoversAskThenRetry(t *testing.T) {
 	m = step(t, next.(Model), msgOf[leftoversEndedMsg](t, cmd))
 	if len(ops) != 2 || !strings.Contains(screen(m), "Ended 1 leftover process; bistro can start again") {
 		t.Errorf("ops=%v\n%s", ops, screen(m))
+	}
+}
+
+func TestAskClaudePicker(t *testing.T) {
+	theme := t.TempDir()
+	for name, body := range map[string]string{
+		"perf-audit":   "---\nname: perf-audit\nowner: taw\ndescription: Use when iterating on a live site's performance. Triggers on: x\n---\n",
+		"publish-news": "---\nname: publish-news\nowner: site\ndescription: Publish a parish notice.\n---\n",
+	} {
+		dir := filepath.Join(theme, ".claude", "skills", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := &fakeActions{doneDir: t.TempDir()}
+	m := fleetModel(t, 140, 34)
+	m.deps.Actions = f
+	m.rep.Sites[0].Themes[0].RealPath = theme // acme-shop's theme
+
+	m = press(t, m, "a")
+	out := screen(m)
+	if m.mode != modeSkills || !strings.Contains(out, "Ask Claude  in acme, with one of its skills") ||
+		!strings.Contains(out, "Use when iterating on a live site's performance.") || !strings.Contains(out, "publish-news  this site's own") {
+		t.Fatalf("picker:\n%s", out)
+	}
+	m = press(t, m, "n", "e", "w", "s") // filter: publish-news
+	if got := m.skillMatches(); len(got) != 1 || got[0].Name != "publish-news" {
+		t.Fatalf("filter: %+v", got)
+	}
+	m = runCmd(t, m, keyMsg("enter"))
+	if m.mode != modeTable || f.launched != "acme-shop skill-publish-news in acme: Use the publish-news skill on this site." {
+		t.Errorf("launch: mode=%v %q", m.mode, f.launched)
+	}
+
+	// A theme without skills says how to get them.
+	m.rep.Sites[0].Themes[0].RealPath = t.TempDir()
+	m = press(t, m, "a")
+	if m.mode != modeTable || !strings.Contains(screen(m), "has no skills in .claude/skills/ yet") {
+		t.Errorf("no skills:\n%s", screen(m))
 	}
 }
