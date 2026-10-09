@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Relmaur/taw-fleet/internal/paths"
@@ -19,6 +21,9 @@ import (
 
 // ErrLocalNotRunning means Local's app isn't open (its API doesn't answer).
 var ErrLocalNotRunning = errors.New("local by Flywheel isn't open: open the Local app, then try again")
+
+// ErrLocalSlow means Local's API is there but didn't answer in time.
+var ErrLocalSlow = errors.New("local by Flywheel didn't answer in time: check the Local app")
 
 // GraphQL talks to the API the Local app serves on localhost. It's how
 // Local's own window starts and stops sites. Probed on Local 10.1.2:
@@ -65,6 +70,10 @@ type gqlSite struct {
 }
 
 func (g *GraphQL) do(ctx context.Context, query string, vars map[string]any, out any) error {
+	return g.doWith(ctx, g.HTTP, query, vars, out)
+}
+
+func (g *GraphQL) doWith(ctx context.Context, c *http.Client, query string, vars map[string]any, out any) error {
 	body, _ := json.Marshal(map[string]any{"query": query, "variables": vars})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.URL, bytes.NewReader(body))
 	if err != nil {
@@ -72,12 +81,19 @@ func (g *GraphQL) do(ctx context.Context, query string, vars map[string]any, out
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+g.Token)
-	resp, err := g.HTTP.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return ErrLocalNotRunning
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return ErrLocalNotRunning
+		}
+		var nerr net.Error
+		if errors.As(err, &nerr) && nerr.Timeout() {
+			return ErrLocalSlow
+		}
+		return fmt.Errorf("local API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -152,22 +168,65 @@ func (o Op) Target() site.Status {
 
 // Run asks Local to start, stop or restart a site and waits until it's done
 // (or ctx ends). It returns how long it took.
+//
+// Local may not answer the mutation until long after the site is up (a
+// startSite was seen never answering), so the answer isn't waited for: the
+// site's status is polled meanwhile, and the operation is done when it
+// reaches the target. An error in the answer (a port in use…) still ends it.
 func (g *GraphQL) Run(ctx context.Context, op Op, id string) (time.Duration, error) {
 	began := time.Now()
 	switch op {
-	case Start, Stop, Restart:
+	case Start, Stop:
+	case Restart:
+		// Local's restartSite was seen restarting the site but staying
+		// "restarting" for good, so a restart is a stop, then a start.
+		if _, err := g.Run(ctx, Stop, id); err != nil {
+			return time.Since(began), err
+		}
+		_, err := g.Run(ctx, Start, id)
+		return time.Since(began), err
 	default:
 		return 0, fmt.Errorf("unknown operation %q", op)
 	}
-	var out map[string]*gqlSite
-	q := fmt.Sprintf(`mutation ($id: ID!) { %s(id: $id) { id name status } }`, op)
-	if err := g.do(ctx, q, map[string]any{"id": id}, &out); err != nil {
-		return 0, err
+	mctx, cancel := context.WithCancel(ctx)
+	defer cancel() // drops the mutation if it's still unanswered
+	answered := make(chan error, 1)
+	go func() {
+		long := http.Client{Transport: g.HTTP.Transport} // ctx bounds it, not the per-request timeout
+		var out map[string]*gqlSite
+		q := fmt.Sprintf(`mutation ($id: ID!) { %s(id: $id) { id name status } }`, op)
+		answered <- g.doWith(mctx, &long, q, map[string]any{"id": id}, &out)
+	}()
+
+	poll := g.Poll
+	if poll <= 0 {
+		poll = 500 * time.Millisecond
 	}
-	if err := g.Wait(ctx, id, op.Target()); err != nil {
-		return time.Since(began), err
+	want := op.Target()
+	last := site.StatusBusy
+	for {
+		select {
+		case err := <-answered:
+			if err != nil && ctx.Err() == nil {
+				return time.Since(began), err
+			}
+			answered = nil // answered: only the status matters now
+		case <-ctx.Done():
+			return time.Since(began), fmt.Errorf("still %s after %s: %w", last, time.Since(began).Round(time.Second), ctx.Err())
+		case <-time.After(poll):
+			st, err := g.Status(ctx, id)
+			if err != nil {
+				if ctx.Err() != nil {
+					continue // reported by the ctx case
+				}
+				return time.Since(began), err
+			}
+			last = st
+			if st == want {
+				return time.Since(began), nil
+			}
+		}
 	}
-	return time.Since(began), nil
 }
 
 // Wait polls until the site reaches want.

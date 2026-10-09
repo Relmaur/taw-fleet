@@ -28,6 +28,10 @@ type fakeLocal struct {
 	target  map[string]string
 	ops     []string
 	fail    string
+	slow    time.Duration // how long a mutation's answer takes after the change begins
+	hang    bool          // the mutation never answers (as Local's startSite was seen doing)
+	steps   int           // polls a change takes; 0 = 2
+	stall   time.Duration // how long every query takes to answer
 }
 
 func newFakeLocal(t *testing.T) *fakeLocal {
@@ -40,12 +44,22 @@ func newFakeLocal(t *testing.T) *fakeLocal {
 	return f
 }
 
+func (f *fakeLocal) setDelays(slow, stall time.Duration, hang bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.slow, f.stall, f.hang = slow, stall, hang
+}
+
 func (f *fakeLocal) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer tok" {
 		w.WriteHeader(500)
 		_, _ = w.Write([]byte(`{"errors":[{"message":"Invalid Bearer token.","extensions":{"code":"UNAUTHENTICATED"}}]}`))
 		return
 	}
+	f.mu.Lock()
+	slow, stall, hang := f.slow, f.stall, f.hang
+	f.mu.Unlock()
+	time.Sleep(stall)
 	var req struct {
 		Query     string         `json:"query"`
 		Variables map[string]any `json:"variables"`
@@ -77,8 +91,21 @@ func (f *fakeLocal) serve(w http.ResponseWriter, r *http.Request) {
 			op, mid := o.op, [2]string{o.mid, o.end}
 			if strings.Contains(req.Query, op+"(") {
 				f.ops = append(f.ops, op+":"+id)
-				f.status[id], f.target[id], f.pending[id] = mid[0], mid[1], 2
-				reply(map[string]any{op: siteObj(id)})
+				steps := f.steps
+				if steps == 0 {
+					steps = 2
+				}
+				f.status[id], f.target[id], f.pending[id] = mid[0], mid[1], steps
+				answer := map[string]any{op: siteObj(id)}
+				// The change is under way; the answer comes later, or never.
+				f.mu.Unlock()
+				if hang {
+					<-r.Context().Done()
+				} else {
+					time.Sleep(slow)
+				}
+				f.mu.Lock()
+				reply(answer)
 				return
 			}
 		}
@@ -175,8 +202,42 @@ func TestRunWaitsForTheNewState(t *testing.T) {
 	if _, err := g.Run(ctx, Restart, "s1"); err != nil || f.status["s1"] != "running" {
 		t.Errorf("restart: %v", err)
 	}
-	if !reflect.DeepEqual(f.ops, []string{"startSite:s1", "stopSite:s2", "restartSite:s1"}) {
+	if !reflect.DeepEqual(f.ops, []string{"startSite:s1", "stopSite:s2", "stopSite:s1", "startSite:s1"}) {
 		t.Errorf("ops = %v", f.ops)
+	}
+}
+
+// Local can answer startSite long after the site is up, or not at all:
+// the status says when it's done, not the answer.
+func TestRunDoesntWaitForTheAnswer(t *testing.T) {
+	f := newFakeLocal(t)
+	g := connect(t, f, "tok")
+	g.HTTP.Timeout = 50 * time.Millisecond
+	f.setDelays(0, 0, true)
+	if took, err := g.Run(context.Background(), Start, "s1"); err != nil || took > 2*time.Second {
+		t.Fatalf("an unanswered start: %v (%s)", err, took)
+	}
+	f.setDelays(300*time.Millisecond, 0, false)
+	if _, err := g.Run(context.Background(), Restart, "s1"); err != nil || f.status["s1"] != "running" {
+		t.Errorf("restart: %v", err)
+	}
+	if !reflect.DeepEqual(f.ops, []string{"startSite:s1", "stopSite:s1", "startSite:s1"}) {
+		t.Errorf("ops = %v", f.ops)
+	}
+
+	f.setDelays(0, 0, true)
+	f.mu.Lock()
+	f.steps = 1_000_000
+	f.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := g.Run(ctx, Stop, "s1"); err == nil || !strings.Contains(err.Error(), "still busy") {
+		t.Errorf("past the operation's deadline: %v", err)
+	}
+
+	f.setDelays(0, 200*time.Millisecond, false)
+	if _, err := g.Statuses(context.Background()); !errors.Is(err, ErrLocalSlow) {
+		t.Errorf("a stalled query is slow, not closed: %v", err)
 	}
 }
 
