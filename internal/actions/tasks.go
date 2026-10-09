@@ -16,6 +16,8 @@ import (
 type Task struct {
 	Title  string // "Sync check: chcapital"
 	Writes bool   // changes files in the theme (asks first)
+	Ask    string // the question to ask first, when it isn't Writes' generic one
+	Quiet  bool   // the dashboard stays on the table (the footer shows progress)
 	Run    func(ctx context.Context, out io.Writer) (Summary, error)
 }
 

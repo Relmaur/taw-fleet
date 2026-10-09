@@ -14,6 +14,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/taw"
+	"github.com/Relmaur/taw-fleet/internal/vite"
 )
 
 // GitEnricher reads the theme's repository state.
@@ -146,5 +147,17 @@ func (DriftEnricher) Name() string { return "drift" }
 // Enrich implements Enricher.
 func (d DriftEnricher) Enrich(_ context.Context, s *site.Site, t *site.Theme) error {
 	t.Drift = taw.LoadDrift(d.CacheDir, s.Slug, t.Dir)
+	return nil
+}
+
+// DevEnricher finds the theme's running Vite dev server.
+type DevEnricher struct{}
+
+// Name implements Enricher.
+func (DevEnricher) Name() string { return "dev" }
+
+// Enrich implements Enricher.
+func (DevEnricher) Enrich(ctx context.Context, _ *site.Site, t *site.Theme) error {
+	t.Dev = vite.Running(ctx, t.RealPath)
 	return nil
 }

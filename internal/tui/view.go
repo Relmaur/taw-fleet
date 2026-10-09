@@ -223,10 +223,14 @@ func (c columns) liveCol(s string) string {
 }
 
 func themeLabel(t site.Theme) string {
+	l := t.Dir
 	if t.Symlink {
-		return t.Dir + " ↗"
+		l += " ↗"
 	}
-	return t.Dir
+	if t.Dev != "" {
+		l += " vite"
+	}
+	return l
 }
 
 func (m Model) table(width int) string {
@@ -272,6 +276,9 @@ func (m Model) table(width int) string {
 		}
 		if s.ActiveTheme == t.Dir && len(s.TAWThemes()) > 1 {
 			themeCell += p.Fg(p.OK).Render(" ✓") // the one WordPress uses
+		}
+		if t.Dev != "" {
+			themeCell += p.Fg(p.Accent).Render(" vite")
 		}
 		line := marker + " " + dot + " " +
 			pad(nameStyle.Render(name), c.site) + "  " +
@@ -365,7 +372,7 @@ func (m Model) helpScreen() string {
 	muted := p.Fg(p.Muted)
 	legend := []string{
 		p.Dot(site.StatusRunning) + " running   " + p.Dot(site.StatusHalted) + " halted   " + p.Dot(site.StatusBusy) + " starting/stopping",
-		muted.Render("↗") + " theme is a symlink (the umbrella's taw-theme / taw-gutenberg)",
+		muted.Render("↗") + " symlink (the umbrella's themes)   " + p.Fg(p.Accent).Render("vite") + " Vite is running (w stops it)",
 		p.Core(site.CoreInfo{Installed: "v1.59.2", Latest: "v1.76.1", Behind: true}) + "  taw/core installed ▲ newest",
 		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "main", Upstream: "origin/main", Dirty: 3, Ahead: 1, Behind: 2}) +
 			"  uncommitted ±, to push ↑, to pull ↓",

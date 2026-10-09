@@ -19,7 +19,10 @@ import (
 // summary. writes tasks ask first unless yes.
 func runTask(cmd *cobra.Command, d Deps, task actions.Task, yes bool, question string) (actions.Summary, error) {
 	p, out := d.palette(), cmd.OutOrStdout()
-	if task.Writes && !yes {
+	if task.Ask != "" {
+		question = task.Ask
+	}
+	if (task.Writes || task.Ask != "") && !yes {
 		ok, err := d.confirm(out, question)
 		if err != nil {
 			return actions.Summary{}, err
@@ -195,5 +198,47 @@ func newInspectCmd(d Deps, g *globals) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print bin/taw inspect's JSON")
+	return cmd
+}
+
+func newWorkCmd(d Deps, g *globals) *cobra.Command {
+	var theme string
+	var stop, yes bool
+	cmd := &cobra.Command{
+		Use:   "work <site>",
+		Short: "Get a theme ready to work on: site, editor, Vite and browser",
+		Long: "Start the site in Local (when it's stopped), open the theme in your editor, run Vite\n" +
+			"(the theme's `npm run dev`) in its own terminal window, and open the site once Vite\n" +
+			"answers. --stop stops the theme's Vite and the site again. The dashboard's key: w.",
+		Example: "  taw-fleet work chcapital\n  taw-fleet work chcapital --stop",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			offline := *g
+			offline.offline = true
+			s, t, a, err := resolveForTask(cmd, d, &offline, args[0], theme)
+			if err != nil {
+				return err
+			}
+			work := a.WorkTask
+			if stop {
+				work = a.StopWorkTask
+			}
+			task, err := work(*s, t, d.runSiteOp)
+			if err != nil {
+				return fmt.Errorf("%s: %w", t.Dir, err)
+			}
+			sum, err := runTask(cmd, d, task, yes, "")
+			if errors.Is(err, errCancelled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return printSummary(cmd, d, sum)
+		},
+	}
+	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
+	cmd.Flags().BoolVar(&stop, "stop", false, "stop the theme's Vite and the site")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
 	return cmd
 }

@@ -131,6 +131,9 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 			bin = muted.Render("no")
 		}
 		row("bin/taw", bin)
+		if t.Dev != "" {
+			row("vite", p.Fg(p.Accent).Render(t.Dev))
+		}
 		cards = append(cards, strings.Join(rows, "\n"))
 	}
 

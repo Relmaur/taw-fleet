@@ -366,6 +366,7 @@ type fakeActions struct {
 	noClaude bool
 	refuse   error
 	created  create.Request
+	worked   string // "work acme" / "stop acme", and whether a SiteOp came along
 }
 
 func (f *fakeActions) Do(_ context.Context, k actions.Kind, _ site.Site, t site.Theme) (string, error) {
@@ -423,6 +424,22 @@ func (f *fakeActions) PlanFleet(context.Context, []site.Site) actions.FleetPlan 
 func (f *fakeActions) LaunchFleet(_ context.Context, p actions.FleetPlan, _ map[string][]site.Finding, beside string) (actions.Launched, error) {
 	f.fleet, f.beside = &p, beside
 	return actions.Launched{Message: "Claude Code is updating 2 themes in the window on the right", Done: filepath.Join(f.doneDir, "coordinator.done")}, nil
+}
+
+func (f *fakeActions) WorkTask(_ site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error) {
+	f.worked = fmt.Sprintf("work %s op=%v", t.Dir, op != nil)
+	return actions.Task{Title: "Work on " + t.Dir, Ask: "Work on " + t.Dir + "? This will open Cursor, run Vite and open the site.", Quiet: true,
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: "Working on " + t.Dir + ": Cursor, Vite at localhost:5173, site open"}, nil
+		}}, nil
+}
+
+func (f *fakeActions) StopWorkTask(_ site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error) {
+	f.worked = fmt.Sprintf("stop %s op=%v", t.Dir, op != nil)
+	return actions.Task{Title: "Stop working on " + t.Dir, Ask: "Stop working on " + t.Dir + "?", Quiet: true,
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: "Stopped Vite and acme-shop"}, nil
+		}}, nil
 }
 
 // runCmd executes a command returned by Update and feeds its message back.
@@ -917,5 +934,45 @@ func TestProductionView(t *testing.T) {
 	m = step(t, next.(Model), liveMsg(t, cmd))
 	if freshCalls != 1 || !strings.Contains(screen(m), "1 of 2 production sites verified · no answer from bistro") {
 		t.Errorf("fresh=%d\n%s", freshCalls, screen(m))
+	}
+}
+
+func TestWorkOnASite(t *testing.T) {
+	f := &fakeActions{}
+	m := withActions(t, 24, f)
+	m.deps.SiteOp = func(context.Context, local.Op, site.Site) (time.Duration, error) { return time.Second, nil }
+	m = press(t, m, "w")
+	if f.worked != "work acme op=true" || !strings.Contains(screen(m), "Work on acme? This will open Cursor") {
+		t.Fatalf("w asks first (%s):\n%s", f.worked, screen(m))
+	}
+	next, cmd := m.Update(keyMsg("y"))
+	m = next.(Model)
+	if m.mode != modeTable || m.task == nil || !m.task.running {
+		t.Fatalf("the work task runs quietly behind the table: mode=%v", m.mode)
+	}
+	if !strings.Contains(screen(m), "Work on acme…") {
+		t.Errorf("footer shows progress:\n%s", screen(m))
+	}
+	m = drain(t, m, cmd)
+	if m.mode != modeTable || !strings.Contains(screen(m), "Working on acme: Cursor, Vite at localhost:5173") {
+		t.Errorf("headline in the footer:\n%s", screen(m))
+	}
+
+	// With Vite running, the row says so and w stops it.
+	rep := fixtureReport()
+	rep.Sites[0].Themes[0].Dev = "http://localhost:5173"
+	m = step(t, m, scanDoneMsg{rep, nil})
+	if !strings.Contains(screen(m), "acme vite") {
+		t.Errorf("vite badge:\n%s", screen(m))
+	}
+	m = press(t, m, "w")
+	if f.worked != "stop acme op=true" || !strings.Contains(screen(m), "Stop working on acme?") {
+		t.Errorf("w on a running Vite stops it (%s):\n%s", f.worked, screen(m))
+	}
+	m = press(t, m, "n")
+	m.filter.SetValue("vite")
+	m.applyFilter()
+	if len(m.visible) != 1 {
+		t.Errorf("/vite filters to the theme with Vite running: %d rows", len(m.visible))
 	}
 }

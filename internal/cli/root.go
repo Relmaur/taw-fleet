@@ -85,7 +85,7 @@ func (d Deps) scanner(g *globals) *scan.Scanner {
 	}
 	sc := &scan.Scanner{
 		Sources:   []scan.Source{src},
-		Enrichers: []scan.Enricher{scan.GitEnricher{Runner: d.Runner}, scan.CoreEnricher{}, scan.DriftEnricher{CacheDir: d.Paths.CacheDir}},
+		Enrichers: []scan.Enricher{scan.GitEnricher{Runner: d.Runner}, scan.CoreEnricher{}, scan.DriftEnricher{CacheDir: d.Paths.CacheDir}, scan.DevEnricher{}},
 		Lookups:   []scan.Lookup{scan.GitHubLookup{Client: d.github(g)}},
 	}
 	if d.active != nil {
@@ -213,7 +213,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g))
 	return root
 }
 
