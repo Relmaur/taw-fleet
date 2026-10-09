@@ -186,6 +186,22 @@ func TestViewIsFullScreen(t *testing.T) {
 	}
 }
 
+func TestInlineInItsOwnWindow(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 80, 24, &rep)
+	m.deps.Inline = true
+	if v := m.View(); v.AltScreen {
+		t.Error("inline must draw on the normal screen")
+	}
+	_, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	if cmd == nil {
+		t.Fatal("a resize must clear the scrollback")
+	}
+	if raw, ok := cmd().(tea.RawMsg); !ok || raw.Msg != "\x1b[3J" {
+		t.Errorf("cmd = %#v", cmd())
+	}
+}
+
 func TestNavigationBounds(t *testing.T) {
 	rep := fixtureReport()
 	m := newModel(t, 80, 24, &rep)

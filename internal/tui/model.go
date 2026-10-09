@@ -55,6 +55,10 @@ type Deps struct {
 	Dark       bool             // first guess; the terminal's answer replaces it
 	Now        func() time.Time // nil = time.Now
 	Refresh    time.Duration    // re-scan this often; 0 = only on `r`
+	// Inline draws on the terminal's normal screen instead of the alternate
+	// one, keeping its scrollback empty: for a window of its own, where
+	// scrolling up should find nothing behind the dashboard.
+	Inline bool
 
 	CreateDefaults config.Create // the config's [create] section, for the n form
 
@@ -319,6 +323,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.form != nil {
 			m.form = m.form.WithWidth(m.formWidth())
 			m = m.sizeForm()
+		}
+		if m.deps.Inline {
+			return m, tea.Raw("\x1b[3J") // a resize can push lines into the scrollback
 		}
 		return m, nil
 

@@ -34,7 +34,8 @@ version when a newer release is out.
 ## Use
 
 Run `taw-fleet` on its own for the dashboard. It opens in a new window of your terminal
-(`terminal` in the settings) and gives the current one back; the window closes when you quit.
+(`terminal` in the settings) and gives the current one back. The dashboard fills that window with
+nothing to scroll back to, and the window closes when you quit.
 `taw-fleet --window=false`, or `window = false` in the settings, keeps it in the current
 terminal. When it can't open a window, or the output isn't a terminal, it stays where it is.
 

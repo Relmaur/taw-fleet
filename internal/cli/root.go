@@ -60,8 +60,9 @@ func (d Deps) palette() style.Palette { return style.New(d.Dark) }
 
 // globals are the flags every command shares.
 type globals struct {
-	offline bool
-	window  bool
+	offline  bool
+	window   bool
+	inWindow bool // started by openWindow: draw inline, the window is ours
 }
 
 func (d Deps) github(g *globals) *github.Client {
@@ -122,7 +123,7 @@ func (d Deps) openWindow(cmd *cobra.Command, g *globals) bool {
 	}
 	path, err := exe()
 	if err == nil {
-		args := []string{"--window=false"}
+		args := []string{"--window=false", "--in-window"}
 		if g.offline {
 			args = append(args, "--offline")
 		}
@@ -163,6 +164,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Version: info.Version,
 			Dark:    d.Dark,
 			Refresh: time.Minute,
+			Inline:  g.inWindow,
 		}
 		deps.SiteOp = d.runSiteOp
 		if cfg, err := config.Load(d.Paths); err == nil && len(liveTargets(cfg)) > 0 {
@@ -185,6 +187,8 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		return tui.Run(cmd.Context(), deps)
 	}
 	root.Flags().BoolVar(&g.window, "window", true, "open the dashboard in a new terminal window (config: window)")
+	root.Flags().BoolVar(&g.inWindow, "in-window", false, "")
+	_ = root.Flags().MarkHidden("in-window")
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)

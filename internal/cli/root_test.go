@@ -426,7 +426,7 @@ func TestDashboardOpensInItsOwnWindow(t *testing.T) {
 		t.Fatalf("default: opened=%v out=%q", opened, out)
 	}
 	script, _ := os.ReadFile(r.Calls()[0].Args[2])
-	if !strings.Contains(string(script), "'/bin/taw-fleet' '--window=false' '--offline'") {
+	if !strings.Contains(string(script), "'/bin/taw-fleet' '--window=false' '--in-window' '--offline'") {
 		t.Errorf("script:\n%s", script)
 	}
 	if _, r, opened := open("--window=false"); opened || len(r.Calls()) != 0 {

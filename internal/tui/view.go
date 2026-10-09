@@ -28,7 +28,7 @@ const (
 // View renders the whole screen.
 func (m Model) View() tea.View {
 	v := tea.NewView(m.render())
-	v.AltScreen = true
+	v.AltScreen = !m.deps.Inline
 	v.WindowTitle = "taw-fleet"
 	return v
 }
