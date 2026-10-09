@@ -47,7 +47,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
-| `h` | hand the theme's update to an agent (see below); then `c` copies the prompt, `l` launches Claude Code |
+| `A` | update with agent: Claude Code in a window beside the dashboard, in the theme folder, with the update prompt (also offered by `u`) |
+| `h` | show that prompt first; then `A` sends it to Claude Code, `c` copies it |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
@@ -181,6 +182,12 @@ iTerm2, Warp, kitty, Terminal) are found in `/Applications` and `~/Applications`
 installed is used unless the config names another.
 
 ### Hand an update to an agent
+
+In the dashboard, `A` (or `A` instead of `y` when `u` asks) opens Claude Code in a new window
+with the prompt below as its first message, in the theme folder. In Terminal, the dashboard moves
+to the left half of its screen and Claude's window takes the right half, so you can watch both.
+When Claude exits (`/exit`), its window closes and the dashboard rescans, so a new taw/core
+version shows at once. From the command line:
 
 ```bash
 taw-fleet handoff ls-mxico            # print the prompt

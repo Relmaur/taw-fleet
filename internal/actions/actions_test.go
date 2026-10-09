@@ -130,10 +130,11 @@ func TestLaunchWritesScriptAndOpensTerminal(t *testing.T) {
 	s, th := fixture()
 	p := handoff.Prompt{Title: "Update ls-mexico (ls-mxico)", Branch: "chore/taw-core-1.76.1", Text: "# do it\n"}
 
-	msg, err := a.Launch(context.Background(), s, th, p)
+	l, err := a.Launch(context.Background(), s, th, p, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+	msg := l.Message
 	// Warp can't run a script, so Terminal does.
 	if !strings.Contains(msg, "Started Claude Code in Terminal") || !strings.Contains(msg, "chore/taw-core-1.76.1") {
 		t.Errorf("msg = %q", msg)
@@ -153,7 +154,7 @@ func TestLaunchWritesScriptAndOpensTerminal(t *testing.T) {
 	if b, _ := os.ReadFile(promptFile); string(b) != "# do it\n" {
 		t.Errorf("prompt file = %q", b)
 	}
-	if !strings.Contains(string(script), "cd '"+th.RealPath+"' || exit 1") || !strings.Contains(string(script), "exec '"+claude+"'") {
+	if !strings.Contains(string(script), "cd '"+th.RealPath+"' || exit 1") || !strings.Contains(string(script), "'"+claude+"' \"$(cat ") {
 		t.Errorf("script:\n%s", script)
 	}
 }
@@ -161,7 +162,7 @@ func TestLaunchWritesScriptAndOpensTerminal(t *testing.T) {
 func TestLaunchWithoutClaude(t *testing.T) {
 	a, _ := setup(t, config.Config{})
 	s, th := fixture()
-	if _, err := a.Launch(context.Background(), s, th, handoff.Prompt{}); !errors.Is(err, ErrNoClaude) {
+	if _, err := a.Launch(context.Background(), s, th, handoff.Prompt{}, ""); !errors.Is(err, ErrNoClaude) {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -184,7 +185,8 @@ func TestLauncherScriptRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(dir, "run.command")
-	if err := os.WriteFile(script, []byte(LauncherScript("t", theme, claude, prompt)), 0o700); err != nil {
+	done := filepath.Join(dir, "it.done")
+	if err := os.WriteFile(script, []byte(LaunchScript{Title: "t", Dir: theme, Claude: claude, Prompt: prompt, Done: done}.String()), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	out, err := osexec.CommandContext(context.Background(), script).CombinedOutput()
@@ -194,6 +196,60 @@ func TestLauncherScriptRuns(t *testing.T) {
 	want := theme + "\n1|" + text + "|"
 	if string(out) != want {
 		t.Errorf("out = %q\nwant  %q", out, want)
+	}
+	if _, err := os.Stat(done); err != nil {
+		t.Errorf("the done file tells the dashboard Claude exited: %v", err)
+	}
+}
+
+func TestLaunchBesideTheDashboard(t *testing.T) {
+	a, f := setup(t, config.Config{Terminal: "Terminal"})
+	mustWrite(t, filepath.Join(a.Paths.Home, ".local", "bin", "claude"))
+	f.Script = func(s exec.Spec) (exec.Result, error) {
+		if s.Name == "/usr/bin/osascript" && s.Args[0] == "-l" && s.Args[len(s.Args)-1] == "/dev/ttys004" {
+			return exec.Result{Stdout: []byte("-1728,32,1728,1085\n")}, nil // the second display
+		}
+		return exec.Result{}, nil
+	}
+	s, th := fixture()
+	l, err := a.Launch(context.Background(), s, th, handoff.Prompt{Text: "x", Branch: "chore/b"}, "/dev/ttys004")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(l.Message, "window on the right") || !strings.HasSuffix(l.Done, ".done") {
+		t.Errorf("launched = %+v", l)
+	}
+	var placed bool
+	var script string
+	for _, c := range f.Calls() {
+		if c.Name == "/usr/bin/osascript" && c.Args[0] == "-e" &&
+			c.Args[1] == `tell application "Terminal" to set bounds of (first window whose tty is "/dev/ttys004") to {-1728, 32, -864, 1117}` {
+			placed = true
+		}
+		if c.Name == "/usr/bin/open" {
+			script = c.Args[len(c.Args)-1]
+		}
+	}
+	if !placed {
+		t.Errorf("the dashboard takes the left half: %+v", f.Calls())
+	}
+	body, _ := os.ReadFile(script)
+	for _, want := range []string{`to {-864, 32, 0, 1117}`, "touch '" + l.Done + "'", "close (every window"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("script lacks %q:\n%s", want, body)
+		}
+	}
+
+	// Without the dashboard's tty, nothing is arranged.
+	f2 := &exec.FakeRunner{}
+	a.Exec, a.open = f2, tools.Opener{Exec: f2}
+	if _, err := a.Launch(context.Background(), s, th, handoff.Prompt{Text: "x"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range f2.Calls() {
+		if c.Name == "/usr/bin/osascript" {
+			t.Errorf("no arranging without a tty: %v", c.Args)
+		}
 	}
 }
 

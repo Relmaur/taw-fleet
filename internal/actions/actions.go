@@ -160,37 +160,158 @@ func (a *Actions) Claude() (string, error) {
 	return "", ErrNoClaude
 }
 
+// Launched is a Claude Code window that was opened.
+type Launched struct {
+	Message string
+	Done    string // a file that appears when Claude Code exits
+}
+
 // Launch opens a new terminal window in the theme folder running Claude Code
 // with the prompt as its first message. The prompt and a small launcher
 // script are written to the cache folder; nothing else is changed.
-func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error) {
+//
+// beside is the dashboard's own tty ("" = don't arrange windows): in
+// Terminal the dashboard window then takes the left half of the screen and
+// Claude's window the right half.
+func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt, beside string) (Launched, error) {
 	claude, err := a.Claude()
 	if err != nil {
-		return "", err
+		return Launched{}, err
 	}
 	term, fallback, err := a.scriptTerminal()
 	if err != nil {
-		return "", err
+		return Launched{}, err
 	}
+	used := ranIn(term, fallback)
 
 	dir := filepath.Join(a.Paths.CacheDir, "handoff")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
+		return Launched{}, err
 	}
 	base := fmt.Sprintf("%s-%s-%s", safeName(s.Slug), safeName(t.Dir), a.now().Format("20060102-150405"))
-	promptFile := filepath.Join(dir, base+".md")
+	ls := LaunchScript{Title: p.Title, Dir: t.RealPath, Claude: claude,
+		Prompt: filepath.Join(dir, base+".md"), Done: filepath.Join(dir, base+".done"), CloseTerminal: used == "Terminal"}
 	script := filepath.Join(dir, base+".command")
-	if err := os.WriteFile(promptFile, []byte(p.Text), 0o600); err != nil {
-		return "", err
+	if err := os.WriteFile(ls.Prompt, []byte(p.Text), 0o600); err != nil {
+		return Launched{}, err
 	}
-	if err := os.WriteFile(script, []byte(LauncherScript(p.Title, t.RealPath, claude, promptFile)), 0o700); err != nil {
-		return "", err
+	_ = os.Remove(ls.Done)
+	placed := false
+	if beside != "" && used == "Terminal" {
+		if left, right, ok := a.halves(ctx, beside); ok {
+			ls.Bounds = right
+			placed = a.place(ctx, beside, left) == nil
+		}
+	}
+	if err := os.WriteFile(script, []byte(ls.String()), 0o700); err != nil {
+		return Launched{}, err
 	}
 	if err := a.open.RunScript(ctx, term, script, fallback); err != nil {
-		return "", err
+		return Launched{}, err
 	}
-	return fmt.Sprintf("Started Claude Code in %s for %s (branch %s)", ranIn(term, fallback), t.Dir, p.Branch), nil
+	msg := fmt.Sprintf("Started Claude Code in %s for %s (branch %s)", used, t.Dir, p.Branch)
+	if placed {
+		msg = fmt.Sprintf("Claude Code is working on %s in the window on the right (branch %s)", t.Dir, p.Branch)
+	}
+	return Launched{Message: msg, Done: ls.Done}, nil
 }
+
+// Bounds is a window's {left, top, right, bottom} in screen points.
+type Bounds [4]int
+
+// halves splits the usable area (below the menu bar, beside the Dock) of
+// the screen showing the Terminal window on tty into a left and a right
+// half. With several displays, that's the one the dashboard is on.
+func (a *Actions) halves(ctx context.Context, tty string) (left, right Bounds, ok bool) {
+	res, err := a.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/osascript", Args: []string{"-l", "JavaScript", "-e", screenScript, tty}})
+	if err != nil || res.Code != 0 {
+		return left, right, false
+	}
+	var x, y, w, h int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(res.Stdout)), "%d,%d,%d,%d", &x, &y, &w, &h); err != nil || w < 200 || h < 200 {
+		return left, right, false
+	}
+	mid := x + w/2
+	return Bounds{x, y, mid, y + h}, Bounds{mid, y, x + w, y + h}, true
+}
+
+// screenScript prints the usable area of the screen holding the Terminal
+// window on the tty it's given (the first screen when none matches), as
+// left,top,width,height in the top-left coordinates window bounds use.
+const screenScript = `function run(argv) {
+  ObjC.import("AppKit");
+  var b = null;
+  Application("Terminal").windows().forEach(function (w) {
+    try { if (w.tabs[0].tty() === argv[0]) b = w.bounds(); } catch (e) {}
+  });
+  var screens = $.NSScreen.screens, ph = screens.objectAtIndex(0).frame.size.height, best = null;
+  for (var i = 0; i < screens.count; i++) {
+    var s = screens.objectAtIndex(i), f = s.frame, v = s.visibleFrame, top = ph - f.origin.y - f.size.height;
+    var vis = [v.origin.x, ph - v.origin.y - v.size.height, v.size.width, v.size.height];
+    if (best === null) best = vis;
+    if (b) {
+      var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      if (cx >= f.origin.x && cx < f.origin.x + f.size.width && cy >= top && cy < top + f.size.height) best = vis;
+    }
+  }
+  return best.map(Math.round).join(",");
+}`
+
+// place moves the Terminal window on tty to b.
+func (a *Actions) place(ctx context.Context, tty string, b Bounds) error {
+	res, err := a.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/osascript", Args: []string{"-e", placeScript(tty, b)}})
+	if err == nil && res.Code != 0 {
+		err = fmt.Errorf("osascript: %s", strings.TrimSpace(string(res.Stderr)))
+	}
+	return err
+}
+
+func placeScript(tty string, b Bounds) string {
+	return fmt.Sprintf(`tell application "Terminal" to set bounds of (first window whose tty is %q) to {%d, %d, %d, %d}`, tty, b[0], b[1], b[2], b[3])
+}
+
+// TTY is the terminal the process runs in ("" when it isn't one).
+func (a *Actions) TTY(ctx context.Context) string {
+	res, err := a.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/tty", Stdin: os.Stdin})
+	if err != nil || res.Code != 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(res.Stdout))
+}
+
+// LaunchScript is the .command file a terminal runs for a handoff.
+type LaunchScript struct {
+	Title, Dir, Claude, Prompt string
+	Done                       string // touched when Claude Code exits
+	Bounds                     Bounds // where the window goes (Terminal); zero = leave it
+	CloseTerminal              bool   // close the Terminal window after a clean exit
+}
+
+// String is the script: go to the theme, place the window, start Claude
+// Code with the prompt file's contents, then say it's done. Every value is
+// single-quoted for the shell.
+func (l LaunchScript) String() string {
+	out := "#!/bin/sh\n" +
+		"# taw-fleet handoff: " + strings.ReplaceAll(l.Title, "\n", " ") + "\n" +
+		"cd " + shq(l.Dir) + " || exit 1\n"
+	if l.Bounds != (Bounds{}) {
+		b := l.Bounds
+		out += fmt.Sprintf(`osascript -e "tell application \"Terminal\" to set bounds of (first window whose tty is \"$(tty)\") to {%d, %d, %d, %d}" >/dev/null 2>&1`+"\n", b[0], b[1], b[2], b[3])
+	}
+	out += shq(l.Claude) + ` "$(cat ` + shq(l.Prompt) + `)"` + "\n" +
+		"status=$?\n" +
+		"touch " + shq(l.Done) + "\n"
+	if l.CloseTerminal {
+		out += "[ $status -eq 0 ] || exit $status\n" + closeOwnWindow
+	}
+	return out
+}
+
+// closeOwnWindow closes the Terminal window the script runs in. Terminal
+// keeps a window open after its shell exits unless the profile says
+// otherwise.
+const closeOwnWindow = `tty=$(tty)` + "\n" +
+	`osascript -e "tell application \"Terminal\" to close (every window whose tty is \"$tty\")" >/dev/null 2>&1 &` + "\n"
 
 // Window opens a new terminal window running the dashboard: exe with args
 // (which must keep it from opening yet another window). It says which
@@ -253,19 +374,7 @@ func WindowScript(exe string, args []string, closeTerminal bool) string {
 	if !closeTerminal {
 		return head + "exec " + line + "\n"
 	}
-	return head + line + " || exit\n" +
-		`tty=$(tty)` + "\n" +
-		`osascript -e "tell application \"Terminal\" to close (every window whose tty is \"$tty\")" >/dev/null 2>&1 &` + "\n"
-}
-
-// LauncherScript is the .command file a terminal runs: go to the theme and
-// start Claude Code with the prompt file's contents. Every value is
-// single-quoted for the shell.
-func LauncherScript(title, dir, claude, promptFile string) string {
-	return "#!/bin/sh\n" +
-		"# taw-fleet handoff: " + strings.ReplaceAll(title, "\n", " ") + "\n" +
-		"cd " + shq(dir) + " || exit 1\n" +
-		"exec " + shq(claude) + ` "$(cat ` + shq(promptFile) + `)"` + "\n"
+	return head + line + " || exit\n" + closeOwnWindow
 }
 
 func shq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

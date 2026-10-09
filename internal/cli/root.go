@@ -183,6 +183,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		} else {
 			deps.Actions = a
 			deps.CreateDefaults = a.Config.Create
+			deps.TTY = a.TTY(cmd.Context())
 		}
 		return tui.Run(cmd.Context(), deps)
 	}

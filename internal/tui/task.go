@@ -135,7 +135,12 @@ func (m Model) syncOrUpdate(which string) (tea.Model, tea.Cmd) {
 		m.setFlash(t.Dir+": "+err.Error(), true)
 		return m, nil
 	}
-	return m.askTask(task, question)
+	model, cmd := m.askTask(task, question)
+	if mm, ok := model.(Model); ok && which == "update" && mm.confirm != "" {
+		mm.onAgent = func(m Model) (tea.Model, tea.Cmd) { return m.runAgent() }
+		return mm, cmd
+	}
+	return model, cmd
 }
 
 // onOutputKey handles keys in the output view.

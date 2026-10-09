@@ -7,10 +7,10 @@
     │  ↑/k  up           enter details             e editor        y sync check               │     
     │  ↓/j  down         esc   back                f Finder        S apply Tier 1             │     
     │  pgup page up      /     filter              t terminal      u update taw/core          │     
-    │  pgdn page down    r     refresh             b site          o last output              │     
-    │  home first        L     check production    B wp-admin      h hand off                 │     
-    │  end  last         s     start/stop          P production    c copy prompt              │     
-    │  ?    help         R     restart             g GitHub        l launch Claude            │     
+    │  pgdn page down    r     refresh             b site          A update with agent        │     
+    │  home first        L     check production    B wp-admin      o last output              │     
+    │  end  last         s     start/stop          P production    h hand off                 │     
+    │  ?    help         R     restart             g GitHub        c copy prompt              │     
     │  q    quit         n     new site            G PRs                                      │     
     │                                                                                         │     
     │  Symbols                                                                                │     
@@ -27,4 +27,4 @@
     │                                                                                         │     
     ╰─────────────────────────────────────────────────────────────────────────────────────────╯     
 
- enter details • e editor • g GitHub • s start/stop • u update taw/core • h hand off • n new site •…
+ enter details • e editor • g GitHub • s start/stop • u update taw/core • A update with agent …

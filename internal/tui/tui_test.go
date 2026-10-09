@@ -341,6 +341,9 @@ type fakeActions struct {
 	did      []actions.Kind
 	copied   string
 	launched string
+	beside   string // the tty Launch was given
+	doneDir  string // where Launch says its done files go
+	noClaude bool
 	refuse   error
 	created  create.Request
 }
@@ -387,9 +390,12 @@ func (f *fakeActions) CreateTask(r create.Request) (actions.Task, error) {
 	}}, nil
 }
 
-func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ handoff.Prompt) (string, error) {
-	f.launched = t.Dir
-	return "Started Claude Code for " + t.Dir, nil
+func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ handoff.Prompt, beside string) (actions.Launched, error) {
+	if f.noClaude {
+		return actions.Launched{}, actions.ErrNoClaude
+	}
+	f.launched, f.beside = t.Dir, beside
+	return actions.Launched{Message: "Started Claude Code for " + t.Dir, Done: filepath.Join(f.doneDir, t.Dir+".done")}, nil
 }
 
 // runCmd executes a command returned by Update and feeds its message back.
@@ -448,7 +454,7 @@ func TestHandoffScreen(t *testing.T) {
 	if !strings.Contains(f.copied, "update-theme") || !strings.Contains(screen(m), "Copied the handoff prompt for bistro-theme") {
 		t.Errorf("copy: %q\n%s", f.copied, screen(m))
 	}
-	m = runCmd(t, m, keyMsg("l"))
+	m = runCmd(t, m, keyMsg("A"))
 	if f.launched != "bistro-theme" || m.mode != modeTable || !strings.Contains(screen(m), "Started Claude Code for bistro-theme") {
 		t.Errorf("launch: %q mode=%v", f.launched, m.mode)
 	}
@@ -628,6 +634,66 @@ func TestApplyAndUpdateAskFirst(t *testing.T) {
 	m = press(t, m, "esc", "k", "u")
 	if m.confirm != "" || !strings.Contains(screen(m), "acme already has the newest taw/core") {
 		t.Errorf("current theme:\n%s", screen(m))
+	}
+}
+
+func TestUpdateWithAgent(t *testing.T) {
+	f := &fakeActions{doneDir: t.TempDir()}
+	m := withActions(t, 24, f)
+	m.deps.TTY = "/dev/ttys004"
+	m = press(t, m, "j", "u")
+	if !strings.Contains(screen(m), "A update with agent") {
+		t.Fatalf("the update question offers the agent:\n%s", screen(m))
+	}
+	m = runCmd(t, m, keyMsg("A"))
+	if f.launched != "bistro-theme" || f.beside != "/dev/ttys004" || m.confirm != "" || m.task != nil {
+		t.Fatalf("A opens Claude beside the dashboard instead of composer: %q %q confirm=%q", f.launched, f.beside, m.confirm)
+	}
+	if !strings.Contains(screen(m), "Started Claude Code for bistro-theme") || len(m.agents) != 1 {
+		t.Errorf("launched:\n%s", screen(m))
+	}
+
+	// Nothing happens until Claude exits; then the dashboard rescans.
+	m.scanning = false
+	m = step(t, m, tickMsg(now))
+	if len(m.agents) != 1 || m.scanning {
+		t.Error("still running: no rescan")
+	}
+	if err := os.WriteFile(filepath.Join(f.doneDir, "bistro-theme.done"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	next, cmd := m.Update(tickMsg(now))
+	m = next.(Model)
+	if !strings.Contains(screen(m), "Claude Code finished in bistro-theme. Rescanning.") || cmd == nil || !m.scanning || len(m.agents) != 0 {
+		t.Errorf("finished:\n%s", screen(m))
+	}
+
+	// A works from the table and the handoff screen; a sync question doesn't offer it.
+	f.launched = ""
+	m = runCmd(t, m, keyMsg("A"))
+	if f.launched != "bistro-theme" {
+		t.Errorf("A in the table: %q", f.launched)
+	}
+	f.launched = ""
+	m = press(t, m, "h")
+	m = runCmd(t, m, keyMsg("A"))
+	if f.launched != "bistro-theme" || m.mode != modeTable {
+		t.Errorf("A on the handoff: %q", f.launched)
+	}
+	m = press(t, m, "S")
+	if strings.Contains(screen(m), "agent") || m.onAgent != nil {
+		t.Errorf("only the update offers the agent:\n%s", screen(m))
+	}
+	m = press(t, m, "A")
+	if m.confirm == "" {
+		t.Error("A doesn't answer a sync question")
+	}
+
+	f.noClaude = true
+	m = press(t, m, "n")
+	m = runCmd(t, m, keyMsg("A"))
+	if !strings.Contains(screen(m), "isn't installed") {
+		t.Errorf("no Claude Code:\n%s", screen(m))
 	}
 }
 
