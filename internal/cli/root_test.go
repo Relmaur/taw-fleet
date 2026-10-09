@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -394,5 +395,57 @@ func TestWPRefusesHaltedSite(t *testing.T) {
 	_, err := runWith(t, fixture(t), &exec.FakeRunner{}, "wp", "acme", "option", "get", "stylesheet", "--format=json")
 	if err == nil || !strings.Contains(err.Error(), "taw-fleet start acme") {
 		t.Errorf("err = %v (flags after the site go to wp-cli, not to cobra)", err)
+	}
+}
+
+func TestDashboardOpensInItsOwnWindow(t *testing.T) {
+	p := fixture(t)
+	p.Applications = []string{filepath.Join(p.Home, "Applications")}
+	if err := os.MkdirAll(filepath.Join(p.Home, "Applications", "Terminal.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	open := func(args ...string) (string, *exec.FakeRunner, bool) {
+		var out bytes.Buffer
+		r := &exec.FakeRunner{}
+		d := Deps{Paths: p, Runner: r, Out: &out, Err: &out, Interactive: true, GitHub: fakeGitHub(t),
+			Executable: func() (string, error) { return "/bin/taw-fleet", nil }}
+		root := NewRoot(BuildInfo{Version: "1.2.3"}, d)
+		root.SetContext(context.Background())
+		g := &globals{}
+		if err := root.ParseFlags(args); err != nil {
+			t.Fatal(err)
+		}
+		g.window, _ = root.Flags().GetBool("window")
+		g.offline, _ = root.Flags().GetBool("offline")
+		opened := d.openWindow(root, g)
+		return out.String(), r, opened
+	}
+
+	out, r, opened := open("--offline")
+	if !opened || !strings.Contains(out, "new Terminal window") {
+		t.Fatalf("default: opened=%v out=%q", opened, out)
+	}
+	script, _ := os.ReadFile(r.Calls()[0].Args[2])
+	if !strings.Contains(string(script), "'/bin/taw-fleet' '--window=false' '--offline'") {
+		t.Errorf("script:\n%s", script)
+	}
+	if _, r, opened := open("--window=false"); opened || len(r.Calls()) != 0 {
+		t.Error("--window=false must stay here")
+	}
+
+	write(t, filepath.Join(p.ConfigDir, "config.toml"), "window = false\n")
+	if _, _, opened := open(); opened {
+		t.Error("config window = false must stay here")
+	}
+	if _, _, opened := open("--window"); !opened {
+		t.Error("--window wins over the config")
+	}
+
+	write(t, filepath.Join(p.ConfigDir, "config.toml"), "")
+	if err := os.RemoveAll(filepath.Join(p.Home, "Applications", "Terminal.app")); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, opened := open(); opened || !strings.Contains(out, "opening the dashboard here") {
+		t.Errorf("no terminal: opened=%v out=%q", opened, out)
 	}
 }
