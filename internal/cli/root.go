@@ -182,13 +182,14 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			return nil
 		}
 		deps := tui.Deps{
-			Scan:    d.scanner(g).Run,
-			Doctor:  func(rep scan.Report) []site.Finding { return doctor.Run(rep, d.doctorOptions()) },
-			Paths:   d.Paths,
-			Version: info.Version,
-			Dark:    d.Dark,
-			Refresh: time.Minute,
-			Inline:  g.inWindow,
+			Scan:      d.scanner(g).Run,
+			ScanFresh: d.freshScanner(g).Run,
+			Doctor:    func(rep scan.Report) []site.Finding { return doctor.Run(rep, d.doctorOptions()) },
+			Paths:     d.Paths,
+			Version:   info.Version,
+			Dark:      d.Dark,
+			Refresh:   time.Minute,
+			Inline:    g.inWindow,
 		}
 		deps.SiteOp = d.runSiteOp
 		if !g.offline {
@@ -230,7 +231,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g))
 	return root
 }
 

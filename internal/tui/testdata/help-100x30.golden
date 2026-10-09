@@ -4,14 +4,14 @@
    │                                                                                           │    
    │  Keys                                                                                     │    
    │                                                                                           │    
-   │  ↑/k up             enter details             e editor        y sync check                │    
-   │  ↓/j down           L     check production    f Finder        Y check all themes          │    
-   │  /   filter         w     work on it          t terminal      S apply Tier 1              │    
-   │  r   refresh        s     start/stop          b site          u update taw/core           │    
-   │  :   all actions    R     restart             B wp-admin      A update with agent         │    
-   │  o   last output    n     new site            P production    U update all with agents    │    
-   │  ?   help           M     merge PR            g GitHub        h hand off                  │    
-   │  q   quit           C     pull content        G PRs           c copy prompt               │    
+   │  ↑/k up             enter  details             e editor        y sync check               │    
+   │  ↓/j down           ctrl+r refresh all         f Finder        Y check all themes         │    
+   │  /   filter         L      check production    t terminal      S apply Tier 1             │    
+   │  r   refresh        w      work on it          b site          u update taw/core          │    
+   │  :   all actions    s      start/stop          B wp-admin      A update with agent        │    
+   │  o   last output    R      restart             P production    U update all with agents   │    
+   │  n   new site       M      merge PR            g GitHub        h hand off                 │    
+   │  q   quit           C      pull content        G PRs           c copy prompt              │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    

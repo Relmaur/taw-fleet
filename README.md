@@ -62,6 +62,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
+| `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
 | `?` | keys and symbols |
 | `q` | quit |
 
@@ -83,6 +84,7 @@ taw-fleet merge <site>    # merge its PR (--pr N when there are several); deploy
 taw-fleet pull <site>     # production content into the Local site (preview, then asks)
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below); sync --all checks every theme
+taw-fleet refresh         # everything again, past the caches (the dashboard's ctrl+r)
 taw-fleet version
 ```
 
@@ -292,7 +294,7 @@ The newest taw-core, taw-theme, taw-gutenberg and taw-fleet releases come from G
 cached for an hour in `~/Library/Caches/taw-fleet/github/`. Without a token GitHub allows 60
 requests an hour, plenty with the cache. If `GITHUB_TOKEN`/`GH_TOKEN` is set, or the `gh` CLI is
 signed in, that token is used (sent only to api.github.com). When GitHub can't be reached, the
-last cached answer is used.
+last cached answer is used. `ctrl+r` (or `taw-fleet refresh`) asks GitHub again now.
 
 ### How it finds sites
 
