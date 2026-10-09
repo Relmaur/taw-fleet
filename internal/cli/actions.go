@@ -152,11 +152,11 @@ func newHandoffCmd(d Deps, g *globals) *cobra.Command {
 				}
 			}
 			if launch {
-				msg, err := a.Launch(cmd.Context(), *s, t, prompt)
+				l, err := a.Launch(cmd.Context(), *s, t, prompt, "")
 				if err != nil {
 					return err
 				}
-				if err := done(msg); err != nil {
+				if err := done(l.Message); err != nil {
 					return err
 				}
 			}

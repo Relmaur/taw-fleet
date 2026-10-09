@@ -1,7 +1,7 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
  Hand off to an agent  ·  Update bistro-theme (bistro)  ·  branch chore/taw-core-1.76.1             
- A runs Claude Code here with it  ·  c copies it  ·  l opens Claude Code in a new window            
+ A opens Claude Code with it in a window beside this one  ·  c copies it                            
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   Update the TAW theme `bistro-theme`                                                               
                                                                                                     
@@ -17,4 +17,4 @@
                                                                                                     
                                                                                                     
 
- A update with agent • c copy prompt • l Claude in a new window • ↑/↓ scroll • esc back
+ A update with agent • c copy prompt • ↑/↓ scroll • esc back

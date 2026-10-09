@@ -11,7 +11,7 @@
     │  home first        L     check production    B wp-admin      o last output              │     
     │  end  last         s     start/stop          P production    h hand off                 │     
     │  ?    help         R     restart             g GitHub        c copy prompt              │     
-    │  q    quit         n     new site            G PRs           l Claude in a new window   │     
+    │  q    quit         n     new site            G PRs                                      │     
     │                                                                                         │     
     │  Symbols                                                                                │     
     │                                                                                         │     

@@ -1,20 +1,26 @@
 package tui
 
 import (
+	"os"
+	"sort"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
-// agentDoneMsg is Claude Code exiting and handing the terminal back.
-type agentDoneMsg struct {
+// launchedMsg is a Claude Code window opening (or failing to).
+type launchedMsg struct {
 	dir string
+	l   actions.Launched
 	err error
 }
 
-// runAgent hands the selected theme's update to Claude Code in this
-// terminal (A): the handoff prompt, as h shows it.
+// runAgent hands the selected theme's update to Claude Code (A): the
+// handoff prompt, as h shows it, in a window beside the dashboard.
 func (m Model) runAgent() (tea.Model, tea.Cmd) {
 	s, t, ok := m.selectedTheme()
 	if !ok {
@@ -29,38 +35,38 @@ func (m Model) runAgent() (tea.Model, tea.Cmd) {
 		m.setFlash(t.Dir+": "+err.Error(), true)
 		return m, nil
 	}
-	return m.agentWith(t, p)
+	return m.agentWith(s, t, p)
 }
 
-// agentWith pauses the dashboard and runs Claude Code full screen in the
-// theme folder with the prompt; the dashboard comes back when it exits.
-func (m Model) agentWith(t site.Theme, p handoff.Prompt) (tea.Model, tea.Cmd) {
-	cmd, err := m.deps.Actions.Agent(m.ctx, t, p)
-	if err != nil {
-		m.setFlash(err.Error(), true)
+// agentWith opens Claude Code with the prompt in a new window, placed on
+// the right half of the screen with the dashboard on the left (Terminal).
+func (m Model) agentWith(s site.Site, t site.Theme, p handoff.Prompt) (tea.Model, tea.Cmd) {
+	m.mode, m.scroll = modeTable, 0
+	a, ctx, tty := m.deps.Actions, m.ctx, m.deps.TTY
+	return m, func() tea.Msg {
+		l, err := a.Launch(ctx, s, t, p, tty)
+		return launchedMsg{t.Dir, l, err}
+	}
+}
+
+// agentFinished reports the agents whose Claude Code has exited (their
+// done file exists) and rescans: they may have updated taw/core.
+func (m Model) agentFinished() (Model, tea.Cmd) {
+	var done []string
+	for file, dir := range m.agents {
+		if _, err := os.Stat(file); err == nil {
+			done = append(done, dir)
+			delete(m.agents, file)
+			_ = os.Remove(file)
+		}
+	}
+	if len(done) == 0 {
 		return m, nil
 	}
-	m.mode, m.scroll = modeTable, 0
-	dir := t.Dir
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg { return agentDoneMsg{dir, err} })
-}
-
-// agentDone reports how the agent ended and rescans: it may have updated
-// taw/core, committed or pushed.
-func (m Model) agentDone(msg agentDoneMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.setFlash("Claude Code in "+msg.dir+": "+msg.err.Error(), true)
-	} else {
-		m.setFlash("Back from Claude Code in "+msg.dir+". Rescanning.", false)
+	sort.Strings(done)
+	m.setFlash("Claude Code finished in "+strings.Join(done, ", ")+". Rescanning.", false)
+	if m.scanning {
+		return m, nil
 	}
-	var cmds []tea.Cmd
-	if m.deps.Inline {
-		// What Claude printed is on the normal screen: clear it and its
-		// scrollback so the window holds only the dashboard again.
-		cmds = append(cmds, tea.Raw("\x1b[H\x1b[2J\x1b[3J"), tea.ClearScreen)
-	}
-	if !m.scanning {
-		cmds = append(cmds, m.startScan())
-	}
-	return m, tea.Batch(cmds...)
+	return m, m.startScan()
 }

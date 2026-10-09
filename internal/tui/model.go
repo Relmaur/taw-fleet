@@ -7,7 +7,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -37,8 +36,7 @@ type Actions interface {
 	Do(ctx context.Context, k actions.Kind, s site.Site, t site.Theme) (string, error)
 	Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error)
 	Copy(ctx context.Context, text string) error
-	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error)
-	Agent(ctx context.Context, t site.Theme, p handoff.Prompt) (*exec.Cmd, error)
+	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt, beside string) (actions.Launched, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
@@ -61,6 +59,7 @@ type Deps struct {
 	// one, keeping its scrollback empty: for a window of its own, where
 	// scrolling up should find nothing behind the dashboard.
 	Inline bool
+	TTY    string // the dashboard's terminal, to put Claude's window beside it; "" = unknown
 
 	CreateDefaults config.Create // the config's [create] section, for the n form
 
@@ -127,6 +126,8 @@ type Model struct {
 	form            *huh.Form          // the new-site form (modeCreate)
 	fields          *createform.Fields // its answers
 	selectAfterScan string             // site slug to select once the next scan lands
+
+	agents map[string]string // Claude Code windows still open: done file → theme dir
 
 	prompt handoff.Prompt // the handoff on screen (modeHandoff)
 	hsite  site.Site
@@ -358,8 +359,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case agentDoneMsg:
-		return m.agentDone(msg)
+	case launchedMsg:
+		if msg.err != nil {
+			m.setFlash(msg.dir+": "+msg.err.Error(), true)
+			return m, nil
+		}
+		if m.agents == nil {
+			m.agents = map[string]string{}
+		}
+		m.agents[msg.l.Done] = msg.dir
+		m.setFlash(msg.l.Message, false)
+		return m, nil
 
 	case siteOpDoneMsg:
 		busy := map[string]local.Op{}
@@ -394,6 +404,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.now = time.Time(msg)
 		if m.flash != "" && m.now.Sub(m.flashAt) > flashFor {
 			m.flash = ""
+		}
+		if len(m.agents) > 0 {
+			var cmd tea.Cmd
+			if m, cmd = m.agentFinished(); cmd != nil {
+				return m, tea.Batch(tick(), cmd)
+			}
 		}
 		if m.deps.Refresh > 0 && !m.scanning && m.loaded && m.now.Sub(m.rep.ScannedAt) >= m.deps.Refresh {
 			return m, tea.Batch(tick(), m.startScan())
@@ -475,12 +491,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				}
 				return "Copied the handoff prompt for " + dir + ". Paste it into your agent.", nil
 			})
-		case key.Matches(msg, k.Launch):
-			a, ctx, s, t, p := m.deps.Actions, m.ctx, m.hsite, m.htheme, m.prompt
-			m.mode, m.scroll = modeTable, 0
-			return m, m.run(func() (string, error) { return a.Launch(ctx, s, t, p) })
 		case key.Matches(msg, k.Agent):
-			return m.agentWith(m.htheme, m.prompt)
+			return m.agentWith(m.hsite, m.htheme, m.prompt)
 		case key.Matches(msg, k.Up):
 			m.scroll = max(0, m.scroll-1)
 		case key.Matches(msg, k.Down):

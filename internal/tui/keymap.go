@@ -9,7 +9,7 @@ type keyMap struct {
 
 	// Shortcuts on the selected theme.
 	Editor, Finder, Browser, Admin, GitHub, PRs, Terminal, Production key.Binding
-	Handoff, Copy, Launch, Agent                                      key.Binding
+	Handoff, Copy, Agent                                              key.Binding
 	StartStop, Restart, Yes, No                                       key.Binding
 	SyncCheck, SyncApply, UpdateCore, Output                          key.Binding
 	New, CopySecret, LiveRefresh                                      key.Binding
@@ -40,7 +40,6 @@ func newKeyMap() keyMap {
 		Production:  key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "production")),
 		Handoff:     key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off")),
 		Copy:        key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
-		Launch:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "Claude in a new window")),
 		Agent:       key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "update with agent")),
 		StartStop:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
 		Restart:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
@@ -71,7 +70,7 @@ type handoffKeys struct{ k keyMap }
 
 func (h handoffKeys) ShortHelp() []key.Binding {
 	up := key.NewBinding(key.WithKeys("up"), key.WithHelp("↑/↓", "scroll"))
-	return []key.Binding{h.k.Agent, h.k.Copy, h.k.Launch, up, h.k.Back}
+	return []key.Binding{h.k.Agent, h.k.Copy, up, h.k.Back}
 }
 
 func (h handoffKeys) FullHelp() [][]key.Binding { return h.k.FullHelp() }
@@ -124,7 +123,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Help, k.Quit},
 		{k.Detail, k.Back, k.Filter, k.Refresh, k.LiveRefresh, k.StartStop, k.Restart, k.New},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
-		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Agent, k.Output, k.Handoff, k.Copy, k.Launch},
+		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Agent, k.Output, k.Handoff, k.Copy},
 	}
 }
 

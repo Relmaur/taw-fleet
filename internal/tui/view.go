@@ -332,7 +332,7 @@ func (m Model) handoffScreen(height int) string {
 	muted := p.Fg(p.Muted)
 	head := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Hand off to an agent") +
 		muted.Render("  ·  "+m.prompt.Title+"  ·  branch "+m.prompt.Branch)
-	sub := " " + muted.Render("A runs Claude Code here with it  ·  c copies it  ·  l opens Claude Code in a new window")
+	sub := " " + muted.Render("A opens Claude Code with it in a window beside this one  ·  c copies it")
 	rule := p.Fg(p.Faint).Render(strings.Repeat("─", m.width))
 
 	var lines []string
