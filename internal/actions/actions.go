@@ -53,6 +53,7 @@ type Actions struct {
 	LocalAPI   create.API    // create's Local API; nil = the running Local app
 	CreatePoll time.Duration // create's polling interval; 0 = 2 s
 	VitePoll   time.Duration // how often Work checks for Vite; 0 = 300 ms
+	Merger     Merger        // merges pull requests (GitHub); nil = not available
 
 	// CoreLatest asks GitHub for the newest taw-core, skipping the cache, for
 	// an update-all; nil = keep the scan's answer.

@@ -22,7 +22,9 @@ func (d Deps) actions() (*actions.Actions, error) {
 	if err != nil {
 		return nil, err
 	}
-	return actions.New(d.Paths, d.Runner, cfg), nil
+	a := actions.New(d.Paths, d.Runner, cfg)
+	a.Merger = d.github(&globals{})
+	return a, nil
 }
 
 // runFleet lists (or, with launch, starts) an update of every client TAW

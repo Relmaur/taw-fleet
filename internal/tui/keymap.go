@@ -1,6 +1,10 @@
 package tui
 
-import "charm.land/bubbles/v2/key"
+import (
+	"fmt"
+
+	"charm.land/bubbles/v2/key"
+)
 
 // keyMap is every key the dashboard answers to. It also feeds the help bar.
 type keyMap struct {
@@ -12,7 +16,7 @@ type keyMap struct {
 	Handoff, Copy, Agent, UpdateAll                                   key.Binding
 	StartStop, Restart, Work, Yes, No                                 key.Binding
 	SyncCheck, SyncApply, UpdateCore, Output                          key.Binding
-	New, CopySecret, LiveRefresh                                      key.Binding
+	New, CopySecret, LiveRefresh, Merge                               key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -54,6 +58,7 @@ func newKeyMap() keyMap {
 		New:         key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new site")),
 		CopySecret:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
 		LiveRefresh: key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "check production")),
+		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge PR")),
 	}
 }
 
@@ -102,11 +107,16 @@ func (o outputKeys) FullHelp() [][]key.Binding { return o.k.FullHelp() }
 
 // confirmKeys is the help bar while a question is open.
 type confirmKeys struct {
-	k     keyMap
-	agent bool // A is offered too
+	k       keyMap
+	agent   bool // A is offered too
+	choices int  // a numbered choice instead of yes/no
 }
 
 func (c confirmKeys) ShortHelp() []key.Binding {
+	if c.choices > 0 {
+		pick := key.NewBinding(key.WithKeys("1"), key.WithHelp(fmt.Sprintf("1–%d", c.choices), "pick"))
+		return []key.Binding{pick, c.k.No}
+	}
 	if c.agent {
 		return []key.Binding{c.k.Yes, c.k.Agent, c.k.No}
 	}
@@ -122,8 +132,8 @@ func (k keyMap) ShortHelp() []key.Binding {
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Help, k.Quit},
-		{k.Detail, k.Filter, k.Refresh, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.New},
+		{k.Up, k.Down, k.PageUp, k.PageDown, k.Filter, k.Refresh, k.Help, k.Quit},
+		{k.Detail, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.New, k.Merge},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
 		{k.SyncCheck, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Output, k.Handoff, k.Copy},
 	}

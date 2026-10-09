@@ -45,6 +45,7 @@ type Actions interface {
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
+	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
 }
 
@@ -123,10 +124,11 @@ type Model struct {
 	flashErr bool
 	flashAt  time.Time
 
-	confirm string                           // question on screen; "" = none
-	onYes   func(Model) (tea.Model, tea.Cmd) // what "yes" does
-	onAgent func(Model) (tea.Model, tea.Cmd) // what A does instead; nil = not offered
-	pending local.Op                         // the site operation asked about, if any
+	confirm string                             // question on screen; "" = none
+	onYes   func(Model) (tea.Model, tea.Cmd)   // what "yes" does
+	onAgent func(Model) (tea.Model, tea.Cmd)   // what A does instead; nil = not offered
+	choices []func(Model) (tea.Model, tea.Cmd) // a numbered question: what each digit does
+	pending local.Op                           // the site operation asked about, if any
 
 	live         map[string]site.Production // production checks by site slug
 	liveFetching bool
@@ -136,6 +138,7 @@ type Model struct {
 	repos         map[string]site.RepoState // pull requests and deploys by owner/name
 	reposFetching bool
 	reposAt       time.Time
+	followed      map[string]following // merged pull requests whose deploy is watched, by repo
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -494,19 +497,31 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	k := m.keys
 	if m.confirm != "" {
+		if len(m.choices) > 0 {
+			if n := int(msg.Code - '0'); msg.Text != "" && n >= 1 && n <= len(m.choices) {
+				pick := m.choices[n-1]
+				m.confirm, m.onYes, m.onAgent, m.choices, m.pending = "", nil, nil, nil, ""
+				return pick(m)
+			}
+			if key.Matches(msg, k.No) || msg.String() == "q" {
+				m.confirm, m.onYes, m.onAgent, m.choices, m.pending = "", nil, nil, nil, ""
+				m.setFlash("Nothing changed.", false)
+			}
+			return m, nil
+		}
 		switch {
 		case key.Matches(msg, k.Yes):
 			yes := m.onYes
-			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
+			m.confirm, m.onYes, m.onAgent, m.choices, m.pending = "", nil, nil, nil, ""
 			if yes != nil {
 				return yes(m)
 			}
 		case key.Matches(msg, k.Agent) && m.onAgent != nil:
 			agent := m.onAgent
-			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
+			m.confirm, m.onYes, m.onAgent, m.choices, m.pending = "", nil, nil, nil, ""
 			return agent(m)
 		case key.Matches(msg, k.No) || msg.String() == "q":
-			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
+			m.confirm, m.onYes, m.onAgent, m.choices, m.pending = "", nil, nil, nil, ""
 			m.setFlash("Nothing changed.", false)
 		}
 		return m, nil
@@ -664,6 +679,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Work):
 		model, cmd := m.askWork()
+		return model, cmd, true
+	case key.Matches(msg, k.Merge):
+		model, cmd := m.askMerge()
 		return model, cmd, true
 	case key.Matches(msg, k.Output):
 		if m.task == nil {

@@ -84,10 +84,18 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 	} else {
 		m.setFlash(ev.sum.Headline, false)
 	}
-	if !m.scanning {
-		return m, m.startScan()
+	var cmds []tea.Cmd
+	if res, ok := ev.sum.Report.(actions.MergeResult); ok && ev.err == nil {
+		if res.Deploys {
+			m.follow(res)
+		}
+		model, cmd := m.fetchRepos(false)
+		m, cmds = model.(Model), append(cmds, cmd)
 	}
-	return m, nil
+	if !m.scanning {
+		cmds = append(cmds, m.startScan())
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // askTask asks before a task that writes; read-only tasks start at once.

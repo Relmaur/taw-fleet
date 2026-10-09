@@ -120,3 +120,46 @@ func TestRepoNamesAndApply(t *testing.T) {
 		t.Error("ApplyRepos puts the state on every theme of that repository only")
 	}
 }
+
+func TestMergeUsesDefaultMethodAndGuardsTheHead(t *testing.T) {
+	var put map[string]any
+	var deleted string
+	conflict := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/graphql":
+			_, _ = w.Write([]byte(`{"data":{"repository":{"viewerDefaultMergeMethod":"SQUASH"}}}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/repos/Relmaur/x--theme/pulls/12/merge":
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &put)
+			if conflict {
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write([]byte(`{"message":"Head branch was modified. Review and try the merge again."}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"sha":"m3rg3d","merged":true}`))
+		case r.Method == http.MethodDelete:
+			deleted = r.URL.EscapedPath()
+			w.WriteHeader(http.StatusUnprocessableEntity) // already deleted by the repo
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, HTTP: srv.Client(), Token: func() string { return "tok" }}
+	pr := site.PullRequest{Number: 12, HeadSHA: "h3ad", Branch: "chore/taw core"}
+	m, err := c.Merge(context.Background(), "Relmaur/x--theme", pr)
+	if err != nil || m.SHA != "m3rg3d" || m.Method != "squash" {
+		t.Fatalf("Merge = %+v, %v", m, err)
+	}
+	if put["merge_method"] != "squash" || put["sha"] != "h3ad" {
+		t.Errorf("PUT body = %v", put)
+	}
+	if err := c.DeleteBranch(context.Background(), "Relmaur/x--theme", pr.Branch); err != nil || deleted != "/repos/Relmaur/x--theme/git/refs/heads/chore/taw%20core" {
+		t.Errorf("DeleteBranch: %q, %v", deleted, err)
+	}
+	conflict = true
+	if _, err := c.Merge(context.Background(), "Relmaur/x--theme", pr); err == nil || !strings.Contains(err.Error(), "changed since taw-fleet read it") {
+		t.Errorf("a moved head: %v", err)
+	}
+}
