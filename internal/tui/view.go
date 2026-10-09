@@ -428,6 +428,8 @@ func (m Model) footer() string {
 		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil, len(m.choices)))
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
+	case m.full.active && m.mode != modeOutput:
+		status = " " + m.spin.View() + " " + muted.Render("Refreshing everything: "+strings.Join(m.refreshPending(), ", ")+"…")
 	case m.task != nil && m.task.running && m.mode != modeOutput:
 		status = " " + m.spin.View() + " " + muted.Render(m.task.title+"…  (o shows the output)")
 	case len(m.busy) > 0:

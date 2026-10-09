@@ -1217,3 +1217,81 @@ func TestCommandMenu(t *testing.T) {
 		t.Error("esc closes the menu")
 	}
 }
+
+// settle runs commands and feeds their messages back until none is left
+// (spinner ticks dropped), for flows that fan out several fetches.
+func settle(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	queue := []tea.Cmd{cmd}
+	for i := 0; len(queue) > 0 && i < 200; i++ {
+		c := queue[0]
+		queue = queue[1:]
+		if c == nil {
+			continue
+		}
+		switch msg := c().(type) {
+		case tea.BatchMsg:
+			queue = append(queue, msg...)
+		case scanDoneMsg, reposDoneMsg, liveDoneMsg, taskEventMsg:
+			next, nc := m.Update(msg)
+			m = next.(Model)
+			queue = append(queue, nc)
+		}
+	}
+	return m
+}
+
+func TestRefreshEverything(t *testing.T) {
+	m := withActions(t, 30, &fakeActions{})
+	var fresh, liveFresh, ghCalls int
+	m.deps.ScanFresh = func(context.Context) (scan.Report, error) { fresh++; return fixtureReport(), nil }
+	m.deps.GitHub = func(context.Context, []string) map[string]site.RepoState {
+		ghCalls++
+		return map[string]site.RepoState{}
+	}
+	m.deps.Live = func(_ context.Context, f bool) (map[string]site.Production, error) {
+		if f {
+			liveFresh++
+		}
+		return map[string]site.Production{"acme-shop": {Reachable: true, Verified: true}}, nil
+	}
+
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	m = next.(Model)
+	if !m.full.active || !m.scanning || !m.reposFetching || !m.liveFetching {
+		t.Fatalf("ctrl+r starts everything: %+v scanning=%v repos=%v live=%v", m.full, m.scanning, m.reposFetching, m.liveFetching)
+	}
+	if out := screen(m); !strings.Contains(out, "Refreshing everything: Local sites, GitHub, production") {
+		t.Errorf("the status line shows what's pending:\n%s", out)
+	}
+
+	m = settle(t, m, cmd)
+	if fresh != 1 || ghCalls < 1 || liveFresh != 1 {
+		t.Errorf("fresh scan %d, GitHub %d, fresh production %d", fresh, ghCalls, liveFresh)
+	}
+	if m.mode != modeTable {
+		t.Errorf("the sync check runs quietly, not in the output view: mode %v", m.mode)
+	}
+	if m.task == nil || m.task.running || !strings.HasPrefix(m.task.title, "Sync check") {
+		t.Fatalf("the sync check ran after the scan: %+v", m.task)
+	}
+
+	m = step(t, m, tickMsg(now))
+	if m.full.active {
+		t.Fatal("a tick with nothing pending ends the refresh")
+	}
+	for _, want := range []string{"refreshed 4 sites", "1 of 1 production sites verified", "Checked 2 themes"} {
+		if !strings.Contains(m.flash, want) {
+			t.Errorf("summary %q lacks %q", m.flash, want)
+		}
+	}
+
+	m = press(t, m, ":", "a", "l", "l")
+	if !strings.Contains(screen(m), "refresh all") {
+		t.Fatalf("the menu offers it:\n%s", screen(m))
+	}
+	next, _ = m.Update(keyMsg("enter"))
+	if m = next.(Model); !m.full.active {
+		t.Error("enter in the menu runs ctrl+r")
+	}
+}

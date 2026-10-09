@@ -58,12 +58,15 @@ type Deps struct {
 	SiteOp     func(ctx context.Context, op local.Op, s site.Site) (time.Duration, error)
 	ActionsErr error // why Actions is nil
 	Scan       func(ctx context.Context) (scan.Report, error)
-	Doctor     func(scan.Report) []site.Finding
-	Paths      paths.Paths
-	Version    string
-	Dark       bool             // first guess; the terminal's answer replaces it
-	Now        func() time.Time // nil = time.Now
-	Refresh    time.Duration    // re-scan this often; 0 = only on `r`
+	// ScanFresh is Scan asking GitHub for the latest versions now, past the
+	// hour-long cache (ctrl+r). nil = Scan.
+	ScanFresh func(ctx context.Context) (scan.Report, error)
+	Doctor    func(scan.Report) []site.Finding
+	Paths     paths.Paths
+	Version   string
+	Dark      bool             // first guess; the terminal's answer replaces it
+	Now       func() time.Time // nil = time.Now
+	Refresh   time.Duration    // re-scan this often; 0 = only on `r`
 	// Inline draws on the terminal's normal screen instead of the alternate
 	// one, keeping its scrollback empty: for a window of its own, where
 	// scrolling up should find nothing behind the dashboard.
@@ -137,6 +140,8 @@ type Model struct {
 	liveFetching bool
 	liveAt       time.Time // when the last check finished
 	liveErr      error
+
+	full fullRefresh // a ctrl+r in progress
 
 	repos         map[string]site.RepoState // pull requests and deploys by owner/name
 	reposFetching bool
@@ -330,9 +335,19 @@ func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-func (m *Model) startScan() tea.Cmd {
+func (m *Model) startScan() tea.Cmd { return m.scanWith(m.deps.Scan) }
+
+// freshScan is the scan that skips the latest-version cache.
+func (m Model) freshScan() func(context.Context) (scan.Report, error) {
+	if m.deps.ScanFresh != nil {
+		return m.deps.ScanFresh
+	}
+	return m.deps.Scan
+}
+
+func (m *Model) scanWith(scanFn func(context.Context) (scan.Report, error)) tea.Cmd {
 	m.scanning = true
-	ctx, scanFn := m.ctx, m.deps.Scan
+	ctx := m.ctx
 	return tea.Batch(m.spin.Tick, func() tea.Msg {
 		rep, err := scanFn(ctx)
 		return scanDoneMsg{rep, err}
@@ -372,6 +387,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		github.ApplyRepos(msg.rep.Sites, m.repos)
 		m.applyScan(msg.rep, msg.err)
 		var cmds []tea.Cmd
+		var syncCmd tea.Cmd
+		if m, syncCmd = m.afterRefreshScan(); syncCmd != nil {
+			cmds = append(cmds, syncCmd)
+		}
 		if m.liveDue() {
 			model, cmd := m.fetchLive(false)
 			m, cmds = model.(Model), append(cmds, cmd)
@@ -448,6 +467,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.flash != "" && m.now.Sub(m.flashAt) > flashFor {
 			m.flash = ""
 		}
+		m = m.finishRefresh()
 		if len(m.agents) > 0 {
 			var cmd tea.Cmd
 			if m, cmd = m.agentFinished(); cmd != nil {
@@ -469,7 +489,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case spinner.TickMsg:
-		if !m.scanning && !m.liveFetching && !m.reposFetching && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
+		if !m.scanning && !m.liveFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -638,6 +658,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if !m.scanning {
 			return m, m.startScan()
 		}
+	case key.Matches(msg, k.RefreshAll):
+		return m.refreshAll()
 	case key.Matches(msg, k.LiveRefresh):
 		if m.deps.Live == nil && m.deps.GitHub == nil {
 			m.setFlash("no production view: add production_url to sites in the config", true)

@@ -8,8 +8,8 @@ import (
 
 // keyMap is every key the dashboard answers to. It also feeds the help bar.
 type keyMap struct {
-	Up, Down, PageUp, PageDown, Top, Bottom   key.Binding
-	Detail, Back, Filter, Refresh, Help, Quit key.Binding
+	Up, Down, PageUp, PageDown, Top, Bottom               key.Binding
+	Detail, Back, Filter, Refresh, RefreshAll, Help, Quit key.Binding
 
 	// Shortcuts on the selected theme.
 	Editor, Finder, Browser, Admin, GitHub, PRs, Terminal, Production key.Binding
@@ -21,18 +21,19 @@ type keyMap struct {
 
 func newKeyMap() keyMap {
 	return keyMap{
-		Up:       key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		PageUp:   key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("pgup", "page up")),
-		PageDown: key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("pgdn", "page down")),
-		Top:      key.NewBinding(key.WithKeys("home"), key.WithHelp("home", "first")),
-		Bottom:   key.NewBinding(key.WithKeys("end"), key.WithHelp("end", "last")),
-		Detail:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
-		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		Filter:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		Refresh:  key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		PageUp:     key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("pgup", "page up")),
+		PageDown:   key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("pgdn", "page down")),
+		Top:        key.NewBinding(key.WithKeys("home"), key.WithHelp("home", "first")),
+		Bottom:     key.NewBinding(key.WithKeys("end"), key.WithHelp("end", "last")),
+		Detail:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
+		Back:       key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		Refresh:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		RefreshAll: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh all")),
+		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 
 		Editor:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "editor")),
 		Finder:      key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "Finder")),
@@ -135,8 +136,8 @@ func (k keyMap) ShortHelp() []key.Binding {
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.Help, k.Quit},
-		{k.Detail, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.New, k.Merge, k.Pull},
+		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Quit},
+		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.Pull},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs},
 		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy},
 	}

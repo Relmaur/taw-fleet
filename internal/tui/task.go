@@ -79,6 +79,12 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 		return m, listen(t.ch)
 	}
 	t.running, t.summary, t.err, t.finished = false, ev.sum, ev.err, m.deps.Now()
+	if m.full.active && t.title == m.full.syncTitle {
+		m.full.syncResult = ev.sum.Headline
+		if ev.err != nil {
+			m.full.syncResult = "sync check: " + ev.err.Error()
+		}
+	}
 	if ev.err != nil {
 		m.setFlash(t.title+": "+ev.err.Error(), true)
 	} else {

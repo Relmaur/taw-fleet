@@ -93,6 +93,9 @@ func pressOf(k string) tea.KeyPressMsg {
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
 	}
+	if rest, ok := strings.CutPrefix(k, "ctrl+"); ok {
+		return tea.KeyPressMsg{Code: []rune(rest)[0], Mod: tea.ModCtrl}
+	}
 	r := []rune(k)[0]
 	return tea.KeyPressMsg{Code: r, Text: k}
 }
