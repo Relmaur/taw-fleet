@@ -11,13 +11,13 @@
    │  /    filter       R     restart             B wp-admin      U update all with agents     │    
    │  r    refresh      n     new site            P production    o last output                │    
    │  ?    help         M     merge PR            g GitHub        h hand off                   │    
-   │  q    quit                                   G PRs           c copy prompt                │    
+   │  q    quit         C     pull content        G PRs           c copy prompt                │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
    │  ● running   ○ halted   ◐ starting/stopping   ↗ symlink   vite Vite is running            │    
    │  1.59.2 ▲ 1.76.1  taw/core installed ▲ newest                                             │    
-   │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓                                       │    
+   │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓   @acct another GitHub account        │    
    │  feature ◇ unpushed  not the default branch, not pushed                                   │    
    │  — ✓ ▲2 ✗  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed        │    
    │  ● ◐ ✗ —  live: verified, answering but unverified, refused or down, no production URL    │    

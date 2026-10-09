@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -160,4 +161,36 @@ func (DevEnricher) Name() string { return "dev" }
 func (DevEnricher) Enrich(ctx context.Context, _ *site.Site, t *site.Theme) error {
 	t.Dev = vite.Running(ctx, t.RealPath)
 	return nil
+}
+
+// Accounts marks themes that belong to another GitHub account: the
+// site's github_account in the config, a remote through an SSH host alias
+// (github.com-parallel, the usual way to use a second account), or an
+// owner that isn't one of Mine.
+type Accounts struct {
+	Mine  []string          // the owner's accounts and organizations; empty = unknown
+	Sites map[string]string // site folder → github_account
+}
+
+// Apply marks every theme. It runs after the git enricher (Scanner.After).
+func (a Accounts) Apply(sites []site.Site) {
+	for i := range sites {
+		for j := range sites[i].Themes {
+			a.mark(&sites[i], &sites[i].Themes[j])
+		}
+	}
+}
+
+func (a Accounts) mark(s *site.Site, t *site.Theme) {
+	acct := a.Sites[s.Slug]
+	if acct == "" && t.Git != nil && t.Git.Repo != nil {
+		r := t.Git.Repo
+		if r.Alias != "" || (len(a.Mine) > 0 && !slices.ContainsFunc(a.Mine, func(m string) bool { return strings.EqualFold(m, r.Owner) })) {
+			acct = r.Owner
+		}
+	}
+	if acct != "" && slices.ContainsFunc(a.Mine, func(m string) bool { return strings.EqualFold(m, acct) }) {
+		acct = ""
+	}
+	t.Account = acct
 }

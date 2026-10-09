@@ -125,6 +125,9 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 			switch {
 			case t.IsTAW:
 				core, gitCell = p.Core(t.Core), p.Git(t.Git)
+				if t.Account != "" {
+					gitCell = p.Fg(p.Brand).Render("@"+t.Account) + " " + gitCell
+				}
 			case t.Dir != "":
 				kind = muted.Render("other")
 			}

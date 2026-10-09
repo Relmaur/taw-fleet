@@ -160,3 +160,57 @@ func newMergeCmd(d Deps, g *globals) *cobra.Command {
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
 	return cmd
 }
+
+func newPullCmd(d Deps, g *globals) *cobra.Command {
+	var theme string
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "pull <site>",
+		Short: "Pull the production site's content into the Local site",
+		Long: "Fetch the production site's published content through its TAW companion (0.4+;\n" +
+			"signed and verified): posts and CPT entries, TAW fields and options, terms and the\n" +
+			"media they use. Then preview the import into the Local site (taw/core's content:import\n" +
+			"dry run) and, after you confirm, import it: production wins, media is downloaded, and\n" +
+			"a rollback snapshot is saved first. Never drafts, users, comments or settings. Starts\n" +
+			"the Local site when it's stopped. The dashboard's key: C.",
+		Example: "  taw-fleet pull ls-mxico\n  taw-fleet pull ls-mxico --yes",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			offline := *g
+			offline.offline = true
+			s, t, a, err := resolveForTask(cmd, d, &offline, args[0], theme)
+			if err != nil {
+				return err
+			}
+			task, err := a.PullTask(*s, t, d.runSiteOp)
+			if err != nil {
+				return fmt.Errorf("%s: %w", s.Slug, err)
+			}
+			sum, err := runTask(cmd, d, task, yes, "")
+			if errors.Is(err, errCancelled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if err := printSummary(cmd, d, sum); err != nil {
+				return err
+			}
+			pv, _ := sum.Report.(actions.PullPreview)
+			if pv.Apply.Run == nil {
+				return nil
+			}
+			sum, err = runTask(cmd, d, pv.Apply, yes, "")
+			if errors.Is(err, errCancelled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return printSummary(cmd, d, sum)
+		},
+	}
+	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
+	return cmd
+}

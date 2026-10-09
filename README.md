@@ -43,7 +43,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 |---|---|
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
-| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live`, `vite` |
+| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live`, `vite`, `other` (themes of another GitHub account) |
 | `w` | work on it: start the site (when stopped), open the theme in your editor, run Vite (`npm run dev`) in its own window and open the site once Vite answers (asks first). On a theme whose Vite is running (`vite` after its name), `w` stops Vite and the site |
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
@@ -57,6 +57,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
 | `L` | check the production sites and GitHub now (see below); otherwise every 5 minutes |
+| `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
@@ -77,6 +78,7 @@ taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet work <site>     # site, editor, Vite and browser in one go; --stop undoes it
 taw-fleet prs             # open PRs with their CI, and what each theme has deployed
 taw-fleet merge <site>    # merge its PR (--pr N when there are several); deploys production
+taw-fleet pull <site>     # production content into the Local site (preview, then asks)
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below)
 taw-fleet version
@@ -332,6 +334,29 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Merges** with the repository's default merge method for you, and only if the branch hasn't changed since taw-fleet read it.
 - **Cleans up:** it deletes the branch. If the local theme is clean and on that branch or the default one, it switches to the default branch and pulls.
 - **Follows the deploy:** the dashboard checks GitHub every 15 seconds and says when production has the merge, or that CI or the deploy failed. Then it re-checks the live site.
+
+## Pull production content
+
+`C` (or `taw-fleet pull <site>`) brings a production site's content into its Local copy:
+- **What comes over:** published posts and CPT entries, TAW fields and options, terms, and the media they use. Drafts, users, comments and settings never do. Menus stay as the theme's code builds them.
+- **How it's fetched:** through the site's TAW companion (0.4+), signed with the fleet key, and only imported when the site's own signature checks out. No passwords are involved.
+- **Preview first:** taw/core's `content:import` dry run lists what would be created or changed, and writes nothing.
+- **Then the import, after you confirm:** production wins, media is downloaded, and taw/core saves a rollback snapshot to `wp-content/uploads/taw-private/` first.
+- A stopped Local site is started first (it asks). Snapshots are kept in `~/Library/Caches/taw-fleet/content/`.
+
+## Other GitHub accounts
+
+A theme whose repository belongs to another GitHub account shows `@account` in the GIT column and the detail pane, and `/other` filters to those themes. taw-fleet spots it when:
+- the remote uses an SSH host alias such as `github.com-parallel`, the usual way to use a second account;
+- or the owner isn't in `github_owners`;
+- or the site sets `github_account`, for a theme that sits inside a larger repository:
+
+```toml
+github_owners = ["Relmaur", "EmeLambda"]   # your accounts and organizations
+
+[sites.parallelstaff]
+github_account = "parallelstaff"
+```
 
 ## Develop
 

@@ -54,6 +54,7 @@ type Actions struct {
 	CreatePoll time.Duration // create's polling interval; 0 = 2 s
 	VitePoll   time.Duration // how often Work checks for Vite; 0 = 300 ms
 	Merger     Merger        // merges pull requests (GitHub); nil = not available
+	Content    ContentSource // fetches production content; nil = not set up
 
 	// CoreLatest asks GitHub for the newest taw-core, skipping the cache, for
 	// an update-all; nil = keep the scan's answer.

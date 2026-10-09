@@ -40,7 +40,11 @@ func ParseRemote(raw string) (*site.Repo, error) {
 	if host == "" || len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return nil, fmt.Errorf("can't read owner/repo from %q", raw)
 	}
-	return &site.Repo{Host: canonicalHost(host), Owner: parts[0], Name: parts[1]}, nil
+	r := &site.Repo{Host: canonicalHost(host), Owner: parts[0], Name: parts[1]}
+	if !strings.EqualFold(host, r.Host) {
+		r.Alias = strings.ToLower(host)
+	}
+	return r, nil
 }
 
 // canonicalHost maps SSH config aliases such as "github.com-parallel" (a

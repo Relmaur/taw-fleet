@@ -85,6 +85,11 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 		m.setFlash(ev.sum.Headline, false)
 	}
 	var cmds []tea.Cmd
+	if pv, ok := ev.sum.Report.(actions.PullPreview); ok && ev.err == nil && pv.Apply.Run != nil {
+		apply := pv.Apply
+		m.confirm = apply.Ask
+		m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startTask(apply) }
+	}
 	if res, ok := ev.sum.Report.(actions.MergeResult); ok && ev.err == nil {
 		if res.Deploys {
 			m.follow(res)
@@ -277,6 +282,33 @@ func (m Model) askWork() (tea.Model, tea.Cmd) {
 		work = m.deps.Actions.StopWorkTask
 	}
 	task, err := work(s, t, op)
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, "")
+}
+
+// askPull previews pulling the production site's content into the Local
+// site (C); importing it is asked once the preview is on screen.
+func (m Model) askPull() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	if _, busy := m.busy[s.ID]; busy {
+		m.setFlash(s.Slug+" is busy; wait for it to finish", true)
+		return m, nil
+	}
+	var op actions.SiteOp
+	if m.deps.SiteOp != nil {
+		op = m.deps.SiteOp
+	}
+	task, err := m.deps.Actions.PullTask(s, t, op)
 	if err != nil {
 		m.setFlash(t.Dir+": "+err.Error(), true)
 		return m, nil

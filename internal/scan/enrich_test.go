@@ -121,3 +121,31 @@ func TestGitHubLookupCombinesErrors(t *testing.T) {
 		t.Errorf("offline errs = %v", errs)
 	}
 }
+
+func TestAccounts(t *testing.T) {
+	repo := func(owner, alias string) *site.GitInfo {
+		return &site.GitInfo{Repo: &site.Repo{Host: "github.com", Owner: owner, Name: "x", Alias: alias}}
+	}
+	cases := []struct {
+		name string
+		e    Accounts
+		slug string
+		git  *site.GitInfo
+		want string
+	}{
+		{"own repo, nothing configured", Accounts{}, "a", repo("Relmaur", ""), ""},
+		{"SSH alias: a second account", Accounts{}, "b", repo("parallelplus", "github.com-parallel"), "parallelplus"},
+		{"owner not mine", Accounts{Mine: []string{"Relmaur", "EmeLambda"}}, "c", repo("acme", ""), "acme"},
+		{"an organization of mine", Accounts{Mine: []string{"relmaur", "EmeLambda"}}, "d", repo("emelambda", ""), ""},
+		{"alias to one of mine", Accounts{Mine: []string{"Relmaur"}}, "e", repo("Relmaur", "github.com-work"), ""},
+		{"no remote yet, configured", Accounts{Sites: map[string]string{"parallelstaff": "parallelplus"}}, "parallelstaff", &site.GitInfo{}, "parallelplus"},
+		{"no git at all, configured", Accounts{Sites: map[string]string{"g": "acme"}}, "g", nil, "acme"},
+	}
+	for _, c := range cases {
+		sites := []site.Site{{Slug: c.slug, Themes: []site.Theme{{Dir: "t", Git: c.git}}}}
+		c.e.Apply(sites)
+		if th := sites[0].Themes[0]; th.Account != c.want {
+			t.Errorf("%s: account %q, want %q", c.name, th.Account, c.want)
+		}
+	}
+}

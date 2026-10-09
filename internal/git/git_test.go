@@ -191,7 +191,7 @@ func TestParseRemote(t *testing.T) {
 		"https://github.com/Relmaur/taw-core.git":                        {Host: "github.com", Owner: "Relmaur", Name: "taw-core"},
 		"https://github.com/Relmaur/taw-core":                            {Host: "github.com", Owner: "Relmaur", Name: "taw-core"},
 		"git@github.com:Relmaur/chcapital--theme.git":                    {Host: "github.com", Owner: "Relmaur", Name: "chcapital--theme"},
-		"git@github.com-parallel:parallelplus/parallel-plus-website.git": {Host: "github.com", Owner: "parallelplus", Name: "parallel-plus-website"},
+		"git@github.com-parallel:parallelplus/parallel-plus-website.git": {Host: "github.com", Owner: "parallelplus", Name: "parallel-plus-website", Alias: "github.com-parallel"},
 		"ssh://git@github.com:22/Relmaur/taw-fleet.git":                  {Host: "github.com", Owner: "Relmaur", Name: "taw-fleet"},
 		"https://user:tok@gitlab.com/acme/site.git":                      {Host: "gitlab.com", Owner: "acme", Name: "site"},
 		"git@bitbucket.org:acme/theme.git":                               {Host: "bitbucket.org", Owner: "acme", Name: "theme"},

@@ -21,6 +21,10 @@ type Config struct {
 	Window   *bool           `toml:"window"`   // the dashboard in its own window; nil = true
 	Create   Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
+
+	// GitHubOwners are the owner's GitHub accounts and organizations: a
+	// theme whose repository belongs to another one is marked @owner.
+	GitHubOwners []string `toml:"github_owners"`
 }
 
 // Create holds the defaults for new sites. Empty = ask, or Local's choice.
@@ -36,6 +40,7 @@ type Create struct {
 type Site struct {
 	ProductionURL string `toml:"production_url"`
 	Notes         string `toml:"notes"`
+	GitHubAccount string `toml:"github_account"` // the GitHub account the site's theme belongs to, when it isn't the owner's (before it has a remote)
 }
 
 // File is the config file's path.
