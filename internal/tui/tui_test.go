@@ -202,6 +202,24 @@ func TestInlineInItsOwnWindow(t *testing.T) {
 	}
 }
 
+func TestLiveSitesFirst(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 100, 24, nil)
+	m.deps.Production = map[string]bool{"bistro": true}
+	m = step(t, m, scanDoneMsg{rep, nil})
+	var order []string
+	for _, ri := range m.visible {
+		order = append(order, m.rep.Sites[m.rows[ri].site].Themes[m.rows[ri].theme].Dir)
+	}
+	if strings.Join(order, ",") != "bistro-theme,acme,taw-gutenberg,taw-theme" {
+		t.Errorf("order = %v (live first, then by name)", order)
+	}
+	m = press(t, m, "/", "l", "i", "v", "e", "enter")
+	if len(m.visible) != 1 {
+		t.Errorf("/live shows the live sites only: %d rows", len(m.visible))
+	}
+}
+
 func TestNavigationBounds(t *testing.T) {
 	rep := fixtureReport()
 	m := newModel(t, 80, 24, &rep)
