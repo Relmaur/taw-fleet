@@ -98,6 +98,9 @@ type Theme struct {
 	Kind      ThemeKind `json:"kind"`
 	IsTAW     bool      `json:"is_taw"`
 	HasBinTaw bool      `json:"has_bin_taw"`
+	// SkillsMissing are the site skills the theme's taw/core ships
+	// (vendor/taw/core/resources/skills) that aren't in its .claude/skills/.
+	SkillsMissing []string `json:"skills_missing,omitempty"`
 
 	// Version is `git describe --tags --always`. Never style.css, which is
 	// stale in every TAW theme. Client forks inherit taw-theme's old tags, so

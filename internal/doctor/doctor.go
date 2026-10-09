@@ -87,6 +87,14 @@ func checkSite(s site.Site, opts Options) []site.Finding {
 		out = append(out, checkCore(s, t)...)
 		out = append(out, checkGit(s, t)...)
 		out = append(out, checkGitHub(s, t)...)
+		if n := len(t.SkillsMissing); n > 0 {
+			fix := "php bin/taw skills:sync --apply in the theme"
+			if t.Kind == site.KindClassic {
+				fix = "S (sync the scaffold), or " + fix
+			}
+			add(site.Info, "skills.missing", t.Dir,
+				fmt.Sprintf("%d site %s from taw/core %s installed: %s", n, plural(n, "skill", "skills"), plural(n, "isn't", "aren't"), strings.Join(t.SkillsMissing, ", ")), fix)
+		}
 	}
 	out = append(out, checkLive(s)...)
 	return append(out, checkFeedback(s)...)

@@ -152,6 +152,9 @@ func DiscoverThemes(webRoot string) ([]site.Theme, error) {
 			problems = append(problems, fmt.Sprintf("%s: %v", name, err))
 		}
 		t.Package, t.Kind, t.IsTAW, t.HasBinTaw = d.Package, d.Kind, d.IsTAW, d.HasBinTaw
+		if t.IsTAW {
+			t.SkillsMissing = missingSkills(path)
+		}
 		themes = append(themes, t)
 	}
 	sort.Slice(themes, func(i, j int) bool { return themes[i].Dir < themes[j].Dir })
@@ -159,4 +162,23 @@ func DiscoverThemes(webRoot string) ([]site.Theme, error) {
 		return themes, fmt.Errorf("%s", strings.Join(problems, "; "))
 	}
 	return themes, nil
+}
+
+// missingSkills are the site skills the theme's taw/core ships that its
+// .claude/skills/ lacks (taw/core 1.89+ ships them; older ones ship none).
+func missingSkills(theme string) []string {
+	shipped, err := os.ReadDir(filepath.Join(theme, "vendor", "taw", "core", "resources", "skills"))
+	if err != nil {
+		return nil
+	}
+	var missing []string
+	for _, e := range shipped {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(theme, ".claude", "skills", e.Name(), "SKILL.md")); err != nil {
+			missing = append(missing, e.Name())
+		}
+	}
+	return missing
 }

@@ -20,7 +20,7 @@ type Config struct {
 	Editor   string          `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
 	Terminal string          `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
 	Window   *bool           `toml:"window"`   // the dashboard in its own window; nil = true
-	Umbrella string          `toml:"umbrella"` // the TAW umbrella checkout; "" = found through the themes linked into it
+	Umbrella string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
 	Create   Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
 
@@ -115,11 +115,6 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # gives the current one back. false keeps it in the current terminal (the
 # same as taw-fleet --window=false).
 # window = false
-
-# The TAW umbrella checkout, where Claude resolves a site's BugSmash comments
-# (X, skill taw-resolve-comments). Empty: the folder the taw-theme and
-# taw-gutenberg links in Local point into.
-# umbrella = "~/Documents/TAW"
 
 # Defaults for taw-fleet create (n in the dashboard). Empty: asked, or
 # Local's preferred PHP and web server. The admin password is always

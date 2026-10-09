@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -49,6 +50,7 @@ type Deps struct {
 	Executable func() (string, error)                          // the running binary; nil = os.Executable
 	Live       func(context.Context) (*live.Prober, error)     // production checks; nil = Keychain key + pinned keys
 	Feedback   func(context.Context) (*bugsmash.Prober, error) // BugSmash comments; nil = the Keychain's API key
+	WPHTTP     *http.Client                                    // wp-remote's HTTP client; nil = the real one
 
 	// Interactive is true when stdin and stdout are a terminal: only then
 	// does `taw-fleet` alone open the dashboard, and only then are y/N
@@ -239,7 +241,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.SetErr(d.Err)
 	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
-		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g),
+		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
 		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g))
 	return root

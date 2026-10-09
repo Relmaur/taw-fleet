@@ -53,8 +53,8 @@ type Actions interface {
 	CreateTask(r create.Request) (actions.Task, error)
 	OpenComments(ctx context.Context, s site.Site) (string, error)
 	ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, error)
-	Umbrella(sites []site.Site) (string, error)
-	LaunchResolve(ctx context.Context, s site.Site, t site.Theme, umbrella string, p handoff.Prompt, beside string) (actions.Launched, error)
+	SkillPrompt(s site.Site, t site.Theme, sk actions.Skill, findings []site.Finding) handoff.Prompt
+	LaunchSkill(ctx context.Context, s site.Site, t site.Theme, kind string, p handoff.Prompt, beside string) (actions.Launched, error)
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -110,6 +110,7 @@ const (
 	modeOutput
 	modeCreate
 	modeMenu
+	modeSkills
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -197,7 +198,8 @@ type Model struct {
 
 	menuInput  textinput.Model // the : menu's filter
 	menuCursor int
-	menuFrom   mode // where the menu goes back to
+	menuFrom   mode            // where the menu goes back to
+	skills     []actions.Skill // the skills the a picker offers
 
 	filtering bool
 	filter    textinput.Model
@@ -602,6 +604,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeMenu:
 		return m.onMenuKey(msg)
+	case modeSkills:
+		return m.onSkillsKey(msg)
 	case modeOutput:
 		return m.onOutputKey(msg)
 	case modeHandoff:
@@ -780,6 +784,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Resolve):
 		model, cmd := m.resolveComments()
+		return model, cmd, true
+	case key.Matches(msg, k.Ask):
+		model, cmd := m.openSkills()
 		return model, cmd, true
 	case key.Matches(msg, k.Output):
 		if m.task == nil {
