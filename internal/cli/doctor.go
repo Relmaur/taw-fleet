@@ -39,6 +39,7 @@ func newDoctorCmd(d Deps, g *globals) *cobra.Command {
 			}
 			if !g.offline {
 				d.applyLive(cmd.Context(), &rep, false)
+				d.applyRepos(cmd, g, &rep)
 			}
 			if len(args) == 1 {
 				s, err := scan.Resolve(rep.Sites, args[0])

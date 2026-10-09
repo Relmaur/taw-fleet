@@ -167,3 +167,41 @@ func TestLiveRules(t *testing.T) {
 		t.Errorf("medium is a warning: %+v", fs)
 	}
 }
+
+func TestGitHubRules(t *testing.T) {
+	ok := site.RepoState{Repo: "Relmaur/client--theme", Default: "main", Head: "bbb", HeadCI: site.ChecksPassing, PRs: []site.PullRequest{},
+		Deploy: &site.Deploy{Workflow: "Deploy", Deployed: "bbb"}}
+	pr := site.PullRequest{Number: 7, Title: "Update taw/core", Branch: "chore/taw-core", Checks: site.ChecksPassing}
+	cases := []struct {
+		name   string
+		mutate func(*site.RepoState)
+		want   []string
+	}{
+		{"deployed, nothing open", func(*site.RepoState) {}, nil},
+		{"ready PR", func(s *site.RepoState) { s.PRs = []site.PullRequest{pr} }, []string{"pr.ready"}},
+		{"failing PR", func(s *site.RepoState) { p := pr; p.Checks = site.ChecksFailing; s.PRs = []site.PullRequest{p} }, []string{"pr.failing"}},
+		{"conflict", func(s *site.RepoState) { p := pr; p.Conflicted = true; s.PRs = []site.PullRequest{p} }, []string{"pr.conflict"}},
+		{"draft and pending say nothing", func(s *site.RepoState) {
+			d, p := pr, pr
+			d.Draft, p.Checks = true, site.ChecksPending
+			s.PRs = []site.PullRequest{d, p}
+		}, nil},
+		{"behind", func(s *site.RepoState) { s.Head, s.Deploy.Behind = "ccc", 2 }, []string{"deploy.pending"}},
+		{"behind, CI running", func(s *site.RepoState) { s.Head, s.HeadCI = "ccc", site.ChecksPending }, nil},
+		{"behind, CI failed", func(s *site.RepoState) { s.Head, s.HeadCI = "ccc", site.ChecksFailing }, []string{"deploy.blocked"}},
+		{"deploying", func(s *site.RepoState) { s.Head, s.Deploy.Running = "ccc", &site.Run{SHA: "ccc"} }, nil},
+		{"failed", func(s *site.RepoState) { s.Head, s.Deploy.Failed = "ccc", &site.Run{SHA: "ccc", URL: "https://x"} }, []string{"deploy.failed"}},
+		{"unreadable", func(s *site.RepoState) { s.Error = "no token" }, nil},
+	}
+	for _, c := range cases {
+		st := ok
+		d := *ok.Deploy
+		st.Deploy = &d
+		c.mutate(&st)
+		th := clean()
+		th.GitHub = &st
+		if got := codes(one(t, th)); strings.Join(got, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+}

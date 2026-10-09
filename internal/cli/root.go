@@ -178,6 +178,10 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Inline:  g.inWindow,
 		}
 		deps.SiteOp = d.runSiteOp
+		if !g.offline {
+			gh := d.github(g)
+			deps.GitHub = gh.Repos
+		}
 		if cfg, err := config.Load(d.Paths); err == nil && len(liveTargets(cfg)) > 0 {
 			targets := liveTargets(cfg)
 			deps.Production = map[string]bool{}
@@ -213,7 +217,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g))
 	return root
 }
 

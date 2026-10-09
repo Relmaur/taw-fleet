@@ -107,6 +107,7 @@ type Theme struct {
 	Git      *GitInfo     `json:"git,omitempty"`        // nil when the folder isn't its own git repo
 	Drift    *Drift       `json:"drift,omitempty"`      // the last `bin/taw sync` taw-fleet ran; nil = never
 	Dev      string       `json:"dev_server,omitempty"` // the running Vite dev server's URL; "" = not running
+	GitHub   *RepoState   `json:"github,omitempty"`     // open PRs and deploys (nil = not checked)
 }
 
 // Production is what the live site's companion said.
@@ -229,4 +230,73 @@ func (s *Site) AddError(stage string, err error) {
 	if err != nil {
 		s.Errors = append(s.Errors, SourceError{Stage: stage, Err: err.Error()})
 	}
+}
+
+// RepoState is a theme's repository on GitHub: open pull requests and the
+// deploy workflow's runs.
+type RepoState struct {
+	Repo      string        `json:"repo"` // owner/name
+	CheckedAt time.Time     `json:"checked_at"`
+	Default   string        `json:"default_branch,omitempty"`
+	Head      string        `json:"head,omitempty"`        // the default branch's newest commit
+	HeadCI    string        `json:"head_checks,omitempty"` // its CI result (passing | failing | pending | none)
+	PRs       []PullRequest `json:"pull_requests"`
+	Deploy    *Deploy       `json:"deploy,omitempty"` // nil = no deploy workflow
+	Error     string        `json:"error,omitempty"`
+}
+
+// CI results of a pull request's newest commit.
+const (
+	ChecksPassing = "passing"
+	ChecksFailing = "failing"
+	ChecksPending = "pending"
+	ChecksNone    = "none"
+)
+
+// PullRequest is an open pull request.
+type PullRequest struct {
+	Number     int       `json:"number"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Branch     string    `json:"branch"`
+	HeadSHA    string    `json:"head_sha"`
+	SameRepo   bool      `json:"same_repo"` // the branch lives in this repository (not a fork)
+	Author     string    `json:"author,omitempty"`
+	Draft      bool      `json:"draft,omitempty"`
+	Checks     string    `json:"checks"`               // passing | failing | pending | none
+	Conflicted bool      `json:"conflicted,omitempty"` // GitHub says it can't merge cleanly
+	Updated    time.Time `json:"updated_at"`
+}
+
+// Ready reports whether the pull request can be merged now: not a draft,
+// no conflict, and CI passed (or there is none).
+func (p PullRequest) Ready() bool {
+	return !p.Draft && !p.Conflicted && (p.Checks == ChecksPassing || p.Checks == ChecksNone)
+}
+
+// Deploy is the deploy workflow: what production has, and what's on its way.
+type Deploy struct {
+	Workflow   string    `json:"workflow"`           // its name ("Deploy")
+	URL        string    `json:"url"`                // its runs on GitHub
+	Deployed   string    `json:"deployed,omitempty"` // the commit the last successful run shipped
+	DeployedAt time.Time `json:"deployed_at,omitzero"`
+	Running    *Run      `json:"running,omitempty"` // a run queued or in progress
+	Failed     *Run      `json:"failed,omitempty"`  // the newest run, when it failed after the last success
+	Behind     int       `json:"behind"`            // commits on the default branch not deployed
+	Pending    []Commit  `json:"pending,omitempty"` // the newest of them
+}
+
+// Run is one deploy workflow run.
+type Run struct {
+	SHA     string    `json:"sha"`
+	Status  string    `json:"status"`
+	Result  string    `json:"conclusion,omitempty"`
+	Started time.Time `json:"started_at"`
+	URL     string    `json:"url"`
+}
+
+// Commit is a commit not deployed yet.
+type Commit struct {
+	SHA   string `json:"sha"`
+	Title string `json:"title"`
 }

@@ -85,6 +85,7 @@ func checkSite(s site.Site, opts Options) []site.Finding {
 		}
 		out = append(out, checkCore(s, t)...)
 		out = append(out, checkGit(s, t)...)
+		out = append(out, checkGitHub(s, t)...)
 	}
 	return append(out, checkLive(s)...)
 }
@@ -234,6 +235,49 @@ func checkGit(s site.Site, t site.Theme) []site.Finding {
 		out = append(out, f(site.Warn, "git.no-remote", "no origin remote", "git remote add origin <url>"))
 	}
 	return out
+}
+
+// checkGitHub reads the theme's pull requests and deploys (taw-fleet prs).
+func checkGitHub(s site.Site, t site.Theme) []site.Finding {
+	st := t.GitHub
+	if st == nil || st.Error != "" {
+		return nil
+	}
+	f := func(sev site.Severity, code, msg, fix string) site.Finding {
+		return site.Finding{Severity: sev, Code: code, SiteID: s.ID, Site: s.Slug, Theme: t.Dir, Message: msg, Fix: fix}
+	}
+	var out []site.Finding
+	for _, pr := range st.PRs {
+		name := fmt.Sprintf("PR #%d (%s)", pr.Number, pr.Title)
+		switch {
+		case pr.Draft:
+		case pr.Checks == site.ChecksFailing:
+			out = append(out, f(site.Warn, "pr.failing", name+": CI failed", "open it on GitHub (G) and fix the branch"))
+		case pr.Conflicted:
+			out = append(out, f(site.Warn, "pr.conflict", name+" conflicts with "+st.Default, "merge "+st.Default+" into "+pr.Branch+" and resolve"))
+		case pr.Ready():
+			out = append(out, f(site.Info, "pr.ready", name+" is ready to merge", "M in the dashboard, or taw-fleet merge "+s.Slug))
+		}
+	}
+	d := st.Deploy
+	switch {
+	case d == nil:
+	case d.Failed != nil && d.Running == nil:
+		out = append(out, f(site.Warn, "deploy.failed", "the last deploy ("+shortSHA(d.Failed.SHA)+") failed", "see the run: "+d.Failed.URL))
+	case d.Running == nil && d.Deployed != "" && d.Deployed != st.Head && st.HeadCI == site.ChecksFailing:
+		out = append(out, f(site.Warn, "deploy.blocked", "CI failed on "+st.Default+", so it isn't deployed", "fix "+st.Default+" (the deploy waits for CI)"))
+	case d.Running == nil && d.Deployed != "" && d.Deployed != st.Head && st.HeadCI != site.ChecksPending:
+		out = append(out, f(site.Info, "deploy.pending", fmt.Sprintf("%d %s on %s not deployed", d.Behind, plural(d.Behind, "commit", "commits"), st.Default),
+			"re-run the deploy workflow on GitHub: "+d.URL))
+	}
+	return out
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
 
 func plural(n int, one, many string) string {

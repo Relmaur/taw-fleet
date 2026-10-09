@@ -2,6 +2,7 @@ package style
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -130,4 +131,71 @@ func (p Palette) Live(r *site.Production) string {
 		return p.Fg(p.Warn).Render("◐")
 	}
 	return p.Fg(p.OK).Render("●")
+}
+
+// PRs is the PR cell: how many pull requests are open, marked with the
+// most pressing state among them.
+func (p Palette) PRs(st *site.RepoState) string {
+	switch {
+	case st == nil:
+		return ""
+	case st.Error != "":
+		return p.Fg(p.Faint).Render("?")
+	case len(st.PRs) == 0:
+		return p.Fg(p.Faint).Render("—")
+	}
+	var failing, conflict, pending, draft bool
+	for _, pr := range st.PRs {
+		switch {
+		case pr.Checks == site.ChecksFailing:
+			failing = true
+		case pr.Conflicted:
+			conflict = true
+		case pr.Checks == site.ChecksPending:
+			pending = true
+		case pr.Draft:
+			draft = true
+		}
+	}
+	n := strconv.Itoa(len(st.PRs))
+	switch {
+	case failing:
+		return p.Fg(p.Err).Render(n + "✗")
+	case conflict:
+		return p.Fg(p.Warn).Render(n + "!")
+	case pending:
+		return p.Fg(p.Warn).Render(n + "…")
+	case draft:
+		return p.Fg(p.Muted).Render(n + "◇")
+	}
+	return p.Fg(p.OK).Render(n + "✓")
+}
+
+// Deploy is the DEPLOY cell: is production on the default branch's newest
+// commit, on its way there, or stuck.
+func (p Palette) Deploy(st *site.RepoState) string {
+	switch {
+	case st == nil:
+		return ""
+	case st.Error != "":
+		return p.Fg(p.Faint).Render("?")
+	case st.Deploy == nil:
+		return p.Fg(p.Faint).Render("—")
+	}
+	d := st.Deploy
+	switch {
+	case d.Running != nil:
+		return p.Fg(p.Accent).Render("⟳")
+	case d.Failed != nil:
+		return p.Fg(p.Err).Render("✗")
+	case d.Deployed == "":
+		return p.Fg(p.Faint).Render("?")
+	case d.Deployed == st.Head:
+		return p.Fg(p.OK).Render("✓")
+	case st.HeadCI == site.ChecksPending:
+		return p.Fg(p.Accent).Render("⟳") // CI first, then the deploy
+	case st.HeadCI == site.ChecksFailing:
+		return p.Fg(p.Err).Render("✗")
+	}
+	return p.Fg(p.Warn).Render("↑" + strconv.Itoa(d.Behind))
 }
