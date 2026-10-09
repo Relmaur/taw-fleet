@@ -7,6 +7,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ type Actions interface {
 	Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error)
 	Copy(ctx context.Context, text string) error
 	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt) (string, error)
+	Agent(ctx context.Context, t site.Theme, p handoff.Prompt) (*exec.Cmd, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
@@ -111,6 +113,7 @@ type Model struct {
 
 	confirm string                           // question on screen; "" = none
 	onYes   func(Model) (tea.Model, tea.Cmd) // what "yes" does
+	onAgent func(Model) (tea.Model, tea.Cmd) // what A does instead; nil = not offered
 	pending local.Op                         // the site operation asked about, if any
 
 	live         map[string]site.Production // production checks by site slug
@@ -355,6 +358,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case agentDoneMsg:
+		return m.agentDone(msg)
+
 	case siteOpDoneMsg:
 		busy := map[string]local.Op{}
 		for id, o := range m.busy {
@@ -440,12 +446,16 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, k.Yes):
 			yes := m.onYes
-			m.confirm, m.onYes, m.pending = "", nil, ""
+			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
 			if yes != nil {
 				return yes(m)
 			}
+		case key.Matches(msg, k.Agent) && m.onAgent != nil:
+			agent := m.onAgent
+			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
+			return agent(m)
 		case key.Matches(msg, k.No) || msg.String() == "q":
-			m.confirm, m.onYes, m.pending = "", nil, ""
+			m.confirm, m.onYes, m.onAgent, m.pending = "", nil, nil, ""
 			m.setFlash("Nothing changed.", false)
 		}
 		return m, nil
@@ -469,6 +479,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			a, ctx, s, t, p := m.deps.Actions, m.ctx, m.hsite, m.htheme, m.prompt
 			m.mode, m.scroll = modeTable, 0
 			return m, m.run(func() (string, error) { return a.Launch(ctx, s, t, p) })
+		case key.Matches(msg, k.Agent):
+			return m.agentWith(m.htheme, m.prompt)
 		case key.Matches(msg, k.Up):
 			m.scroll = max(0, m.scroll-1)
 		case key.Matches(msg, k.Down):
@@ -502,6 +514,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeHelp
 		case key.Matches(msg, k.Handoff):
 			return m.openHandoff()
+		case key.Matches(msg, k.Agent):
+			return m.runAgent()
 		case key.Matches(msg, k.StartStop):
 			return m.askSiteOp(false)
 		case key.Matches(msg, k.Restart):
@@ -560,6 +574,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openCreate()
 	case key.Matches(msg, k.Handoff):
 		return m.openHandoff()
+	case key.Matches(msg, k.Agent):
+		return m.runAgent()
 	case key.Matches(msg, k.StartStop):
 		return m.askSiteOp(false)
 	case key.Matches(msg, k.Restart):

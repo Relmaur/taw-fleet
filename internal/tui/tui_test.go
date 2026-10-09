@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"io"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -341,6 +342,8 @@ type fakeActions struct {
 	did      []actions.Kind
 	copied   string
 	launched string
+	agent    string // theme the agent ran in
+	noClaude bool
 	refuse   error
 	created  create.Request
 }
@@ -390,6 +393,14 @@ func (f *fakeActions) CreateTask(r create.Request) (actions.Task, error) {
 func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ handoff.Prompt) (string, error) {
 	f.launched = t.Dir
 	return "Started Claude Code for " + t.Dir, nil
+}
+
+func (f *fakeActions) Agent(ctx context.Context, t site.Theme, p handoff.Prompt) (*osexec.Cmd, error) {
+	if f.noClaude {
+		return nil, actions.ErrNoClaude
+	}
+	f.agent = t.Dir
+	return osexec.CommandContext(ctx, "true", p.Text), nil
 }
 
 // runCmd executes a command returned by Update and feeds its message back.
@@ -628,6 +639,55 @@ func TestApplyAndUpdateAskFirst(t *testing.T) {
 	m = press(t, m, "esc", "k", "u")
 	if m.confirm != "" || !strings.Contains(screen(m), "acme already has the newest taw/core") {
 		t.Errorf("current theme:\n%s", screen(m))
+	}
+}
+
+func TestUpdateWithAgent(t *testing.T) {
+	f := &fakeActions{}
+	m := press(t, withActions(t, 24, f), "j", "u")
+	if !strings.Contains(screen(m), "A update with agent") {
+		t.Fatalf("the update question offers the agent:\n%s", screen(m))
+	}
+	next, cmd := m.Update(keyMsg("A"))
+	m = next.(Model)
+	if f.agent != "bistro-theme" || cmd == nil || m.confirm != "" || m.task != nil {
+		t.Fatalf("A runs the agent instead of composer: agent=%q confirm=%q", f.agent, m.confirm)
+	}
+	m.scanning = false
+	next, cmd = m.Update(agentDoneMsg{dir: "bistro-theme"})
+	m = next.(Model)
+	if !strings.Contains(screen(m), "Back from Claude Code in bistro-theme") || cmd == nil || !m.scanning {
+		t.Errorf("back from the agent: rescans\n%s", screen(m))
+	}
+	m = step(t, m, agentDoneMsg{dir: "bistro-theme", err: errors.New("exit status 1")})
+	if !strings.Contains(screen(m), "exit status 1") {
+		t.Errorf("agent error shown:\n%s", screen(m))
+	}
+
+	// A works from the table and the handoff screen; a sync question doesn't offer it.
+	f.agent = ""
+	m = press(t, m, "esc")
+	if _, cmd := m.Update(keyMsg("A")); f.agent != "bistro-theme" || cmd == nil {
+		t.Errorf("A in the table: %q", f.agent)
+	}
+	f.agent = ""
+	m = press(t, m, "h")
+	if _, cmd := m.Update(keyMsg("A")); f.agent != "bistro-theme" || cmd == nil {
+		t.Errorf("A on the handoff: %q", f.agent)
+	}
+	m = press(t, m, "esc", "S")
+	if strings.Contains(screen(m), "agent") || m.onAgent != nil {
+		t.Errorf("only the update offers the agent:\n%s", screen(m))
+	}
+	m = press(t, m, "A")
+	if m.confirm == "" {
+		t.Error("A doesn't answer a sync question")
+	}
+
+	f.noClaude = true
+	m = press(t, m, "n", "A")
+	if !strings.Contains(screen(m), "isn't installed") {
+		t.Errorf("no Claude Code:\n%s", screen(m))
 	}
 }
 

@@ -302,3 +302,20 @@ func TestWindowRunsTheDashboard(t *testing.T) {
 		t.Errorf("other terminals close on their own:\n%s", got)
 	}
 }
+
+func TestAgentRunsClaudeInTheTheme(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	_, th := fixture()
+	if _, err := a.Agent(context.Background(), th, handoff.Prompt{}); !errors.Is(err, ErrNoClaude) {
+		t.Errorf("no Claude Code: %v", err)
+	}
+	claude := filepath.Join(a.Paths.Home, ".local", "bin", "claude")
+	mustWrite(t, claude)
+	cmd, err := a.Agent(context.Background(), th, handoff.Prompt{Text: "# do it\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Path != claude || cmd.Dir != th.RealPath || len(cmd.Args) != 2 || cmd.Args[1] != "# do it\n" {
+		t.Errorf("cmd = %s %q in %s", cmd.Path, cmd.Args, cmd.Dir)
+	}
+}

@@ -317,6 +317,13 @@ func (m Model) detailScreen(height int) string {
 	return block(strings.Join(lines[from:min(from+height, len(lines))], "\n"), m.width, height)
 }
 
+func confirmHint(agent bool) string {
+	if agent {
+		return "  y yes · A let an agent do it · n no"
+	}
+	return "  y yes · n no"
+}
+
 // --- handoff ----------------------------------------------------------------
 
 // handoffScreen shows the agent prompt, with Markdown headings accented.
@@ -325,7 +332,7 @@ func (m Model) handoffScreen(height int) string {
 	muted := p.Fg(p.Muted)
 	head := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("Hand off to an agent") +
 		muted.Render("  ·  "+m.prompt.Title+"  ·  branch "+m.prompt.Branch)
-	sub := " " + muted.Render("c copies the prompt  ·  l opens a terminal running Claude Code in the theme folder with it")
+	sub := " " + muted.Render("A runs Claude Code here with it  ·  c copies it  ·  l opens Claude Code in a new window")
 	rule := p.Fg(p.Faint).Render(strings.Repeat("─", m.width))
 
 	var lines []string
@@ -383,7 +390,7 @@ func (m Model) footer() string {
 	var status string
 	switch {
 	case m.confirm != "":
-		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render("  y yes · n no")
+		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil))
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
 	case m.task != nil && m.task.running && m.mode != modeOutput:
@@ -415,7 +422,7 @@ func (m Model) footer() string {
 	var keys help.KeyMap = m.keys
 	switch {
 	case m.confirm != "":
-		keys = confirmKeys{m.keys}
+		keys = confirmKeys{m.keys, m.onAgent != nil}
 	case m.mode == modeDetail:
 		keys = detailKeys{m.keys}
 	case m.mode == modeHandoff:

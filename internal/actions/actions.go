@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -158,6 +159,18 @@ func (a *Actions) Claude() (string, error) {
 		}
 	}
 	return "", ErrNoClaude
+}
+
+// Agent is Claude Code in the theme folder with the prompt as its first
+// message, for the dashboard to run in its own terminal (tea.ExecProcess).
+func (a *Actions) Agent(ctx context.Context, t site.Theme, p handoff.Prompt) (*osexec.Cmd, error) {
+	claude, err := a.Claude()
+	if err != nil {
+		return nil, err
+	}
+	cmd := osexec.CommandContext(ctx, claude, p.Text)
+	cmd.Dir = t.RealPath
+	return cmd, nil
 }
 
 // Launch opens a new terminal window in the theme folder running Claude Code
