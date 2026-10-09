@@ -60,17 +60,29 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
 | `L` | check the production sites, the BugSmash comments and GitHub now (see below); otherwise every 5 minutes |
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
+| `F` | open the site's BugSmash review page, where its comments are |
+| `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the TAW umbrella (with the theme folder added), asked to use the `taw-resolve-comments` skill on them |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
 | `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, the BugSmash comments, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
 | `?` | keys and symbols |
 | `q` | quit |
 
+The bottom line keeps to the everyday keys; `:` finds every other one, and `?` lists them all.
+
 Each row is a two-line card: the site on top with its columns, and underneath its theme, the
 theme's kind, the production host (when there's room), the age of the oldest open BugSmash
-comment under **FB**, and how long ago the last commit was under **GIT**. At 120 columns and
-wider, the selected site's details sit beside the table (the pane narrows, or steps aside, when
-the table needs the room). The colors follow
+comment under **FB**, and how long ago the last commit was under **GIT**. The selected card is
+tinted. While every row fits, a blank line separates the cards; when they don't, they sit tight
+and the rule under the column names says where you are (`1–19 of 24`). The TAW ecosystem's own
+themes (the umbrella's taw-theme and taw-gutenberg, linked into a Local site) come last, under
+their own label: they're the scaffolds client themes are made from, not client sites, and the
+header counts only client sites.
+
+At 120 columns and wider, the selected site's details sit beside the table (the pane narrows, or
+steps aside, when the table needs the room), in sections that say where each part comes from:
+**LOCAL** (this Mac), **LIVE** (the production site's companion), **FEEDBACK** (BugSmash) and
+**FINDINGS** (`doctor`). The colors follow
 your terminal's light or dark background. When the output isn't a terminal (piped, CI),
 `taw-fleet` prints the `list` table instead.
 
@@ -97,20 +109,25 @@ Every read command takes `--json` (for scripts and Claude sessions) and `--offli
 GitHub; use the cached newest versions).
 
 ```
- ◆ taw-fleet v1.9.0 · 9 sites · 10 themes · 6 running · 8 behind                 updated just now
+ ◆ taw-fleet v1.10.0 · 8 sites · 8 themes · 5 running · 8 behind                  updated just now
 
     SITE · THEME                       TAW/CORE         SYNC  LIVE  FB   PR   DEPLOY  GIT
 ────────────────────────────────────────────────────────────────────────────────────────────────
-▌ ● ch-capital---taw                   1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       master ±1
-▌   chcapital   CLASSIC   chcapital.mx                                                2h ago
-  ● fsspx-taw                          1.87.1 ▲ 1.87.2  ▲2    ●     1    —    ✓       feat/chat… ±1
-    fsspx--theme   CLASSIC   fsspx.tempurl.host           1h                          1h ago
-  ● ls-mxico                           1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       main ±1
-    ls-mexico   CLASSIC   lsmexico.mx                                                 2h ago
-  ○ taw                                1.87.2           —     —     —    —    —       main
-    taw-gutenberg ↗   BLOCK                                                           23m ago
-    taw                                1.87.2           —                —    —       main ±1
-    taw-theme ↗   CLASSIC                                                             23m ago
+▌ ● ch-capital---taw                   1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       master
+    chcapital  classic  chcapital.mx                                                  3h ago
+
+  ● fsspx-taw                          1.87.1 ▲ 1.87.2  ▲2    ●     1    —    ✓       feat/chat…
+    fsspx--theme  classic  fsspx.tempurl.host                  2h                     1h ago
+
+  ● ls-mxico                           1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       main
+    ls-mexico  classic  lsmexico.mx                                                   3h ago
+
+ TAW ECOSYSTEM ─────────────────────────────────────── the scaffolds every TAW site is made from
+  ● taw                                1.87.2                                         main
+    taw-gutenberg ↗  block                                                            42m ago
+
+    taw                                1.87.2                                         main
+    taw-theme ↗  classic                                                              42m ago
 ```
 
 ### Start, stop and wp-cli
@@ -188,11 +205,20 @@ Clients review their live site in [BugSmash](https://bugsmash.io) and leave comm
 the page. With `bugsmash_project` set for a site (see Settings), the dashboard's **FB** column
 shows how many comments are open (`0` none, the count in the accent color, in the warning color
 once the oldest waited over two days, `?` when the check failed), the row's second line shows how
-old the oldest is, and the detail pane lists the latest ones with their page. `doctor` adds
-`comments.open` (a warning after two days), `comments.unreachable` and `comments.no-key`.
+old the oldest is, and the detail pane's FEEDBACK section quotes the latest ones with their
+number, page, author and age. `doctor` adds `comments.open` (a warning after two days),
+`comments.unreachable` and `comments.no-key`.
 
-It only reads (`GET` on BugSmash's REST API, cached for 5 minutes): resolving comments happens
-in the TAW umbrella's `taw-resolve-comments` skill ("resolve comments on chcapital"). The API key
+In the dashboard, `F` opens the site's review page in BugSmash, and `X` hands the open comments
+to Claude Code: a window beside the dashboard, started in the TAW umbrella (found through the
+taw-theme/taw-gutenberg links in Local, or the `umbrella` setting) with the theme folder added,
+and a first message asking for the umbrella's `taw-resolve-comments` skill with what taw-fleet
+already knows (project, review page, the open comments). The skill's rules apply: it shows its
+plan first and asks before anything reaches production. When that window closes, the dashboard
+asks BugSmash again.
+
+taw-fleet itself only reads (`GET` on BugSmash's REST API, cached for 5 minutes): resolving
+happens in the skill (`X`, or "resolve comments on chcapital" in the umbrella). The API key
 (BugSmash → Settings → API Key) lives in your macOS Keychain, never in a file;
 `BUGSMASH_API_KEY` is read when the Keychain has none.
 
@@ -289,6 +315,7 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
 window = false           # the dashboard in the current terminal (default: a new window)
+umbrella = "~/Documents/TAW"   # where X resolves comments (default: found through the theme links)
 
 [create]                 # defaults for taw-fleet create / n (all optional)
 kind = "classic"         # or "block"
@@ -349,7 +376,7 @@ A theme's version is `git describe --tags`, never `style.css` (stale in every TA
 themes forked from taw-theme inherit its old tags, so their describe is informational only.
 
 A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.json` and
-`templates/`), is **BLOCK**; any other TAW theme is **CLASSIC**.
+`templates/`), is **block**; any other TAW theme is **classic**.
 
 ### Environment
 

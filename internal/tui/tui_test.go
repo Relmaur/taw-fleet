@@ -117,6 +117,8 @@ func keyMsg(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "up":
 		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "end":
+		return tea.KeyPressMsg{Code: tea.KeyEnd}
 	case "ctrl+c":
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	}
@@ -442,6 +444,25 @@ func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ han
 	}
 	f.launched, f.beside = t.Dir, beside
 	return actions.Launched{Message: "Started Claude Code for " + t.Dir, Done: filepath.Join(f.doneDir, t.Dir+".done")}, nil
+}
+
+func (f *fakeActions) OpenComments(_ context.Context, s site.Site) (string, error) {
+	f.did = append(f.did, "comments")
+	return "Opened " + s.Feedback.URL, nil
+}
+
+func (f *fakeActions) ResolvePrompt(s site.Site, _ site.Theme) (handoff.Prompt, error) {
+	if s.Feedback == nil || s.Feedback.Open == 0 {
+		return handoff.Prompt{}, errors.New("no open comments on " + s.Slug)
+	}
+	return handoff.Prompt{Title: "resolve comments on " + s.Slug, Text: "Use the taw-resolve-comments skill"}, nil
+}
+
+func (f *fakeActions) Umbrella([]site.Site) (string, error) { return "/Users/me/TAW", nil }
+
+func (f *fakeActions) LaunchResolve(_ context.Context, s site.Site, _ site.Theme, umbrella string, _ handoff.Prompt, beside string) (actions.Launched, error) {
+	f.launched, f.beside = s.Slug+" in "+umbrella, beside
+	return actions.Launched{Message: "Claude Code is on " + s.Slug + "'s comments", Done: filepath.Join(f.doneDir, s.Slug+"-comments-1.done")}, nil
 }
 
 func (f *fakeActions) PlanFleet(context.Context, []site.Site) actions.FleetPlan { return f.plan }
@@ -973,7 +994,7 @@ func TestProductionView(t *testing.T) {
 	}
 	m = step(t, m, liveMsg(t, cmd))
 	out := screen(m)
-	for _, want := range []string{"LIVE", "Production  https://acme.mx", "WordPress 6.8.3", "1 known vulnerability (worst high) per Defender"} {
+	for _, want := range []string{"LIVE", "production · companion", "https://acme.mx  checked", "WordPress 6.8.3", "1 known vulnerability (worst high) per Defender"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}
@@ -1318,5 +1339,61 @@ func TestRefreshEverything(t *testing.T) {
 	next, _ = m.Update(keyMsg("enter"))
 	if m = next.(Model); !m.full.active {
 		t.Error("enter in the menu runs ctrl+r")
+	}
+}
+
+func TestCommentKeys(t *testing.T) {
+	f := &fakeActions{doneDir: t.TempDir()}
+	m := fleetModel(t, 140, 34)
+	m.deps.Actions, m.deps.TTY = f, "/dev/ttys004"
+	m.rep.Sites[0].Feedback.URL = "https://x.bugsmash.io/review/a" // acme-shop, 3 open
+	m = runCmd(t, m, keyMsg("F"))
+	if len(f.did) != 1 || f.did[0] != "comments" || !strings.Contains(screen(m), "Opened https://x.bugsmash.io/review/a") {
+		t.Errorf("F: %v\n%s", f.did, screen(m))
+	}
+	m = runCmd(t, m, keyMsg("X"))
+	if f.launched != "acme-shop in /Users/me/TAW" || f.beside != "/dev/ttys004" || len(m.agents) != 1 {
+		t.Fatalf("X: %q %q agents=%v", f.launched, f.beside, m.agents)
+	}
+
+	// When Claude exits, BugSmash is asked again, past the cache.
+	for file := range m.agents {
+		if err := os.WriteFile(file, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.scanning = false
+	m = step(t, m, tickMsg(now))
+	if !m.feedbackFetching || !m.scanning {
+		t.Errorf("after the resolve agent: fetching=%v scanning=%v", m.feedbackFetching, m.scanning)
+	}
+
+	m = press(t, m, "j", "X") // bistro: nothing open
+	if !strings.Contains(screen(m), "no open comments on bistro") {
+		t.Errorf("X without comments:\n%s", screen(m))
+	}
+}
+
+func TestEcosystemSection(t *testing.T) {
+	rep := fixtureReport()
+	last := len(rep.Sites) - 1
+	taw := &rep.Sites[last]
+	if taw.Slug != "taw" {
+		t.Fatalf("the fixture's last site is %s", taw.Slug)
+	}
+	for i, name := range []string{"taw-gutenberg", "taw-theme"} {
+		taw.Themes[i].Git.Repo = &site.Repo{Host: "github.com", Owner: "Relmaur", Name: name}
+	}
+	// Scanned first, the ecosystem still sorts after the client sites.
+	rep.Sites[0], rep.Sites[last] = rep.Sites[last], rep.Sites[0]
+	m := newModel(t, 140, 40, &rep)
+	out := screen(m)
+	golden(t, "ecosystem-140x40", out)
+	if !strings.Contains(out, "2 sites") || !strings.Contains(out, "2 TAW themes") {
+		t.Errorf("the header counts client sites only:\n%s", out)
+	}
+	label := strings.Index(out, "TAW ECOSYSTEM")
+	if label < 0 || label < strings.Index(out, "bistro") || label > strings.Index(out, "taw-gutenberg") {
+		t.Errorf("the ecosystem goes last, under its label:\n%s", out)
 	}
 }

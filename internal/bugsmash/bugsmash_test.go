@@ -36,7 +36,8 @@ func fakeBugSmash(t *testing.T, calls *atomic.Int32) *httptest.Server {
 		}
 		switch r.URL.Path {
 		case "/project/" + projOK:
-			_, _ = io.WriteString(w, `{"status":true,"message":"Project Details","data":{"id":"`+projOK+`","name":"chcapital.mx"}}`)
+			_, _ = io.WriteString(w, `{"status":true,"message":"Project Details","data":{"id":"`+projOK+`","name":"chcapital.mx","frontend_url":"https://x.bugsmash.io",
+				"project_versions":[{"short_url":"https://x.bugsmash.io/review/old","is_latest":false},{"short_url":"https://x.bugsmash.io/review/new","is_latest":true}]}}`)
 		case "/project/" + projGone:
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(w, `{"status":false,"message":"Project not found","data":[]}`)
@@ -75,7 +76,7 @@ func TestCheck(t *testing.T) {
 	if f.Error != "" {
 		t.Fatalf("error: %s", f.Error)
 	}
-	if f.Project != "chcapital.mx" || f.Open != 3 || len(f.Comments) != 3 {
+	if f.Project != "chcapital.mx" || f.URL != "https://x.bugsmash.io/review/new" || f.Open != 3 || len(f.Comments) != 3 {
 		t.Fatalf("got %+v", f)
 	}
 	if f.Comments[0].Number != 108 || f.Comments[2].Number != 106 {
@@ -186,5 +187,21 @@ func TestNoKeyAndApply(t *testing.T) {
 	res := NoKey([]Target{{Slug: "a", Project: projOK}}, now)
 	if res["a"].ErrorKind != "no-key" {
 		t.Errorf("NoKey = %+v", res)
+	}
+}
+
+func TestReviewURL(t *testing.T) {
+	for _, c := range []struct {
+		p    Project
+		want string
+	}{
+		{Project{Versions: []Version{{ShortURL: "a"}, {ShortURL: "b", IsLatest: true}}, FrontendURL: "f"}, "b"},
+		{Project{Versions: []Version{{ShortURL: "a"}}, FrontendURL: "f"}, "a"},
+		{Project{FrontendURL: "f"}, "f"},
+		{Project{}, ""},
+	} {
+		if got := c.p.ReviewURL(); got != c.want {
+			t.Errorf("ReviewURL(%+v) = %q, want %q", c.p, got, c.want)
+		}
 	}
 }

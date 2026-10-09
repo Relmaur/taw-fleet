@@ -50,6 +50,10 @@ type Actions interface {
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
 	PullTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
+	OpenComments(ctx context.Context, s site.Site) (string, error)
+	ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, error)
+	Umbrella(sites []site.Site) (string, error)
+	LaunchResolve(ctx context.Context, s site.Site, t site.Theme, umbrella string, p handoff.Prompt, beside string) (actions.Launched, error)
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -106,6 +110,22 @@ const (
 
 // row is one line of the table: a TAW theme of a site.
 type row struct{ site, theme int }
+
+// ecosystem reports whether the theme is one of the TAW ecosystem's own
+// repositories (the umbrella's taw-theme or taw-gutenberg): the scaffolds
+// client themes are made from, not a client site.
+func ecosystem(t site.Theme) bool { return handoff.IsUmbrella(t) }
+
+// ecosystemSite reports whether every TAW theme of the site is one.
+func ecosystemSite(s site.Site) bool {
+	themes := s.TAWThemes()
+	for _, t := range themes {
+		if !ecosystem(t) {
+			return false
+		}
+	}
+	return len(themes) > 0
+}
 
 // Model is the dashboard state.
 type Model struct {
@@ -728,7 +748,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// taskKey handles y, S, u and o in the table and detail views.
+// taskKey handles the task keys (y, S, u, w, M, C, F, X, o) in the table
+// and detail views.
 func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	k := m.keys
 	switch {
@@ -752,6 +773,12 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Pull):
 		model, cmd := m.askPull()
+		return model, cmd, true
+	case key.Matches(msg, k.Comments):
+		model, cmd := m.openComments()
+		return model, cmd, true
+	case key.Matches(msg, k.Resolve):
+		model, cmd := m.resolveComments()
 		return model, cmd, true
 	case key.Matches(msg, k.Output):
 		if m.task == nil {
@@ -793,10 +820,18 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 			}
 		}
 	}
-	// Live sites first; otherwise the scan's order (by name).
-	sort.SliceStable(m.rows, func(i, j int) bool {
-		return m.deps.Production[rep.Sites[m.rows[i].site].Slug] && !m.deps.Production[rep.Sites[m.rows[j].site].Slug]
-	})
+	// Live sites first, the TAW ecosystem last; otherwise the scan's order
+	// (by name).
+	rank := func(r row) int {
+		switch s := rep.Sites[r.site]; {
+		case ecosystem(s.Themes[r.theme]):
+			return 2
+		case m.deps.Production[s.Slug]:
+			return 0
+		}
+		return 1
+	}
+	sort.SliceStable(m.rows, func(i, j int) bool { return rank(m.rows[i]) < rank(m.rows[j]) })
 	m.applyFilter()
 	for vi, ri := range m.visible {
 		r := m.rows[ri]

@@ -125,7 +125,7 @@ func checkFeedback(s site.Site) []site.Finding {
 		}
 	}
 	return finding(sev, "comments.open", fmt.Sprintf("%d open %s in BugSmash%s", f.Open, plural(f.Open, "comment", "comments"), when),
-		"ask Claude in the TAW umbrella: \"resolve comments on "+s.Slug+"\" (skill taw-resolve-comments)")
+		"X in the dashboard hands them to Claude (skill taw-resolve-comments), or ask Claude in the TAW umbrella: \"resolve comments on "+s.Slug+"\"")
 }
 
 func ageWords(d time.Duration) string {

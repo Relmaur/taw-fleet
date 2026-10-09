@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -54,9 +55,11 @@ func (m Model) agentWith(s site.Site, t site.Theme, p handoff.Prompt) (tea.Model
 // done file exists) and rescans: they may have updated taw/core.
 func (m Model) agentFinished() (Model, tea.Cmd) {
 	var done []string
+	comments := false // a resolve-comments agent finished: ask BugSmash again
 	for file, dir := range m.agents {
 		if _, err := os.Stat(file); err == nil {
 			done = append(done, dir)
+			comments = comments || strings.Contains(filepath.Base(file), "-comments-")
 			delete(m.agents, file)
 			_ = os.Remove(file)
 		}
@@ -66,10 +69,15 @@ func (m Model) agentFinished() (Model, tea.Cmd) {
 	}
 	sort.Strings(done)
 	m.setFlash("Claude Code finished: "+strings.Join(done, ", ")+". Rescanning.", false)
-	if m.scanning {
-		return m, nil
+	var cmds []tea.Cmd
+	if comments {
+		model, cmd := m.fetchFeedback(true)
+		m, cmds = model.(Model), append(cmds, cmd)
 	}
-	return m, m.startScan()
+	if !m.scanning {
+		cmds = append(cmds, m.startScan())
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // fleetPlannedMsg is the update-all plan, ready to confirm.

@@ -43,7 +43,7 @@ func TestMarkersHaveText(t *testing.T) {
 			t.Errorf("Dot(%s) = %q", st, got)
 		}
 	}
-	if !strings.Contains(p.Kind(site.KindGutenberg), "BLOCK") || !strings.Contains(p.Kind(site.KindClassic), "CLASSIC") {
+	if !strings.Contains(p.Kind(site.KindGutenberg), "block") || !strings.Contains(p.Kind(site.KindClassic), "classic") {
 		t.Error("kind badges")
 	}
 	if !strings.Contains(New(false).StatusText(site.StatusHalted), "halted") {

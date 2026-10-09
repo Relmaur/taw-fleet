@@ -167,10 +167,38 @@ func (c *Client) getPage(ctx context.Context, path string, q url.Values, into an
 
 // Project is what taw-fleet needs of a project.
 type Project struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Type     string `json:"type,omitempty"`
-	ShortURL string `json:"short_url,omitempty"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Type        string    `json:"type,omitempty"`
+	ShortURL    string    `json:"short_url,omitempty"`
+	FrontendURL string    `json:"frontend_url,omitempty"` // the workspace's BugSmash site
+	Versions    []Version `json:"project_versions,omitempty"`
+}
+
+// Version is one version of a project (a website review has one per round).
+type Version struct {
+	ShortURL string `json:"short_url"` // its review page, with the comments
+	IsLatest bool   `json:"is_latest"`
+}
+
+// ReviewURL is the page where the project's comments are: the latest
+// version's review page, else any version's, else the workspace's site.
+func (p Project) ReviewURL() string {
+	var first string
+	for _, v := range p.Versions {
+		if v.IsLatest && v.ShortURL != "" {
+			return v.ShortURL
+		}
+		if first == "" {
+			first = v.ShortURL
+		}
+	}
+	for _, u := range []string{first, p.ShortURL, p.FrontendURL} {
+		if u != "" {
+			return u
+		}
+	}
+	return ""
 }
 
 // Project reads one project; a 404 *APIError when it was deleted.
@@ -259,7 +287,7 @@ func (pr *Prober) Check(ctx context.Context, t Target) site.Feedback {
 	if err != nil {
 		return fail(err)
 	}
-	out.Project = p.Name
+	out.Project, out.URL = p.Name, p.ReviewURL()
 	comments, err := pr.Client.OpenComments(ctx, t.Project)
 	if err != nil {
 		return fail(err)

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -93,8 +95,8 @@ func (m Model) header() string {
 
 	if m.loaded {
 		sites, themes, running, behind := 0, 0, 0, 0
-		for _, s := range m.rep.Sites {
-			if !s.IsTAW() {
+		for _, s := range m.rep.Sites { // client sites: not the TAW ecosystem
+			if !s.IsTAW() || ecosystemSite(s) {
 				continue
 			}
 			sites++
@@ -102,6 +104,9 @@ func (m Model) header() string {
 				running++
 			}
 			for _, t := range s.TAWThemes() {
+				if ecosystem(t) {
+					continue
+				}
 				themes++
 				if t.Core.Behind {
 					behind++
@@ -192,20 +197,29 @@ func (m Model) emptyState() string {
 
 // --- table ------------------------------------------------------------------
 
-// rowLines is how tall a row is: the site on top, its theme underneath.
-const rowLines = 2
+// cardLines is how tall a row is: the site on top, its theme underneath.
+// While every row fits, a blank line separates them too (airy).
+const cardLines = 2
 
 // minGit is the narrowest GIT column before the cards give up room.
 const minGit = 14
 
+// Gaps between columns: at least minGap; spare width widens them up to
+// maxGap so the table spans its panel instead of bunching up on the left.
+const (
+	minGap = 2
+	maxGap = 8
+)
+
 type columns struct {
 	card, core, sync, live, fb, pr, deploy, git int
+	gap                                         int  // spaces between columns
 	base                                        int  // the cards without the production host
 	host                                        bool // the cards have room for the production host
 }
 
 func (m Model) columns(width int) columns {
-	c := columns{card: 16, core: 8, sync: 4}
+	c := columns{card: 16, core: 8, sync: 4, gap: minGap}
 	if m.deps.Live != nil { // only with production sites configured
 		c.live = 4
 	}
@@ -216,17 +230,26 @@ func (m Model) columns(width int) columns {
 		c.pr, c.deploy = 3, 6
 	}
 	full := c.card // the cards with the production host
+	git := minGit  // the GIT column's own width (branch and markers)
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
 		c.card = max(c.card, ansi.StringWidth(s.Slug), ansi.StringWidth(m.subline(s, t, false, false)))
 		full = max(full, c.card, ansi.StringWidth(m.subline(s, t, false, true)))
 		c.core = max(c.core, ansi.StringWidth(m.pal.Core(t.Core)))
+		gw := ansi.StringWidth(m.pal.GitFit(t.Git, 0))
+		if t.Account != "" {
+			gw += ansi.StringWidth("@" + t.Account + " ")
+		}
+		git = max(git, gw)
 	}
-	c.card, full = min(c.card, 40), min(full, 40)
+	c.card, full, git = min(c.card, 40), min(full, 40), min(git, 48)
 	c.base = c.card
 	if width-c.fixed()-(full-c.card) >= minGit { // room for the hosts too
 		c.card, c.host = full, true
+	}
+	if spare := width - c.fixed() - git; spare > 0 {
+		c.gap = min(minGap+spare/c.gaps(), maxGap)
 	}
 	c.git = width - c.fixed()
 	if c.git < minGit { // narrow the cards before the git column vanishes
@@ -236,21 +259,42 @@ func (m Model) columns(width int) columns {
 	return c
 }
 
+// gaps is how many gaps there are between the columns.
+func (c columns) gaps() int {
+	n := 3 // after the card, TAW/CORE and SYNC
+	if c.live > 0 {
+		n++
+	}
+	if c.fb > 0 {
+		n++
+	}
+	if c.pr > 0 {
+		n += 2
+	}
+	return n
+}
+
 // need is the narrowest table that keeps the cards (without hosts) and GIT
-// readable.
-func (c columns) need() int { return c.fixed() - c.card + c.base + minGit }
+// readable, with the narrowest gaps.
+func (c columns) need() int {
+	c.card, c.gap = c.base, minGap
+	return c.fixed() + minGit
+}
 
 // fixed is every column but GIT, with the marker, the dot and the gaps.
 func (c columns) fixed() int {
-	return 4 + c.card + c.core + c.sync + 6 + c.liveWidth() + c.fbWidth() + c.ghWidth()
+	return 4 + c.card + c.core + c.sync + 3*c.gap + c.liveWidth() + c.fbWidth() + c.ghWidth()
 }
+
+// sep is the space between two columns.
+func (c columns) sep() string { return strings.Repeat(" ", c.gap) }
 
 // liveWidth is the LIVE column with its gap, or nothing.
 func (c columns) liveWidth() int {
 	if c.live == 0 {
 		return 0
 	}
-	return c.live + 2
+	return c.live + c.gap
 }
 
 // fbWidth is the FB column with its gap, or nothing.
@@ -258,7 +302,7 @@ func (c columns) fbWidth() int {
 	if c.fb == 0 {
 		return 0
 	}
-	return c.fb + 2
+	return c.fb + c.gap
 }
 
 // ghWidth is the PR and DEPLOY columns with their gaps, or nothing.
@@ -266,7 +310,7 @@ func (c columns) ghWidth() int {
 	if c.pr == 0 {
 		return 0
 	}
-	return c.pr + c.deploy + 4
+	return c.pr + c.deploy + 2*c.gap
 }
 
 // ghCols are the PR and DEPLOY cells with their gaps, when shown.
@@ -274,7 +318,7 @@ func (c columns) ghCols(pr, deploy string) string {
 	if c.pr == 0 {
 		return ""
 	}
-	return pad(pr, c.pr) + "  " + pad(deploy, c.deploy) + "  "
+	return pad(pr, c.pr) + c.sep() + pad(deploy, c.deploy) + c.sep()
 }
 
 // liveCol is a LIVE cell with its gap, when the column is shown.
@@ -282,7 +326,7 @@ func (c columns) liveCol(s string) string {
 	if c.live == 0 {
 		return ""
 	}
-	return pad(s, c.live) + "  "
+	return pad(s, c.live) + c.sep()
 }
 
 // fbCol is an FB cell with its gap, when the column is shown.
@@ -290,7 +334,7 @@ func (c columns) fbCol(s string) string {
 	if c.fb == 0 {
 		return ""
 	}
-	return pad(s, c.fb) + "  "
+	return pad(s, c.fb) + c.sep()
 }
 
 // subline is a row's second line: the theme (↗ symlink, ✓ the active one of
@@ -328,34 +372,73 @@ func prodHost(s site.Site) string {
 }
 
 // tableRows is how many rows fit under the column header and rule, keeping a
-// line for "x–y of n" when they don't all fit.
+// line for "x–y of n" when they don't all fit. The last row needs no blank
+// line after it.
 func (m Model) tableRows() int {
-	room := m.bodyHeight() - 2
-	if len(m.visible)*rowLines > room {
-		room--
+	n := len(m.visible)
+	if m.airy() {
+		return n
 	}
-	return max(room/rowLines, 1)
+	return max((m.bodyHeight()-2-m.labelLines())/cardLines, 1)
+}
+
+// airy reports whether every row fits with a blank line between the cards;
+// otherwise the cards sit tight, so more of them fit.
+func (m Model) airy() bool {
+	n := len(m.visible)
+	return n*(cardLines+1)-1+m.labelLines() <= m.bodyHeight()-2
+}
+
+// labelLines is the room the TAW ecosystem's label takes in the list: one
+// line when client sites come before it (the rows sort it last).
+func (m Model) labelLines() int {
+	if n := len(m.visible); n > 1 && !m.ecosystemRow(0) && m.ecosystemRow(n-1) {
+		return 1
+	}
+	return 0
 }
 
 func (m Model) table(width int) string {
 	p := m.pal
 	c := m.columns(width)
 	head := p.Fg(p.Muted).Bold(true)
-	lines := []string{
-		"    " + head.Render(pad("SITE · THEME", c.card)+"  "+pad("TAW/CORE", c.core)+"  "+pad("SYNC", c.sync)+"  "+c.liveCol("LIVE")+c.fbCol("FB")+c.ghCols("PR", "DEPLOY")+"GIT"),
-		p.Fg(p.Faint).Render(strings.Repeat("─", width)),
+	sep := c.sep()
+	names := "    " + head.Render(pad("SITE · THEME", c.card)+sep+pad("TAW/CORE", c.core)+sep+pad("SYNC", c.sync)+sep+c.liveCol("LIVE")+c.fbCol("FB")+c.ghCols("PR", "DEPLOY")+"GIT")
+	end := min(m.offset+m.tableRows(), len(m.visible))
+	rule := p.Fg(p.Faint).Render(strings.Repeat("─", width))
+	if len(m.visible) > end-m.offset && width > 24 { // where the list is, set into the rule
+		pos := fmt.Sprintf(" %d–%d of %d ", m.offset+1, end, len(m.visible))
+		rule = p.Fg(p.Faint).Render(strings.Repeat("─", max(width-ansi.StringWidth(pos)-2, 1))) + p.Fg(p.Muted).Render(pos) + p.Fg(p.Faint).Render("──")
 	}
+	lines := []string{names, rule}
 	if len(m.visible) == 0 {
 		lines = append(lines, "", "  "+p.Fg(p.Muted).Render(fmt.Sprintf("No match for “%s”.  esc clears the filter.", m.filter.Value())))
 		return strings.Join(lines, "\n")
 	}
 
-	end := min(m.offset+m.tableRows(), len(m.visible))
+	air := m.airy()
+	selAt := 0 // the selected card's first line
 	for vi := m.offset; vi < end; vi++ {
 		r := m.rows[m.visible[vi]]
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
 		sel := vi == m.cursor
+		eco := ecosystem(t)
+		if eco && (vi == m.offset || !m.ecosystemRow(vi-1)) {
+			// The TAW ecosystem starts: its label goes under the air above
+			// it, or takes the place of the rule under the column names.
+			label := strings.TrimSuffix(render.Section(p, "TAW ECOSYSTEM", p.Accent, "the scaffolds every TAW site is made from", width), "\n")
+			switch {
+			case vi == m.offset:
+				lines[1] = label
+			case air:
+				lines = append(lines, "", label)
+			default:
+				lines = append(lines, label)
+			}
+		} else if vi > m.offset && air {
+			lines = append(lines, "") // air between the cards
+		}
 
 		// Site-wide cells (dot, LIVE, FB) once per group of rows, like
 		// `list`; a site's other themes repeat its name, quieter.
@@ -363,7 +446,9 @@ func (m Model) table(width int) string {
 		dot, liveCell, fbCell, fbAge := " ", "", "", ""
 		nameStyle := lipgloss.NewStyle().Bold(true)
 		if first {
-			liveCell, fbCell = p.Live(s.Production), p.Feedback(s.Feedback)
+			if !eco { // the scaffolds have no production site or reviewers
+				liveCell, fbCell = p.Live(s.Production), p.Feedback(s.Feedback)
+			}
 			if f := s.Feedback; f != nil && f.Error == "" && f.Open > 0 && !f.Oldest.IsZero() {
 				fbAge = p.Fg(p.Muted).Render(shortAge(m.now.Sub(f.Oldest)))
 			}
@@ -374,7 +459,11 @@ func (m Model) table(width int) string {
 		} else {
 			nameStyle = p.Fg(p.Muted)
 		}
-		marker := " "
+		syncCell, deploy := p.Sync(t.Drift), p.Deploy(t.GitHub)
+		if eco {
+			syncCell, deploy = "", "" // the scaffold itself; released as tags, never deployed
+		}
+		marker := " " // the selection bar, on the card's first line only
 		if sel {
 			marker = p.Fg(p.Accent).Render("▌")
 			nameStyle = nameStyle.Bold(true).Foreground(p.Accent)
@@ -384,27 +473,52 @@ func (m Model) table(width int) string {
 			lastCommit = p.Fg(p.Muted).Render(shortAge(m.now.Sub(t.Git.LastCommit)) + " ago") // the last commit
 		}
 		top := marker + " " + dot + " " +
-			pad(nameStyle.Render(s.Slug), c.card) + "  " +
-			pad(p.Core(t.Core), c.core) + "  " +
-			pad(p.Sync(t.Drift), c.sync) + "  " +
+			pad(nameStyle.Render(s.Slug), c.card) + sep +
+			pad(p.Core(t.Core), c.core) + sep +
+			pad(syncCell, c.sync) + sep +
 			c.liveCol(liveCell) +
 			c.fbCol(fbCell) +
-			c.ghCols(p.PRs(t.GitHub), p.Deploy(t.GitHub)) +
+			c.ghCols(p.PRs(t.GitHub), deploy) +
 			gitCell(p, t, c.git)
-		bottom := marker + "   " +
-			pad(m.subline(s, t, sel, c.host), c.card) + "  " +
-			pad("", c.core) + "  " +
-			pad("", c.sync) + "  " +
+		bottom := "    " +
+			pad(m.subline(s, t, sel, c.host), c.card) + sep +
+			pad("", c.core) + sep +
+			pad("", c.sync) + sep +
 			c.liveCol("") +
 			c.fbCol(fbAge) +
 			c.ghCols("", "") +
 			ansi.Truncate(lastCommit, c.git, "…")
+		if sel {
+			selAt = len(lines)
+			top, bottom = tint(top, width, p.Selected), tint(bottom, width, p.Selected)
+		}
 		lines = append(lines, top, strings.TrimRight(bottom, " "))
 	}
-	if len(m.visible) > m.tableRows() {
-		lines = append(lines, p.Fg(p.Muted).Render(fmt.Sprintf("    %d–%d of %d", m.offset+1, end, len(m.visible))))
+	// The selected card stands out: tinted, with half a line of the tint
+	// above and below it, taken from the air between the cards.
+	if selAt > 0 && lines[selAt-1] == "" {
+		lines[selAt-1] = p.Fg(p.Selected).Render(strings.Repeat("▄", width))
+	}
+	if selAt > 0 && selAt+2 < len(lines) && lines[selAt+2] == "" {
+		lines[selAt+2] = p.Fg(p.Selected).Render(strings.Repeat("▀", width))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// sgr matches one SGR (style) escape sequence.
+var sgr = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+
+// tint lays bg under a styled line, padded to width. bg goes in again after
+// every style sequence, so the cells' own resets don't punch holes in it.
+func tint(s string, width int, bg color.Color) string {
+	on := ansi.Style{}.BackgroundColor(bg).String()
+	return on + sgr.ReplaceAllStringFunc(pad(s, width), func(q string) string { return q + on }) + ansi.ResetStyle
+}
+
+// ecosystemRow reports whether the visible row vi is a TAW ecosystem theme.
+func (m Model) ecosystemRow(vi int) bool {
+	r := m.rows[m.visible[vi]]
+	return ecosystem(m.rep.Sites[r.site].Themes[r.theme])
 }
 
 // shortAge is an age in one short word: 40m, 5h, 3d.

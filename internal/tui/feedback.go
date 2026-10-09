@@ -80,3 +80,47 @@ func feedbackSummary(res map[string]site.Feedback) string {
 	}
 	return strings.Join(parts, " · ")
 }
+
+// openComments opens the selected site's BugSmash review page (F).
+func (m Model) openComments() (tea.Model, tea.Cmd) {
+	s, _, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("shortcuts unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	a, ctx := m.deps.Actions, m.ctx
+	return m, m.run(func() (string, error) { return a.OpenComments(ctx, s) })
+}
+
+// resolveComments opens Claude Code in the umbrella on the selected site's
+// open comments (X), beside the dashboard.
+func (m Model) resolveComments() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("agent unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	a := m.deps.Actions
+	p, err := a.ResolvePrompt(s, t)
+	if err != nil {
+		m.setFlash(err.Error(), true)
+		return m, nil
+	}
+	umbrella, err := a.Umbrella(m.rep.Sites)
+	if err != nil {
+		m.setFlash(err.Error(), true)
+		return m, nil
+	}
+	m.mode, m.scroll = modeTable, 0
+	ctx, tty := m.ctx, m.deps.TTY
+	return m, func() tea.Msg {
+		l, err := a.LaunchResolve(ctx, s, t, umbrella, p, tty)
+		return launchedMsg{s.Slug + "'s comments", l, err}
+	}
+}
