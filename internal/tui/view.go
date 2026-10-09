@@ -344,7 +344,10 @@ func (m Model) detailScreen(height int) string {
 	return block(strings.Join(lines[from:min(from+height, len(lines))], "\n"), m.width, height)
 }
 
-func confirmHint(agent bool) string {
+func confirmHint(agent bool, choices int) string {
+	if choices > 0 {
+		return fmt.Sprintf("  1–%d pick · n no", choices)
+	}
 	if agent {
 		return "  y yes · A let an agent do it · n no"
 	}
@@ -419,7 +422,7 @@ func (m Model) footer() string {
 	var status string
 	switch {
 	case m.confirm != "":
-		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil))
+		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil, len(m.choices)))
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
 	case m.task != nil && m.task.running && m.mode != modeOutput:
@@ -451,7 +454,7 @@ func (m Model) footer() string {
 	var keys help.KeyMap = m.keys
 	switch {
 	case m.confirm != "":
-		keys = confirmKeys{m.keys, m.onAgent != nil}
+		keys = confirmKeys{m.keys, m.onAgent != nil, len(m.choices)}
 	case m.mode == modeDetail:
 		keys = detailKeys{m.keys}
 	case m.mode == modeHandoff:

@@ -56,7 +56,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
-| `L` | check the production sites now (see below); otherwise every 5 minutes |
+| `L` | check the production sites and GitHub now (see below); otherwise every 5 minutes |
+| `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
 | `r` | refresh now (it also refreshes every minute) |
 | `?` | keys and symbols |
 | `q` | quit |
@@ -74,6 +75,8 @@ taw-fleet list --all      # also sites and themes that aren't TAW
 taw-fleet open <site>     # theme in your editor (see Shortcuts)
 taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet work <site>     # site, editor, Vite and browser in one go; --stop undoes it
+taw-fleet prs             # open PRs with their CI, and what each theme has deployed
+taw-fleet merge <site>    # merge its PR (--pr N when there are several); deploys production
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below)
 taw-fleet version
@@ -314,6 +317,21 @@ A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.j
 | `TAW_FLEET_THEME` | `light` or `dark`: the color palette (default: from `COLORFGBG`, else dark) |
 | `NO_COLOR` | No colors. Piped output and `--json` are never colored. |
 | `GITHUB_TOKEN` / `GH_TOKEN` | Token for the newest-version lookup (else `gh auth token`, else none) |
+
+## Pull requests and deploys
+
+With a GitHub token (`gh auth login`), the dashboard has two more columns:
+- **PR:** how many pull requests are open, marked `✓` when CI passed, `…` while it runs, `✗` when it failed, `!` for a conflict, `◇` for drafts.
+- **DEPLOY:** `✓` when production has the default branch's newest commit, `↑2` when two commits aren't deployed, `⟳` while CI or the deploy runs, `✗` when the deploy or CI on the default branch failed.
+
+The detail pane lists the pull requests, the deploy, and the commits not deployed yet. "Deployed" is the commit of the last successful run of the theme's deploy workflow (a workflow file named `deploy*`). `doctor` reports `pr.ready`, `pr.failing`, `pr.conflict`, `deploy.failed`, `deploy.blocked` and `deploy.pending`.
+
+`M` merges a pull request:
+- **Asks first:** when there are several, it asks which, then asks again, naming the production site the merge deploys.
+- **Refuses** a draft, a conflict, or CI that failed or is still running.
+- **Merges** with the repository's default merge method for you, and only if the branch hasn't changed since taw-fleet read it.
+- **Cleans up:** it deletes the branch. If the local theme is clean and on that branch or the default one, it switches to the default branch and pulls.
+- **Follows the deploy:** the dashboard checks GitHub every 15 seconds and says when production has the merge, or that CI or the deploy failed. Then it re-checks the live site.
 
 ## Develop
 

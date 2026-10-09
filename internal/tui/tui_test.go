@@ -442,6 +442,18 @@ func (f *fakeActions) StopWorkTask(_ site.Site, t site.Theme, op actions.SiteOp)
 		}}, nil
 }
 
+func (f *fakeActions) MergeTask(_ site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error) {
+	if pr.Checks == site.ChecksFailing {
+		return actions.Task{}, errors.New("#" + fmt.Sprint(pr.Number) + ": CI failed")
+	}
+	f.worked = fmt.Sprintf("merge %s #%d", t.Dir, pr.Number)
+	return actions.Task{Title: "Merge", Writes: true, Ask: fmt.Sprintf("Merge #%d into main? This deploys https://acme.mx (production).", pr.Number), Quiet: true,
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: "Merged #12 into main; deploying acme.mx",
+				Report: actions.MergeResult{Repo: "Relmaur/client--theme", SHA: "m3rg3d0", Number: pr.Number, Production: "https://acme.mx", Deploys: true}}, nil
+		}}, nil
+}
+
 // runCmd executes a command returned by Update and feeds its message back.
 func runCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
@@ -1058,5 +1070,58 @@ func TestPRsAndDeploys(t *testing.T) {
 	m = press(t, m, "L")
 	if !m.reposFetching {
 		t.Error("L refreshes pull requests and deploys")
+	}
+}
+
+func TestMergeAndFollowTheDeploy(t *testing.T) {
+	f := &fakeActions{}
+	two := []site.PullRequest{
+		{Number: 12, Title: "Update taw/core", Checks: site.ChecksPassing},
+		{Number: 13, Title: "Broken", Checks: site.ChecksFailing},
+	}
+	state := site.RepoState{Repo: "Relmaur/client--theme", Default: "main", Head: "aaa1111", HeadCI: site.ChecksPassing, PRs: two,
+		Deploy: &site.Deploy{Workflow: "Deploy", Deployed: "aaa1111"}}
+	answer := state
+	m := withActions(t, 24, f)
+	m.deps.GitHub = func(context.Context, []string) map[string]site.RepoState {
+		return map[string]site.RepoState{"Relmaur/client--theme": answer}
+	}
+	m = step(t, m, reposDoneMsg{states: map[string]site.RepoState{"Relmaur/client--theme": state}})
+
+	m = press(t, m, "M")
+	if !strings.Contains(screen(m), "Merge which pull request of acme?  1 #12 Update taw/core · 2 #13 Broken") || !strings.Contains(screen(m), "1–2 pick") {
+		t.Fatalf("several PRs: pick one:\n%s", screen(m))
+	}
+	m = press(t, m, "2")
+	if !strings.Contains(screen(m), "#13: CI failed") {
+		t.Errorf("a failing PR is refused:\n%s", screen(m))
+	}
+	m = press(t, m, "M", "1")
+	if f.worked != "merge acme #12" || !strings.Contains(screen(m), "This deploys https://acme.mx (production).") {
+		t.Fatalf("then asks before merging (%s):\n%s", f.worked, screen(m))
+	}
+	next, cmd := m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	if _, ok := m.followed["Relmaur/client--theme"]; !ok || !strings.Contains(screen(m), "Merged #12 into main; deploying acme.mx") {
+		t.Fatalf("the merge is followed:\n%s", screen(m))
+	}
+	if !m.reposDue() && !m.reposFetching {
+		t.Error("following a deploy refreshes often")
+	}
+
+	// CI and the deploy run, then production has it.
+	running := state
+	running.Head, running.HeadCI = "m3rg3d0", site.ChecksPending
+	m = step(t, m, reposDoneMsg{states: map[string]site.RepoState{"Relmaur/client--theme": running}})
+	if len(m.followed) != 1 || !strings.Contains(screen(m), "⟳") {
+		t.Errorf("still following, deploy marked:\n%s", screen(m))
+	}
+	done := state
+	done.Head, done.PRs = "m3rg3d0", two[1:]
+	done.Deploy = &site.Deploy{Workflow: "Deploy", Deployed: "m3rg3d0", DeployedAt: now.Add(90 * time.Second)}
+	m.deps.Now = func() time.Time { return now.Add(2 * time.Minute) }
+	m = step(t, m, reposDoneMsg{states: map[string]site.RepoState{"Relmaur/client--theme": done}})
+	if len(m.followed) != 0 || !strings.Contains(screen(m), "acme.mx has #12: deployed") {
+		t.Errorf("deployed:\n%s", screen(m))
 	}
 }
