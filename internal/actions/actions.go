@@ -322,7 +322,9 @@ func (l LaunchScript) String() string {
 	for _, arg := range l.Args {
 		out += " " + shq(arg)
 	}
-	out += ` "$(cat ` + shq(l.Prompt) + `)"` + "\n" +
+	// "--" ends the options: --add-dir takes any number of folders, and
+	// without it the prompt was read as one more, so Claude started empty.
+	out += ` -- "$(cat ` + shq(l.Prompt) + `)"` + "\n" +
 		"status=$?\n" +
 		"touch " + shq(l.Done) + "\n"
 	if l.CloseTerminal {
