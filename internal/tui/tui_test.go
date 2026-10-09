@@ -342,7 +342,9 @@ type fakeActions struct {
 	copied   string
 	launched string
 	beside   string // the tty Launch was given
-	doneDir  string // where Launch says its done files go
+	plan     actions.FleetPlan
+	fleet    *actions.FleetPlan // what LaunchFleet was given
+	doneDir  string             // where Launch says its done files go
 	noClaude bool
 	refuse   error
 	created  create.Request
@@ -396,6 +398,13 @@ func (f *fakeActions) Launch(_ context.Context, _ site.Site, t site.Theme, _ han
 	}
 	f.launched, f.beside = t.Dir, beside
 	return actions.Launched{Message: "Started Claude Code for " + t.Dir, Done: filepath.Join(f.doneDir, t.Dir+".done")}, nil
+}
+
+func (f *fakeActions) PlanFleet(context.Context, []site.Site) actions.FleetPlan { return f.plan }
+
+func (f *fakeActions) LaunchFleet(_ context.Context, p actions.FleetPlan, _ map[string][]site.Finding, beside string) (actions.Launched, error) {
+	f.fleet, f.beside = &p, beside
+	return actions.Launched{Message: "Claude Code is updating 2 themes in the window on the right", Done: filepath.Join(f.doneDir, "coordinator.done")}, nil
 }
 
 // runCmd executes a command returned by Update and feeds its message back.
@@ -664,7 +673,7 @@ func TestUpdateWithAgent(t *testing.T) {
 	}
 	next, cmd := m.Update(tickMsg(now))
 	m = next.(Model)
-	if !strings.Contains(screen(m), "Claude Code finished in bistro-theme. Rescanning.") || cmd == nil || !m.scanning || len(m.agents) != 0 {
+	if !strings.Contains(screen(m), "Claude Code finished: bistro-theme. Rescanning.") || cmd == nil || !m.scanning || len(m.agents) != 0 {
 		t.Errorf("finished:\n%s", screen(m))
 	}
 
@@ -694,6 +703,48 @@ func TestUpdateWithAgent(t *testing.T) {
 	m = runCmd(t, m, keyMsg("A"))
 	if !strings.Contains(screen(m), "isn't installed") {
 		t.Errorf("no Claude Code:\n%s", screen(m))
+	}
+}
+
+func TestUpdateAllWithAgents(t *testing.T) {
+	f := &fakeActions{doneDir: t.TempDir()}
+	m := withActions(t, 24, f)
+	m.deps.TTY = "/dev/ttys004"
+	m = runCmd(t, m, keyMsg("U"))
+	if !strings.Contains(screen(m), "Nothing to update") || m.confirm != "" {
+		t.Fatalf("nothing to update:\n%s", screen(m))
+	}
+
+	rep := fixtureReport()
+	f.plan = actions.FleetPlan{
+		Themes:  []actions.FleetEntry{{Site: rep.Sites[0], Theme: site.Theme{Dir: "acme"}}, {Site: rep.Sites[1], Theme: site.Theme{Dir: "bistro-theme"}}},
+		Skipped: []handoff.FleetSkip{{Site: "x", Theme: "fsspx--theme", Reason: "2 uncommitted change(s)"}},
+	}
+	m = runCmd(t, m, keyMsg("U"))
+	want := "Update 2 themes with agents: acme, bistro-theme? Leaving out fsspx--theme (2 uncommitted change(s))."
+	if m.confirm != want {
+		t.Fatalf("confirm = %q", m.confirm)
+	}
+	m = press(t, m, "n")
+	if f.fleet != nil {
+		t.Fatal("n launches nothing")
+	}
+	m = runCmd(t, m, keyMsg("U"))
+	next, cmd := m.Update(keyMsg("y"))
+	m = step(t, next.(Model), cmd())
+	if f.fleet == nil || len(f.fleet.Themes) != 2 || f.beside != "/dev/ttys004" {
+		t.Fatalf("launched = %+v beside %q", f.fleet, f.beside)
+	}
+	if !strings.Contains(screen(m), "updating 2 themes") || len(m.agents) != 1 {
+		t.Errorf("launched:\n%s", screen(m))
+	}
+	if err := os.WriteFile(filepath.Join(f.doneDir, "coordinator.done"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.scanning = false
+	m = step(t, m, tickMsg(now))
+	if !strings.Contains(screen(m), "Claude Code finished: the update of 2 themes") || !m.scanning {
+		t.Errorf("finished:\n%s", screen(m))
 	}
 }
 

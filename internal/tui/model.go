@@ -37,6 +37,8 @@ type Actions interface {
 	Handoff(s site.Site, t site.Theme, findings []site.Finding) (handoff.Prompt, error)
 	Copy(ctx context.Context, text string) error
 	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt, beside string) (actions.Launched, error)
+	PlanFleet(ctx context.Context, sites []site.Site) actions.FleetPlan
+	LaunchFleet(ctx context.Context, plan actions.FleetPlan, findings map[string][]site.Finding, beside string) (actions.Launched, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
@@ -359,6 +361,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case fleetPlannedMsg:
+		return m.fleetPlanned(msg.plan)
+
 	case launchedMsg:
 		if msg.err != nil {
 			m.setFlash(msg.dir+": "+msg.err.Error(), true)
@@ -588,6 +593,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHandoff()
 	case key.Matches(msg, k.Agent):
 		return m.runAgent()
+	case key.Matches(msg, k.UpdateAll):
+		return m.planFleet()
 	case key.Matches(msg, k.StartStop):
 		return m.askSiteOp(false)
 	case key.Matches(msg, k.Restart):

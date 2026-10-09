@@ -8,10 +8,10 @@
     │  ↓/j  down         esc   back                f Finder        S apply Tier 1             │     
     │  pgup page up      /     filter              t terminal      u update taw/core          │     
     │  pgdn page down    r     refresh             b site          A update with agent        │     
-    │  home first        L     check production    B wp-admin      o last output              │     
-    │  end  last         s     start/stop          P production    h hand off                 │     
-    │  ?    help         R     restart             g GitHub        c copy prompt              │     
-    │  q    quit         n     new site            G PRs                                      │     
+    │  home first        L     check production    B wp-admin      U update all with agents   │     
+    │  end  last         s     start/stop          P production    o last output              │     
+    │  ?    help         R     restart             g GitHub        h hand off                 │     
+    │  q    quit         n     new site            G PRs           c copy prompt              │     
     │                                                                                         │     
     │  Symbols                                                                                │     
     │                                                                                         │     

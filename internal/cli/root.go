@@ -101,6 +101,17 @@ func (d Deps) doctorOptions() doctor.Options {
 	}}
 }
 
+// coreLatest asks GitHub for the newest taw-core now, not from the
+// hour-long cache (an update-all right after a release must see it).
+func (d Deps) coreLatest(g *globals) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		c := d.github(g)
+		c.TTL = time.Second
+		l, err := c.LatestTag(ctx, "Relmaur", "taw-core")
+		return l.Tag, err
+	}
+}
+
 // openWindow opens the dashboard in a new terminal window, unless
 // --window=false or the config's window = false says not to. The new window
 // runs with --window=false. When no window opens, it says why and the
@@ -181,6 +192,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		if a, err := d.actions(); err != nil {
 			deps.ActionsErr = err
 		} else {
+			a.CoreLatest = d.coreLatest(g)
 			deps.Actions = a
 			deps.CreateDefaults = a.Config.Create
 			deps.TTY = a.TTY(cmd.Context())

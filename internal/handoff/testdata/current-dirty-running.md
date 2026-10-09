@@ -25,7 +25,7 @@ Use the site's own PHP, not whatever `php` is on PATH:
 cd '/Users/me/Local Sites/ls-mxico/app/public/wp-content/themes/ls-mexico'
 '/Users/me/Library/Application Support/Local/lightning-services/php-8.2.30+1/bin/darwin-arm64/bin/php' --version
 '/Users/me/Library/Application Support/Local/lightning-services/php-8.2.30+1/bin/darwin-arm64/bin/php' bin/taw sync --json          # the skill's Step 1
-'/Users/me/Library/Application Support/Local/lightning-services/php-8.2.30+1/bin/darwin-arm64/bin/php' /Applications/Local.app/Contents/Resources/extraResources/bin/composer/composer.phar update taw/core
+'/Users/me/Library/Application Support/Local/lightning-services/php-8.2.30+1/bin/darwin-arm64/bin/php' /Applications/Local.app/Contents/Resources/extraResources/bin/composer/composer.phar update taw/core --with-dependencies
 ```
 
 wp-cli for this site (Local's MySQL socket; only while the site runs):

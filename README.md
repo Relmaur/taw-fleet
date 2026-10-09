@@ -48,6 +48,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
 | `A` | update with agent: Claude Code in a window beside the dashboard, in the theme folder, with the update prompt (also offered by `u`) |
+| `U` | update all with agents: every client TAW theme that needs it, in one Claude Code session with a subagent per theme (asks first) |
 | `h` | show that prompt first; then `A` sends it to Claude Code, `c` copies it |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
@@ -193,6 +194,8 @@ version shows at once. From the command line:
 taw-fleet handoff ls-mxico            # print the prompt
 taw-fleet handoff ls-mxico --copy     # put it on the clipboard
 taw-fleet handoff ls-mxico --launch   # a new terminal running Claude Code in the theme, with the prompt
+taw-fleet handoff --all               # which themes an update-all would take, and which it leaves out
+taw-fleet handoff --all --launch      # update them all in one Claude Code session
 ```
 
 The prompt asks the agent to run the theme's **update-theme** skill, with everything it needs to
@@ -211,6 +214,28 @@ The umbrella's own taw-theme and taw-gutenberg checkouts are refused: they're up
 taw-core release flow. `--launch` writes the prompt and a small launcher to
 `~/Library/Caches/taw-fleet/handoff/` and opens your terminal with it (Warp can't run a script, so
 Terminal is used instead).
+
+### Update every theme at once
+
+`U` in the dashboard (or `taw-fleet handoff --all --launch`) updates every client TAW theme that
+needs it in one Claude Code session, in a window beside the dashboard:
+
+- **Which themes:** those behind on taw/core (checked against GitHub right then, not the
+  hour-long cache) or with scaffold drift. Left out, with the reason: uncommitted changes, a
+  branch other than the default (a `chore/…` branch is resumed), no git, and the umbrella's own
+  scaffolds. `U` lists both and asks first.
+- **How:** Claude Code starts with every theme folder added (`--add-dir`) and a coordinator
+  prompt. The coordinator runs one subagent per theme, at most 3 at a time. Each follows the
+  update-theme skill's **batch mode** (taw-theme v1.12.45+): branch, `composer update taw/core
+  --with-dependencies`, sync with the rule-based manifest suggestions, UPGRADING checks, tests,
+  commit, and a JSON result. Nothing is pushed.
+- **Your decisions, once:** when all are done, the coordinator asks you in one round which docs
+  changes to apply, which sites to start for checks that need WordPress, and which branches to
+  push and open PRs for. Then it reports one table.
+- When you `/exit`, the dashboard rescans.
+
+The prompts are in `~/Library/Caches/taw-fleet/handoff/fleet-<time>/` (`coordinator.md` and one
+file per theme).
 
 ### Settings
 

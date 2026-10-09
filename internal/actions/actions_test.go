@@ -358,3 +358,71 @@ func TestWindowRunsTheDashboard(t *testing.T) {
 		t.Errorf("other terminals close on their own:\n%s", got)
 	}
 }
+
+func TestPlanFleetPicksAndSkips(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	a.CoreLatest = func(context.Context) (string, error) { return "v1.78.0", nil }
+	s, th := fixture() // ls-mexico, behind on the scan's v1.76.1
+	repo := func(name string) *site.GitInfo {
+		return &site.GitInfo{Branch: "main", DefaultBranch: "main", Repo: &site.Repo{Host: "github.com", Owner: "Relmaur", Name: name}}
+	}
+	current := th
+	current.Dir, current.Core = "current", site.CoreInfo{Installed: "v1.78.0"}
+	current.Drift = &site.Drift{}
+	current.Git = repo("current--theme")
+	dirty := th
+	dirty.Dir, dirty.Git = "dirty", repo("dirty--theme")
+	dirty.Git.Dirty = 2
+	umbrella := th
+	umbrella.Dir, umbrella.Git = "taw-theme", repo("taw-theme")
+	s.Themes = []site.Theme{th, current, dirty, umbrella}
+
+	plan := a.PlanFleet(context.Background(), []site.Site{s})
+	if plan.Latest != "v1.78.0" || len(plan.Themes) != 1 || plan.Themes[0].Theme.Dir != "ls-mexico" {
+		t.Fatalf("plan = %+v", plan)
+	}
+	if got := plan.Themes[0].Theme.Core; got.Latest != "v1.78.0" || !got.Behind {
+		t.Errorf("the fresh newest replaces the scan's: %+v", got)
+	}
+	if len(plan.Skipped) != 1 || plan.Skipped[0].Theme != "dirty" || plan.Skipped[0].Reason != "2 uncommitted change(s)" {
+		t.Errorf("skipped = %+v (current and umbrella themes aren't listed)", plan.Skipped)
+	}
+
+	a.CoreLatest = func(context.Context) (string, error) { return "", errors.New("offline") }
+	if plan := a.PlanFleet(context.Background(), []site.Site{s}); plan.Latest != "" || plan.Themes[0].Theme.Core.Latest != "v1.76.1" {
+		t.Errorf("GitHub unreachable: the scan's answer stands: %+v", plan)
+	}
+}
+
+func TestLaunchFleetWritesPromptsAndAddsDirs(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	mustWrite(t, filepath.Join(a.Paths.Home, ".local", "bin", "claude"))
+	s, th := fixture()
+	plan := FleetPlan{Themes: []FleetEntry{{Site: s, Theme: th}}, Skipped: []handoff.FleetSkip{{Site: "x", Theme: "dirty", Reason: "2 uncommitted change(s)"}}}
+
+	l, err := a.LaunchFleet(context.Background(), plan, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(l.Message, "to update 1 theme") || !strings.HasSuffix(l.Done, "coordinator.done") {
+		t.Errorf("launched = %+v", l)
+	}
+	dir := filepath.Dir(l.Done)
+	coord, _ := os.ReadFile(filepath.Join(dir, "coordinator.md"))
+	batch, _ := os.ReadFile(filepath.Join(dir, "ls-mxico-ls-mexico.md"))
+	if !strings.Contains(string(coord), filepath.Join(dir, "ls-mxico-ls-mexico.md")) || !strings.Contains(string(coord), "dirty: 2 uncommitted change(s)") {
+		t.Errorf("coordinator:\n%s", coord)
+	}
+	if !strings.Contains(string(batch), `§ "Batch mode"`) {
+		t.Errorf("batch prompt:\n%s", batch)
+	}
+	call := f.Calls()[len(f.Calls())-1]
+	script, _ := os.ReadFile(call.Args[len(call.Args)-1])
+	if !strings.Contains(string(script), "cd '"+dir+"'") || !strings.Contains(string(script), "'--add-dir' '"+th.RealPath+"'") {
+		t.Errorf("script:\n%s", script)
+	}
+
+	if _, err := a.LaunchFleet(context.Background(), FleetPlan{}, nil, ""); !errors.Is(err, ErrNothingToUpdate) {
+		t.Errorf("empty plan: %v", err)
+	}
+}
