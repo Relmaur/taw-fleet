@@ -33,7 +33,11 @@ version when a newer release is out.
 
 ## Use
 
-Run `taw-fleet` on its own for the dashboard:
+Run `taw-fleet` on its own for the dashboard. It opens in a new window of your terminal
+(`terminal` in the settings) and gives the current one back. The dashboard fills that window with
+nothing to scroll back to, and the window closes when you quit.
+`taw-fleet --window=false`, or `window = false` in the settings, keeps it in the current
+terminal. When it can't open a window, or the output isn't a terminal, it stays where it is.
 
 | Key | Does |
 |---|---|
@@ -209,6 +213,7 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 ```toml
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
+window = false           # the dashboard in the current terminal (default: a new window)
 
 [create]                 # defaults for taw-fleet create / n (all optional)
 kind = "classic"         # or "block"

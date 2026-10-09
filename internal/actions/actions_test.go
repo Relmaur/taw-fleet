@@ -279,3 +279,26 @@ func mustWriteBody(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestWindowRunsTheDashboard(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	used, err := a.Window(context.Background(), "/opt/homebrew/bin/taw-fleet", []string{"--window=false", "--offline"})
+	if err != nil || used != "Terminal" {
+		t.Fatalf("used=%q err=%v", used, err)
+	}
+	call := f.Calls()[0]
+	if call.Args[0] != "-a" || call.Args[1] != "/T/Terminal.app" || !strings.HasSuffix(call.Args[2], "taw-fleet.command") {
+		t.Fatalf("open args = %v", call.Args)
+	}
+	script, _ := os.ReadFile(call.Args[2])
+	if !strings.Contains(string(script), "\n'/opt/homebrew/bin/taw-fleet' '--window=false' '--offline' || exit\n") ||
+		!strings.Contains(string(script), `close (every window whose tty is \"$tty\")`) {
+		t.Errorf("Terminal closes its window after a clean quit:\n%s", script)
+	}
+	if !strings.Contains(string(script), `printf '\033[H\033[2J\033[3J'`) {
+		t.Errorf("the window starts with an empty scrollback:\n%s", script)
+	}
+	if got := WindowScript("/bin/tf", []string{"--window=false"}, false); !strings.HasSuffix(got, "\nexec '/bin/tf' '--window=false'\n") {
+		t.Errorf("other terminals close on their own:\n%s", got)
+	}
+}

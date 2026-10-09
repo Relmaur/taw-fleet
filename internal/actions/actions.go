@@ -168,13 +168,9 @@ func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p hando
 	if err != nil {
 		return "", err
 	}
-	term, err := tools.Pick(a.Tools.Terminals, a.Config.Terminal)
+	term, fallback, err := a.scriptTerminal()
 	if err != nil {
-		return "", fmt.Errorf("terminal: %w", err)
-	}
-	fallback, ferr := tools.Pick(a.Tools.Terminals, "Terminal")
-	if ferr != nil {
-		fallback = tools.App{Name: "Terminal", Path: "/System/Applications/Utilities/Terminal.app", Kind: tools.Terminal}
+		return "", err
 	}
 
 	dir := filepath.Join(a.Paths.CacheDir, "handoff")
@@ -193,11 +189,73 @@ func (a *Actions) Launch(ctx context.Context, s site.Site, t site.Theme, p hando
 	if err := a.open.RunScript(ctx, term, script, fallback); err != nil {
 		return "", err
 	}
-	used := term.Name
-	if term.Name != "Terminal" && term.Name != "iTerm2" && term.Name != "Ghostty" && term.Name != "kitty" {
-		used = fallback.Name
+	return fmt.Sprintf("Started Claude Code in %s for %s (branch %s)", ranIn(term, fallback), t.Dir, p.Branch), nil
+}
+
+// Window opens a new terminal window running the dashboard: exe with args
+// (which must keep it from opening yet another window). It says which
+// terminal it used.
+func (a *Actions) Window(ctx context.Context, exe string, args []string) (string, error) {
+	term, fallback, err := a.scriptTerminal()
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("Started Claude Code in %s for %s (branch %s)", used, t.Dir, p.Branch), nil
+	dir := filepath.Join(a.Paths.CacheDir, "window")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	script := filepath.Join(dir, "taw-fleet.command")
+	used := ranIn(term, fallback)
+	if err := os.WriteFile(script, []byte(WindowScript(exe, args, used == "Terminal")), 0o700); err != nil {
+		return "", err
+	}
+	if err := a.open.RunScript(ctx, term, script, fallback); err != nil {
+		return "", err
+	}
+	return used, nil
+}
+
+// scriptTerminal is the terminal that runs a script, and the one used
+// instead when it can't (see tools.Opener.RunScript).
+func (a *Actions) scriptTerminal() (term, fallback tools.App, err error) {
+	term, err = tools.Pick(a.Tools.Terminals, a.Config.Terminal)
+	if err != nil {
+		return term, fallback, fmt.Errorf("terminal: %w", err)
+	}
+	fallback, ferr := tools.Pick(a.Tools.Terminals, "Terminal")
+	if ferr != nil {
+		fallback = tools.App{Name: "Terminal", Path: "/System/Applications/Utilities/Terminal.app", Kind: tools.Terminal}
+	}
+	return term, fallback, nil
+}
+
+// ranIn names the terminal RunScript used.
+func ranIn(term, fallback tools.App) string {
+	switch term.Name {
+	case "Terminal", "iTerm2", "Ghostty", "kitty":
+		return term.Name
+	}
+	return fallback.Name
+}
+
+// WindowScript is the .command file the new window runs. Terminal keeps a
+// window open after its shell exits unless the profile says otherwise, so
+// with closeTerminal the window closes itself once the dashboard quits
+// cleanly; after a crash it stays open with the error.
+func WindowScript(exe string, args []string, closeTerminal bool) string {
+	line := shq(exe)
+	for _, a := range args {
+		line += " " + shq(a)
+	}
+	// Clear the screen and its scrollback (the login banner, this command),
+	// so scrolling up in the window finds nothing behind the dashboard.
+	head := "#!/bin/sh\n# taw-fleet dashboard window\nprintf '\\033[H\\033[2J\\033[3J'\n"
+	if !closeTerminal {
+		return head + "exec " + line + "\n"
+	}
+	return head + line + " || exit\n" +
+		`tty=$(tty)` + "\n" +
+		`osascript -e "tell application \"Terminal\" to close (every window whose tty is \"$tty\")" >/dev/null 2>&1 &` + "\n"
 }
 
 // LauncherScript is the .command file a terminal runs: go to the theme and

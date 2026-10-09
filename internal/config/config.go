@@ -18,6 +18,7 @@ import (
 type Config struct {
 	Editor   string          `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
 	Terminal string          `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
+	Window   *bool           `toml:"window"`   // the dashboard in its own window; nil = true
 	Create   Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
 }
@@ -74,6 +75,9 @@ func Load(p paths.Paths) (Config, error) {
 	return c, nil
 }
 
+// OpensWindow reports whether the dashboard opens in its own window.
+func (c Config) OpensWindow() bool { return c.Window == nil || *c.Window }
+
 // Site returns the settings for a site folder (zero value when none).
 func (c Config) Site(slug string) Site { return c.Sites[slug] }
 
@@ -89,6 +93,11 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # The terminal for "open a terminal here" (t) and the agent handoff (h, l).
 # Empty: the first one installed of Ghostty, iTerm2, Warp, kitty, Terminal.
 # terminal = "Ghostty"
+
+# taw-fleet alone opens the dashboard in a new window of that terminal and
+# gives the current one back. false keeps it in the current terminal (the
+# same as taw-fleet --window=false).
+# window = false
 
 # Defaults for taw-fleet create (n in the dashboard). Empty: asked, or
 # Local's preferred PHP and web server. The admin password is always

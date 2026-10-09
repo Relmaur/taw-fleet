@@ -60,7 +60,9 @@ func (d Deps) palette() style.Palette { return style.New(d.Dark) }
 
 // globals are the flags every command shares.
 type globals struct {
-	offline bool
+	offline  bool
+	window   bool
+	inWindow bool // started by openWindow: draw inline, the window is ours
 }
 
 func (d Deps) github(g *globals) *github.Client {
@@ -99,6 +101,42 @@ func (d Deps) doctorOptions() doctor.Options {
 	}}
 }
 
+// openWindow opens the dashboard in a new terminal window, unless
+// --window=false or the config's window = false says not to. The new window
+// runs with --window=false. When no window opens, it says why and the
+// dashboard opens here instead.
+func (d Deps) openWindow(cmd *cobra.Command, g *globals) bool {
+	a, err := d.actions()
+	if err != nil {
+		return false // the dashboard reports a broken config
+	}
+	want := a.Config.OpensWindow()
+	if cmd.Flags().Changed("window") {
+		want = g.window
+	}
+	if !want {
+		return false
+	}
+	exe := d.Executable
+	if exe == nil {
+		exe = os.Executable
+	}
+	path, err := exe()
+	if err == nil {
+		args := []string{"--window=false", "--in-window"}
+		if g.offline {
+			args = append(args, "--offline")
+		}
+		var term string
+		if term, err = a.Window(cmd.Context(), path, args); err == nil {
+			_, _ = fmt.Fprintf(d.Out, "Opened the dashboard in a new %s window.\n", term)
+			return true
+		}
+	}
+	_, _ = fmt.Fprintf(d.Err, "Couldn't open a new window (%v); opening the dashboard here.\n", err)
+	return false
+}
+
 // NewRoot builds the command tree.
 func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	d.active = &scan.ActiveTheme{Paths: d.Paths, Runner: d.Runner}
@@ -116,6 +154,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		if !d.Interactive {
 			return runList(cmd, d, g, false, false)
 		}
+		if d.openWindow(cmd, g) {
+			return nil
+		}
 		deps := tui.Deps{
 			Scan:    d.scanner(g).Run,
 			Doctor:  func(rep scan.Report) []site.Finding { return doctor.Run(rep, d.doctorOptions()) },
@@ -123,6 +164,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Version: info.Version,
 			Dark:    d.Dark,
 			Refresh: time.Minute,
+			Inline:  g.inWindow,
 		}
 		deps.SiteOp = d.runSiteOp
 		if cfg, err := config.Load(d.Paths); err == nil && len(liveTargets(cfg)) > 0 {
@@ -144,6 +186,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		}
 		return tui.Run(cmd.Context(), deps)
 	}
+	root.Flags().BoolVar(&g.window, "window", true, "open the dashboard in a new terminal window (config: window)")
+	root.Flags().BoolVar(&g.inWindow, "in-window", false, "")
+	_ = root.Flags().MarkHidden("in-window")
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
