@@ -6,6 +6,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -60,9 +61,12 @@ type Actions interface {
 type Deps struct {
 	Actions Actions // nil = shortcuts unavailable (e.g. a broken config)
 	// SiteOp starts, stops or restarts a site through Local and waits.
-	SiteOp     func(ctx context.Context, op local.Op, s site.Site) (time.Duration, error)
-	ActionsErr error // why Actions is nil
-	Scan       func(ctx context.Context) (scan.Report, error)
+	SiteOp func(ctx context.Context, op local.Op, s site.Site) (time.Duration, error)
+	// EndLeftovers ends Local's leftover processes in a site's way (after
+	// a *local.LeftoversError) and says which are still there.
+	EndLeftovers func(ctx context.Context, l local.Leftovers) (local.Leftovers, error)
+	ActionsErr   error // why Actions is nil
+	Scan         func(ctx context.Context) (scan.Report, error)
 	// ScanFresh is Scan asking GitHub for the latest versions now, past the
 	// hour-long cache (ctrl+r). nil = Scan.
 	ScanFresh func(ctx context.Context) (scan.Report, error)
@@ -242,10 +246,10 @@ type actionDoneMsg struct {
 }
 
 type siteOpDoneMsg struct {
-	id, slug string
-	op       local.Op
-	took     time.Duration
-	err      error
+	site site.Site
+	op   local.Op
+	took time.Duration
+	err  error
 }
 
 // askSiteOp opens the y/N question for start/stop/restart.
@@ -276,15 +280,11 @@ func (m Model) askSiteOp(restart bool) (tea.Model, tea.Cmd) {
 
 // doSiteOp runs a confirmed site operation in the background.
 func (m Model) doSiteOp(s site.Site, op local.Op) (tea.Model, tea.Cmd) {
-	busy := map[string]local.Op{s.ID: op}
-	for id, o := range m.busy {
-		busy[id] = o
-	}
-	m.busy = busy
+	m.busyWith(s.ID, op)
 	fn, ctx := m.deps.SiteOp, m.ctx
 	return m, tea.Batch(m.spin.Tick, func() tea.Msg {
 		took, err := fn(ctx, op, s)
-		return siteOpDoneMsg{s.ID, s.Slug, op, took, err}
+		return siteOpDoneMsg{s, op, took, err}
 	})
 }
 
@@ -472,22 +472,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case siteOpDoneMsg:
-		busy := map[string]local.Op{}
-		for id, o := range m.busy {
-			if id != msg.id {
-				busy[id] = o
-			}
-		}
-		m.busy = busy
-		if msg.err != nil {
-			m.setFlash(msg.slug+": "+msg.err.Error(), true)
-		} else {
-			m.setFlash(fmt.Sprintf("%s is %s (%s)", msg.slug, msg.op.Target(), msg.took.Round(time.Second)), false)
+		m.notBusy(msg.site.ID)
+		var le *local.LeftoversError
+		switch {
+		case errors.As(msg.err, &le):
+			m = m.askLeftovers(msg.site, le)
+		case msg.err != nil:
+			m.setFlash(msg.site.Slug+": "+msg.err.Error(), true)
+		default:
+			m.setFlash(fmt.Sprintf("%s is %s (%s)", msg.site.Slug, msg.op.Target(), msg.took.Round(time.Second)), false)
 		}
 		if !m.scanning {
 			return m, m.startScan()
 		}
 		return m, nil
+
+	case leftoversEndedMsg:
+		return m.onLeftoversEnded(msg)
 
 	case taskEventMsg:
 		return m.onTaskEvent(msg)

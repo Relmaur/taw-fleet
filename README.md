@@ -135,6 +135,7 @@ GitHub; use the cached newest versions).
 ```bash
 taw-fleet start ls-mxico          # asks first; --yes in scripts
 taw-fleet stop fsspx              # also: restart
+taw-fleet unstick parallelstaff   # end Local's leftover processes in the site's way (asks first)
 taw-fleet wp chcapital option get stylesheet
 taw-fleet wp taw plugin list --format=json
 ```
@@ -145,6 +146,16 @@ everything after the site goes to wp-cli, PHP notices go to stderr so `--format=
 clean, and wp-cli's exit code is kept. While Local is open, statuses come live from it; the
 active theme of each running site is read too (cached ten minutes) and marked ✓ when a site has
 more than one TAW theme.
+
+After a lot of starting and stopping, Local can leave nginx or php-fpm workers behind whose
+master is gone. They keep holding the site's PHP socket, its port, or the router's ports 80 and
+443, so the site hangs on start or stop, or Local reports a port conflict, and restarting Local
+doesn't help. taw-fleet looks for them before every start, stop and restart, and again when one
+fails or a stop ends. When it finds any, it doesn't try against them: it names them (`php-fpm
+501 (the PHP socket)`). In the dashboard it asks to end them and then does what you asked again;
+on the command line, `taw-fleet unstick <site>` ends them. Only Local's own nginx and php-fpm
+(their program in Local's `lightning-services`) whose parent is gone count, never Herd's or
+Homebrew's.
 
 ### Create a site
 

@@ -449,3 +449,54 @@ func TestDashboardOpensInItsOwnWindow(t *testing.T) {
 		t.Errorf("no terminal: opened=%v out=%q", opened, out)
 	}
 }
+
+// leftoverRunner answers like a Mac where an orphaned php-fpm worker (501,
+// parent launchd, Local's program) holds acme's PHP socket.
+func leftoverRunner(p paths.Paths) *exec.FakeRunner {
+	return &exec.FakeRunner{Script: func(s exec.Spec) (exec.Result, error) {
+		args := strings.Join(s.Args, " ")
+		switch s.Name {
+		case "/usr/sbin/lsof":
+			switch {
+			case strings.HasSuffix(args, "php-fpm.socket"):
+				return exec.Result{Stdout: []byte("501\n")}, nil
+			case strings.Contains(args, "-p 501 "):
+				return exec.Result{Stdout: []byte("p501\nftxt\nn" + filepath.Join(p.LocalSupport, "lightning-services", "php-8.2.30+1", "sbin", "php-fpm") + "\n")}, nil
+			}
+			return exec.Result{Code: 1}, nil
+		case "/bin/ps":
+			return exec.Result{Stdout: []byte("  501     1 php-fpm: pool www\n")}, nil
+		case "/bin/kill":
+			if s.Args[0] == "-0" {
+				return exec.Result{Code: 1}, nil // gone
+			}
+		}
+		return exec.Result{}, nil
+	}}
+}
+
+func TestLeftoversStopSiteOps(t *testing.T) {
+	p := fixture(t)
+	write(t, filepath.Join(p.LocalSupport, "run", "a1", "php", "php-fpm.socket"), "")
+	r := leftoverRunner(p)
+	_, err := runWith(t, p, r, "stop", "acme", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "stop acme: 1 leftover Local process holds what acme needs: php-fpm 501 (the PHP socket)") ||
+		!strings.Contains(err.Error(), "taw-fleet unstick acme") {
+		t.Fatalf("stop: %v", err)
+	}
+
+	out, err := runWith(t, p, r, "unstick", "acme", "--yes")
+	if err != nil || !strings.Contains(out, "php-fpm 501  holds the PHP socket") || !strings.Contains(out, "ended 1 leftover process") {
+		t.Fatalf("unstick: %q %v", out, err)
+	}
+	var term bool
+	for _, c := range r.Calls() {
+		term = term || (c.Name == "/bin/kill" && strings.Join(c.Args, " ") == "-TERM 501")
+	}
+	if !term {
+		t.Error("unstick sends TERM to the leftover")
+	}
+	if out, err := runWith(t, p, &exec.FakeRunner{}, "unstick", "acme"); err != nil || !strings.Contains(out, "nothing of Local's is left over") {
+		t.Errorf("nothing left: %q %v", out, err)
+	}
+}

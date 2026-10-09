@@ -1397,3 +1397,80 @@ func TestEcosystemSection(t *testing.T) {
 		t.Errorf("the ecosystem goes last, under its label:\n%s", out)
 	}
 }
+
+// msgOf runs cmd (and a batch's commands) and returns the first T it sends.
+func msgOf[T tea.Msg](t *testing.T, cmd tea.Cmd) T {
+	t.Helper()
+	var zero T
+	if cmd == nil {
+		t.Fatalf("no command, want a %T", zero)
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c == nil {
+				continue
+			}
+			if m, ok := c().(T); ok {
+				return m
+			}
+		}
+		t.Fatalf("no %T in the batch", zero)
+	}
+	m, ok := msg.(T)
+	if !ok {
+		t.Fatalf("got %T, want %T", msg, zero)
+	}
+	return m
+}
+
+func TestLeftoversAskThenRetry(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 120, 24, &rep)
+	l := local.Leftovers{{PID: 501, Name: "php-fpm", Holds: "the PHP socket"}}
+	var ops []local.Op
+	m.deps.SiteOp = func(_ context.Context, op local.Op, s site.Site) (time.Duration, error) {
+		ops = append(ops, op)
+		if len(ops) == 1 { // refused: something of Local's is in the way
+			return 0, &local.LeftoversError{Slug: s.Slug, Op: op, List: l}
+		}
+		return 3 * time.Second, nil
+	}
+	var ended local.Leftovers
+	m.deps.EndLeftovers = func(_ context.Context, got local.Leftovers) (local.Leftovers, error) {
+		ended = got
+		return nil, nil
+	}
+
+	// bistro is halted: s, y → refused with leftovers → the question.
+	m = press(t, m, "j", "s")
+	next, cmd := m.Update(keyMsg("y"))
+	m = step(t, next.(Model), msgOf[siteOpDoneMsg](t, cmd))
+	if !strings.Contains(m.confirm, "1 leftover Local process is in bistro's way (php-fpm 501 (the PHP socket))") ||
+		!strings.Contains(m.confirm, "End it and start bistro?") {
+		t.Fatalf("question = %q", m.confirm)
+	}
+
+	// y ends it, then starts bistro again.
+	next, cmd = m.Update(keyMsg("y"))
+	m = next.(Model)
+	if _, busy := m.busy["b2"]; !busy {
+		t.Error("busy while ending them")
+	}
+	next, cmd = m.Update(msgOf[leftoversEndedMsg](t, cmd))
+	m = step(t, next.(Model), msgOf[siteOpDoneMsg](t, cmd))
+	if len(ended) != 1 || len(ops) != 2 || ops[1] != local.Start || !strings.Contains(screen(m), "bistro is running (3s)") {
+		t.Errorf("ended=%v ops=%v\n%s", ended, ops, screen(m))
+	}
+
+	// A stop that left them behind: end them, nothing to do again.
+	m = m.askLeftovers(m.rep.Sites[1], &local.LeftoversError{Slug: "bistro", Op: local.Stop, Done: true, List: l})
+	if !strings.HasSuffix(m.confirm, "End it? bistro is stopped.") {
+		t.Errorf("after a stop: %q", m.confirm)
+	}
+	next, cmd = m.Update(keyMsg("y"))
+	m = step(t, next.(Model), msgOf[leftoversEndedMsg](t, cmd))
+	if len(ops) != 2 || !strings.Contains(screen(m), "Ended 1 leftover process; bistro can start again") {
+		t.Errorf("ops=%v\n%s", ops, screen(m))
+	}
+}

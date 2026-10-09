@@ -194,6 +194,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Inline:    g.inWindow,
 		}
 		deps.SiteOp = d.runSiteOp
+		deps.EndLeftovers = func(ctx context.Context, l local.Leftovers) (local.Leftovers, error) {
+			return local.EndLeftovers(ctx, d.Runner, l)
+		}
 		if !g.offline {
 			gh := d.github(g)
 			deps.GitHub = gh.Repos
@@ -236,7 +239,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.SetErr(d.Err)
 	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
-		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart),
+		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
 		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g))
 	return root
