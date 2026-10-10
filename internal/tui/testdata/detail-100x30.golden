@@ -5,16 +5,16 @@
    ~/Local Sites/bistro                                                                             
    PHP 8.2.29  ·  id b2                                                                             
                                                                                                     
- ╭────────────────────────────────────────────────────────────╮                                     
- │ bistro-theme  classic                                      │                                     
- │                                                            │                                     
- │ path       wp-content/themes/bistro-theme                  │                                     
- │ taw/core   1.59.2 ▲ 1.76.1                                 │                                     
- │ git        chore/update-core ±5 ◇ unpushed  (default main) │                                     
- │ repo       github.com/Relmaur/client--theme                │                                     
- │ version    abc1234  ·  last commit 2 days ago              │                                     
- │ bin/taw    yes                                             │                                     
- ╰────────────────────────────────────────────────────────────╯                                     
+ ╭─────────────────────────────────────────────────────────────╮                                    
+ │ bistro-theme  classic                                       │                                    
+ │                                                             │                                    
+ │ path       wp-content/themes/bistro-theme                   │                                    
+ │ taw/core   1.59.2 ▲ 1.76.1  (from branch chore/update-core) │                                    
+ │ git        chore/update-core ±5 ◇ unpushed  (default main)  │                                    
+ │ repo       github.com/Relmaur/client--theme                 │                                    
+ │ version    abc1234  ·  last commit 2 days ago               │                                    
+ │ bin/taw    yes                                              │                                    
+ ╰─────────────────────────────────────────────────────────────╯                                    
                                                                                                     
  ⚑ FINDINGS ───────────────────────────────────────────────────────────────────────────────── doctor
    ▲ taw/core v1.59.2, latest is v1.76.1  bistro-theme  core.behind                                 
@@ -24,7 +24,7 @@
    • 5 uncommitted changes  bistro-theme  git.dirty                                                 
      → commit or stash                                                                              
    • on chore/update-core, not main  bistro-theme  git.off-default                                  
-                                                                                                    
+     → D in the dashboard switches back, when that's what you want                                  
                                                                                                     
 
  ↑/↓ scroll • pgdn page down • esc back • ? help • q quit

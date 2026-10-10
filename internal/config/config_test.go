@@ -62,6 +62,10 @@ func TestLoadRejectsTyposAndBadURLs(t *testing.T) {
 	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "bugsmash_project must be the project's id") {
 		t.Errorf("bad project id: %v", err)
 	}
+	write(t, p, `icons = "nerds"`)
+	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), `icons must be "symbols" or "nerd"`) {
+		t.Errorf("bad icons: %v", err)
+	}
 	write(t, p, `editor = `)
 	if _, err := Load(p); err == nil {
 		t.Error("invalid TOML")

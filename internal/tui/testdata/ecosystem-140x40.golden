@@ -9,7 +9,7 @@
     acme  classic                                     2d ago                            │  │ bistro-theme  classic                         │
                                                                                         │  │                                               │
  TAW ECOSYSTEM ────────────────────────────── the scaffolds every TAW site is made from │  │ path       wp-content/themes/bistro-theme     │
-  ● taw                      1.76.1                   main                              │  │ taw/core   1.59.2 ▲ 1.76.1                    │
+  ● taw                      1.76.1                   main                              │  │ taw/core   1.59.2 ▲ 1.76.1  (from branch cho… │
     taw-gutenberg ↗  block                            2d ago                            │  │ git        chore/update-core ±5 ◇ unpushed  … │
                                                                                         │  │ repo       github.com/Relmaur/client--theme   │
     taw                      1.76.1                   main                              │  │ version    abc1234  ·  last commit 2 days ago │
@@ -24,7 +24,7 @@
                                                                                         │    • 5 uncommitted changes  bistro-theme  git.dir…
                                                                                         │      → commit or stash                            
                                                                                         │    • on chore/update-core, not main  bistro-theme…
-                                                                                        │                                                   
+                                                                                        │      → D in the dashboard switches back, when tha…
                                                                                         │                                                   
                                                                                         │                                                   
                                                                                         │                                                   

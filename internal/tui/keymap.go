@@ -18,7 +18,7 @@ type keyMap struct {
 	Handoff, Copy, Agent, UpdateAll                                   key.Binding
 	StartStop, Restart, Work, Yes, No                                 key.Binding
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
-	New, CopySecret, LiveRefresh, Merge, Pull                         key.Binding
+	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch             key.Binding
 	Comments, Resolve, Ask                                            key.Binding
 }
 
@@ -65,6 +65,7 @@ func newKeyMap() keyMap {
 		CopySecret:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
 		LiveRefresh: key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "check production")),
 		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge PR")),
+		SiteBranch:  key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "site's branch")),
 		Pull:        key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "pull content")),
 		Comments:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "comments")),
 		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
@@ -185,7 +186,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Quit},
-		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.Pull, k.Ask},
+		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Ask},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments},
 		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve},
 	}

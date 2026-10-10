@@ -296,6 +296,20 @@ func TestFilterAndEscape(t *testing.T) {
 	}
 }
 
+func TestFilterBlockMatchesBlockThemes(t *testing.T) {
+	rep := fixtureReport()
+	m := press(t, newModel(t, 80, 24, &rep), "/", "b", "l", "o", "c", "k")
+	if len(m.visible) == 0 {
+		t.Fatal("/block matches nothing")
+	}
+	for _, i := range m.visible {
+		r := m.rows[i]
+		if k := m.rep.Sites[r.site].Themes[r.theme].Kind; k != site.KindGutenberg {
+			t.Errorf("/block shows a %s theme", k)
+		}
+	}
+}
+
 func TestDetailAndHelpModes(t *testing.T) {
 	rep := fixtureReport()
 	m := press(t, newModel(t, 80, 24, &rep), "enter")
@@ -557,6 +571,13 @@ func (f *fakeActions) StopWorkTask(_ site.Site, t site.Theme, op actions.SiteOp)
 	return actions.Task{Title: "Stop working on " + t.Dir, Ask: "Stop working on " + t.Dir + "?", Quiet: true,
 		Run: func(context.Context, io.Writer) (actions.Summary, error) {
 			return actions.Summary{Headline: "Stopped Vite and acme-shop"}, nil
+		}}, nil
+}
+
+func (f *fakeActions) SiteBranchTask(_ site.Site, t site.Theme) (actions.Task, error) {
+	return actions.Task{Title: "Back to main: " + t.Dir, Writes: true, Ask: "Switch " + t.Dir + " to main?", Quiet: true,
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: t.Dir + ": on main again"}, nil
 		}}, nil
 }
 

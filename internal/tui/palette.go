@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -38,42 +39,43 @@ type actionDoc struct {
 }
 
 var actionDocs = []actionDoc{
-	{"enter", "Site", "Details", "The selected site in full: Local, its themes, production, BugSmash and what doctor says. Scroll with ↑/↓, esc goes back."},
-	{"w", "Site", "Work on it", "Start the site (when stopped), open the theme in your editor, run Vite in its own window and open the site once Vite answers. Again on a theme whose Vite runs stops Vite and the site."},
-	{"s", "Site", "Start or stop", "Start or stop the site through the Local app (it must be open). Asks first. Leftover Local processes in the way are named, and it offers to end them."},
-	{"R", "Site", "Restart", "Stop, then start the site through Local. Asks first."},
-	{"b", "Site", "Open the site", "The Local site in your browser."},
-	{"B", "Site", "Open wp-admin", "The Local site's wp-admin in your browser."},
-	{"C", "Site", "Pull production content", "Bring the production site's content into the Local site: a preview of what would change first, then it asks before importing (a rollback snapshot is kept)."},
-	{"n", "Site", "New site", "Create a Local site with a TAW theme (classic or block): name, domain, PHP, admin user. The password is generated and shown once."},
-	{"e", "Theme", "Open in editor", "The theme folder in your editor (setting: editor)."},
-	{"f", "Theme", "Show in Finder", "The theme folder in Finder."},
-	{"t", "Theme", "Open a terminal", "A terminal window in the theme folder (setting: terminal)."},
-	{"y", "Theme", "Check against the scaffold", "Compare the theme with the taw-theme scaffold (bin/taw sync): which framework files differ (Tier 1) and which to review (Tier 2). Read-only."},
-	{"Y", "Theme", "Check every theme", "The scaffold check on every classic TAW theme at once, three at a time. Keeps the SYNC column current."},
-	{"S", "Theme", "Apply the scaffold (Tier 1)", "Write the framework-owned files that differ from the scaffold (bin/, workflows, framework skills…). Asks first; Tier 2 stays for review."},
-	{"u", "Theme", "Update this site", "The whole update, as the theme's taw.json says (vendor/bin/taw update): on a new branch, taw/core, the framework files, the migrations and the checks, then a pull request. One question first. If it stops, Fix with Claude or Do it myself from the same guide."},
-	{"g", "Code & GitHub", "Open the repository", "The theme's GitHub repository in your browser."},
-	{"G", "Code & GitHub", "Open pull requests", "The theme's open pull requests on GitHub."},
-	{"M", "Code & GitHub", "Merge a pull request", "Merge the theme's pull request (asks which when there are several, then asks again: merging a client theme deploys production), then follow the deploy."},
-	{"P", "Production", "Open production", "The production site in your browser."},
-	{"L", "Production", "Check production now", "Ask every production site's companion, BugSmash and GitHub again, past the 5-minute cache."},
-	{"F", "Production", "Open BugSmash comments", "The site's review page in BugSmash, where the client's comments are."},
-	{"X", "Production", "Resolve comments with Claude", "Claude Code beside the dashboard, in the theme folder, with the resolve-comments skill on the site's open BugSmash comments. It plans first and asks before anything reaches production."},
-	{"a", "Claude", "Ask Claude…", "Pick one of the theme's skills; Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site."},
-	{"A", "Claude", "Update with an agent", "Claude Code beside the dashboard updates this theme's taw/core and scaffold with the update prompt (what h shows)."},
-	{"U", "Theme", "Update all", "Every client theme that needs an update, one after another, each as its taw.json says (vendor/bin/taw update), each ending in its own pull request. One question first, listing what it leaves out (uncommitted changes, another branch). Themes that stop: Fix with Claude or Do it myself."},
-	{"h", "Claude", "Hand off the update", "Show the update prompt for this theme; A sends it to Claude Code, c copies it."},
+	{"enter", "Site · Local", "Details", "The selected site in full: Local, its themes, production, BugSmash and what doctor says. Scroll with ↑/↓, esc goes back."},
+	{"w", "Site · Local", "Work on it", "Start the site (when stopped), open the theme in your editor, run Vite in its own window and open the site once Vite answers. Again on a theme whose Vite runs stops Vite and the site."},
+	{"s", "Site · Local", "Start or stop", "Start or stop the site through the Local app (it must be open). Asks first. Leftover Local processes in the way are named, and it offers to end them."},
+	{"R", "Site · Local", "Restart", "Stop, then start the site through Local. Asks first."},
+	{"b", "Site · Local", "Open the site", "The Local site in your browser."},
+	{"B", "Site · Local", "Open wp-admin", "The Local site's wp-admin in your browser."},
+	{"n", "Site · Local", "New site", "Create a Local site with a TAW theme (classic or block): name, domain, PHP, admin user. The password is generated and shown once."},
+	{"P", "Site · Production", "Open production", "The production site in your browser."},
+	{"L", "Site · Production", "Check production now", "Ask every production site's companion, BugSmash and GitHub again, past the 5-minute cache."},
+	{"C", "Site · Production", "Pull production content", "Bring the production site's content into the Local site: a preview of what would change first, then it asks before importing (a rollback snapshot is kept)."},
+	{"F", "Site · Feedback", "Open BugSmash comments", "The site's review page in BugSmash, where the client's comments are."},
+	{"X", "Site · Feedback", "Resolve comments with Claude", "Claude Code beside the dashboard, in the theme folder, with the resolve-comments skill on the site's open BugSmash comments. It plans first and asks before anything reaches production."},
+	{"e", "Theme · Code", "Open in editor", "The theme folder in your editor (setting: editor)."},
+	{"f", "Theme · Code", "Show in Finder", "The theme folder in Finder."},
+	{"t", "Theme · Code", "Open a terminal", "A terminal window in the theme folder (setting: terminal)."},
+	{"a", "Theme · Code", "Ask Claude…", "Pick one of the theme's skills; Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site."},
+	{"u", "Theme · Update", "Update this site", "The whole update, as the theme's taw.json says (vendor/bin/taw update): on a new branch, taw/core, the framework files, the migrations and the checks, then a pull request. One question first. If it stops, Fix with Claude or Do it myself from the same guide."},
+	{"U", "Theme · Update", "Update all", "Every client theme that needs an update, one after another, each as its taw.json says (vendor/bin/taw update), each ending in its own pull request. One question first, listing what it leaves out (uncommitted changes, another branch). Themes that stop: Fix with Claude or Do it myself."},
+	{"A", "Theme · Update", "Update with an agent", "Claude Code beside the dashboard updates this theme's taw/core and scaffold with the update prompt (what h shows)."},
+	{"h", "Theme · Update", "Hand off the update", "Show the update prompt for this theme; A sends it to Claude Code, c copies it."},
+	{"y", "Theme · Update", "Check against the scaffold", "Compare the theme with the taw-theme scaffold (bin/taw sync): which framework files differ (Tier 1) and which to review (Tier 2). Read-only."},
+	{"Y", "Theme · Update", "Check every theme", "The scaffold check on every classic TAW theme at once, three at a time. Keeps the SYNC column current."},
+	{"S", "Theme · Update", "Apply the scaffold (Tier 1)", "Write the framework-owned files that differ from the scaffold (bin/, workflows, framework skills…). Asks first; Tier 2 stays for review."},
+	{"g", "Theme · Git & GitHub", "Open the repository", "The theme's GitHub repository in your browser."},
+	{"G", "Theme · Git & GitHub", "Open pull requests", "The theme's open pull requests on GitHub."},
+	{"M", "Theme · Git & GitHub", "Merge a pull request", "Merge the theme's pull request (asks which when there are several, then asks again: merging a client theme deploys production), then follow the deploy."},
+	{"D", "Theme · Git & GitHub", "Back to the site's branch", "Switch the theme to its default branch (asks first). A branch that tracks another repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of its own; other branches are kept. Refused with uncommitted changes."},
 	{"r", "App", "Refresh", "Read Local again now (it also refreshes every minute)."},
 	{"ctrl+r", "App", "Refresh everything", "Everything for every site, past the caches: Local, the newest versions, pull requests and deploys, production, BugSmash, then the scaffold check of every theme."},
 	{"o", "App", "Last output", "The last sync, update or create output again."},
-	{"/", "App", "Filter the list", "Filter by site, theme, branch or version, or by behind, dirty, unpushed, running, live, vite, other."},
+	{"/", "App", "Filter the list", "Filter by site, theme, branch or version, or by behind, dirty, unpushed, running, live, vite, other, classic, block."},
 	{"?", "App", "All keys and symbols", "Every key and what the table's symbols mean."},
 	{"q", "App", "Quit", "Close the dashboard."},
 }
 
 // paletteGroups is the : menu's group order.
-var paletteGroups = []string{"Recent", "Site", "Theme", "Code & GitHub", "Production", "Claude", "App"}
+var paletteGroups = []string{"Recent", "Site · Local", "Site · Production", "Site · Feedback", "Theme · Code", "Theme · Update", "Theme · Git & GitHub", "App"}
 
 // actionItems are the : menu's entries, each with why it can't run now.
 func (m Model) actionItems() []paletteItem {
@@ -132,13 +134,26 @@ func (m Model) unavailable(k string, s site.Site, t site.Theme) string {
 		if len(actions.Skills(t)) == 0 {
 			return "no skills in the theme's .claude/skills/ yet (S syncs them)"
 		}
-	case "u", "A":
-		if t.Core.Latest != "" && !t.Core.Behind {
-			return "taw/core is already the newest (" + strings.TrimPrefix(t.Core.Latest, "v") + ")"
+	case "A":
+		// u stays available: on a current theme it still checks the
+		// framework files and the migrations, and says so.
+		if t.Core.Latest != "" && !handoff.Needs(t) {
+			return "taw/core is already the newest (" + strings.TrimPrefix(t.Core.Latest, "v") + ") and the scaffold matches"
 		}
 	case "S", "y":
 		if t.Kind == site.KindGutenberg {
-			return "block themes don't sync the classic scaffold (php bin/taw skills:sync for skills)"
+			return "block themes don't sync the classic scaffold (php bin/taw skills:sync --apply for skills)"
+		}
+	case "D":
+		switch g := t.Git; {
+		case g == nil:
+			return "the theme isn't its own git repository"
+		case g.DefaultBranch == "":
+			return "its default branch isn't known"
+		case !g.Detached && g.Branch == g.DefaultBranch:
+			return "already on " + g.DefaultBranch
+		case g.Dirty > 0:
+			return "uncommitted changes: commit or stash first"
 		}
 	case "o":
 		if m.task == nil {
@@ -481,16 +496,18 @@ func (m Model) paletteDetail(it paletteItem, w int) string {
 func (m Model) groupIcon(group string) string {
 	i := m.pal.I
 	switch group {
-	case "Site":
-		return i.Site
-	case "Theme":
-		return i.Theme
-	case "Code & GitHub":
-		return i.Code
-	case "Production":
+	case "Site · Local":
+		return i.Local
+	case "Site · Production":
 		return i.Production
-	case "Claude":
-		return i.Claude
+	case "Site · Feedback":
+		return i.Feedback
+	case "Theme · Code":
+		return i.Editor
+	case "Theme · Update":
+		return i.Update
+	case "Theme · Git & GitHub":
+		return i.Branch
 	case "App":
 		return i.App
 	}

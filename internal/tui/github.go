@@ -146,6 +146,25 @@ func (m Model) checkFollowed() (tea.Model, tea.Cmd) {
 
 // askMerge merges the selected theme's pull request (M), asking which one
 // when there are several.
+// askSiteBranch brings the theme back onto its default branch (D), asking
+// first.
+func (m Model) askSiteBranch() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	task, err := m.deps.Actions.SiteBranchTask(s, t)
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, "")
+}
+
 func (m Model) askMerge() (tea.Model, tea.Cmd) {
 	s, t, ok := m.selectedTheme()
 	if !ok {

@@ -61,7 +61,7 @@ func (p Palette) GitFit(g *site.GitInfo, width int) string {
 		name = ansi.Truncate(name, max(budget, 1), "…")
 	}
 	switch {
-	case g.Detached:
+	case g.Detached, g.ForeignUpstream != "":
 		name = p.Fg(p.Warn).Render(name)
 	case g.DefaultBranch != "" && g.Branch != g.DefaultBranch:
 		name = p.Fg(p.Accent).Render(name)
@@ -75,6 +75,9 @@ func (p Palette) GitFit(g *site.GitInfo, width int) string {
 // gitMarkers: compact drops the word "unpushed" from ◇.
 func (p Palette) gitMarkers(g *site.GitInfo, compact bool) string {
 	var parts []string
+	if g.ForeignUpstream != "" {
+		parts = append(parts, p.Fg(p.Warn).Render("≠")) // tracks another repository
+	}
 	if g.Dirty > 0 {
 		parts = append(parts, p.Fg(p.Warn).Render(fmt.Sprintf("±%d", g.Dirty)))
 	}

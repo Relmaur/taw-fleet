@@ -238,7 +238,11 @@ func UpdateQuestion(t site.Theme, pol taw.Policy) string {
 	case "branch":
 		deliver = "a commit on a branch"
 	}
-	return fmt.Sprintf("Update %s? %s, framework files, migrations, checks, then %s.", t.Dir, core, deliver)
+	steps := core + ", framework files, migrations, checks"
+	if t.Kind != site.KindClassic || pol.Scaffold == "off" {
+		steps = core + ", migrations, checks" // as taw.UpdatePlan: no framework-files step
+	}
+	return fmt.Sprintf("Update %s? %s, then %s.", t.Dir, steps, deliver)
 }
 
 func summarizeUpdate(t site.Theme, rep taw.UpdateReport) Summary {
@@ -291,7 +295,11 @@ func summarizeUpdate(t site.Theme, rep taw.UpdateReport) Summary {
 			lines = append(lines, rep.Delivered.Note)
 		}
 	case "up-to-date":
-		sum.Headline = t.Dir + ": nothing to update (taw/core " + orBlank(from, "current") + ", framework files and migrations current)"
+		files := ", framework files and migrations current)"
+		if t.Kind != site.KindClassic {
+			files = ", migrations current)"
+		}
+		sum.Headline = t.Dir + ": nothing to update (taw/core " + orBlank(from, "current") + files
 	case "refused":
 		sum.Failed = true
 		sum.Headline = t.Dir + ": the update didn't start; nothing changed"

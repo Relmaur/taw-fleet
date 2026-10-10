@@ -1,7 +1,7 @@
 // Package bugsmash reads the open review comments of each site's BugSmash
 // project (https://bugsmash.io): how many, how old, and the latest ones. It
-// only reads; resolving comments happens elsewhere (the umbrella's
-// taw-resolve-comments skill).
+// only reads; resolving comments happens elsewhere (the theme's
+// resolve-comments skill, which X starts).
 package bugsmash
 
 import (

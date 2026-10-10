@@ -56,6 +56,9 @@ func TestRules(t *testing.T) {
 		{"ahead and behind", func(th *site.Theme) { th.Git.Ahead, th.Git.Behind = 2, 1 }, []string{"git.behind", "git.ahead"}},
 		{"no upstream, off default", func(th *site.Theme) { th.Git.Branch, th.Git.Upstream = "chore/taw-core-1.76.1", "" }, []string{"git.no-upstream", "git.off-default"}},
 		{"staging tracked", func(th *site.Theme) { th.Git.Branch, th.Git.Upstream = "staging", "origin/staging" }, []string{"git.off-default"}},
+		{"scaffold branch", func(th *site.Theme) {
+			th.Git.Branch, th.Git.Upstream, th.Git.ForeignUpstream = "main", "upstream/main", "Relmaur/taw-theme"
+		}, []string{"git.foreign-upstream"}},
 		{"detached", func(th *site.Theme) { th.Git.Branch, th.Git.Detached = "", true }, []string{"git.detached"}},
 		{"no remote", func(th *site.Theme) { th.Git.RemoteURL, th.Git.Repo = "", nil }, []string{"git.no-remote"}},
 		{"not a repo", func(th *site.Theme) { th.Git = nil }, []string{"git.none"}},
@@ -237,7 +240,7 @@ func TestFeedbackRules(t *testing.T) {
 			t.Errorf("%s: %v %q", c.name, fs[0].Severity, fs[0].Message)
 		}
 	}
-	if fs := Run(scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", Themes: []site.Theme{clean()}, Feedback: &site.Feedback{Open: 2, CheckedAt: checked, Oldest: checked}}}}, Options{}); !strings.Contains(fs[0].Fix, `"resolve comments on client"`) {
+	if fs := Run(scan.Report{Sites: []site.Site{{ID: "s1", Slug: "client", Themes: []site.Theme{clean()}, Feedback: &site.Feedback{Open: 2, CheckedAt: checked, Oldest: checked}}}}, Options{}); !strings.Contains(fs[0].Fix, `"resolve the open comments on client"`) {
 		t.Errorf("fix = %q", fs[0].Fix)
 	}
 }

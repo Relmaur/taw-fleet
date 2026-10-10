@@ -74,6 +74,11 @@ func Load(p paths.Paths) (Config, error) {
 		}
 		return c, fmt.Errorf("%s: unknown keys: %s", File(p), strings.Join(keys, ", "))
 	}
+	switch c.Icons {
+	case "", "symbols", "nerd":
+	default:
+		return c, fmt.Errorf("%s: icons must be \"symbols\" or \"nerd\"", File(p))
+	}
 	switch c.Create.Kind {
 	case "", "classic", "block":
 	default:
@@ -81,7 +86,7 @@ func Load(p paths.Paths) (Config, error) {
 	}
 	for slug, s := range c.Sites {
 		if s.ProductionURL != "" && !strings.HasPrefix(s.ProductionURL, "https://") && !strings.HasPrefix(s.ProductionURL, "http://") {
-			return c, fmt.Errorf("%s: sites.%s.production_url must start with https://", File(p), slug)
+			return c, fmt.Errorf("%s: sites.%s.production_url must start with https:// (or http://)", File(p), slug)
 		}
 		if s.BugSmashProject != "" && !uuid.MatchString(s.BugSmashProject) {
 			return c, fmt.Errorf("%s: sites.%s.bugsmash_project must be the project's id (a UUID like a15552c8-a3d9-4bce-9a06-7859fbb7f27c)", File(p), slug)
@@ -108,7 +113,7 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # Sublime Text, Nova.
 # editor = "Cursor"
 
-# The terminal for "open a terminal here" (t) and the agent handoff (h, l).
+# The terminal for "open a terminal here" (t) and Claude Code (A, X, a).
 # Empty: the first one installed of Ghostty, iTerm2, Warp, kitty, Terminal.
 # terminal = "Ghostty"
 
@@ -121,6 +126,10 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # Font icons, for a terminal set to a Nerd Font, such as one installed with
 # brew install --cask font-jetbrains-mono-nerd-font). taw-fleet config icons nerd
 # icons = "nerd"
+
+# Your GitHub accounts and organizations: a theme whose repository belongs to
+# another account is marked @account in the dashboard (/other filters them).
+# github_owners = ["Relmaur", "EmeLambda"]
 
 # Defaults for taw-fleet create (n in the dashboard). Empty: asked, or
 # Local's preferred PHP and web server. The admin password is always
@@ -140,6 +149,9 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # "taw-fleet comments projects"): open review comments show in the FB column
 # and in doctor. The API key goes in the Keychain: taw-fleet comments key import
 # bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"
+# The GitHub account the theme belongs to, while it has no origin remote yet
+# (for the @account mark):
+# github_account = "EmeLambda"
 `
 
 // SetTop sets a top-level key (one before any [table]) to a string value in

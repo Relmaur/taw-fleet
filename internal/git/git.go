@@ -92,6 +92,25 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 			info.Repo = repo
 		}
 	}
+	if info.Upstream != "" && info.Branch != "" {
+		r, ok, err := g.out("config", "--get", "branch."+info.Branch+".remote")
+		if err != nil {
+			return nil, err
+		}
+		if ok && r != "" && r != "." && r != remote && r != "origin" {
+			info.ForeignUpstream = r
+			if url, ok, err := g.out("remote", "get-url", r); err != nil {
+				return nil, err
+			} else if ok {
+				if repo, perr := ParseRemote(url); perr == nil {
+					info.ForeignUpstream = repo.Owner + "/" + repo.Name
+					if info.Repo != nil && strings.EqualFold(repo.Owner, info.Repo.Owner) && strings.EqualFold(repo.Name, info.Repo.Name) {
+						info.ForeignUpstream = "" // another name for the theme's own repository
+					}
+				}
+			}
+		}
+	}
 	return info, nil
 }
 

@@ -11,8 +11,9 @@
    │  :   all actions    s      start/stop          B wp-admin      A update with agent        │    
    │  o   last output    R      restart             P production    U update all               │    
    │  n   new site       M      merge PR            g GitHub        h hand off                 │    
-   │  q   quit           C      pull content        G PRs           c copy prompt              │    
-   │                     a      ask Claude…         F comments      X resolve comments         │    
+   │  q   quit           D      site's branch       G PRs           c copy prompt              │    
+   │                     C      pull content        F comments      X resolve comments         │    
+   │                     a      ask Claude…                                                    │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
@@ -20,11 +21,10 @@
    │  1.59.2 ▲ 1.76.1  taw/core installed ▲ newest                                             │    
    │  main ±3 ↑1 ↓2  uncommitted ±, to push ↑, to pull ↓   @acct another GitHub account        │    
    │  feature ◇ unpushed  not the default branch, not pushed                                   │    
+   │  main ≠  tracks another repository (the scaffold's, say): what's shown isn't the site's   │    
    │  — ✓ ▲2 ✗  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed        │    
    │  ● ◐ ✗ —  live: verified, answering but unverified, refused or down, no production URL    │    
    │  3 2 0 ?  FB: open BugSmash comments, one waiting over 2 days, none open, check failed    │    
    │  2✓ 2✗  open PRs: CI passed, failed   ✓ ↑2 ⟳ ✗  deploy: current, behind, running, failed  │    
-   │                                                                                           │    
-   │  esc or ? to go back                                                                      │    
 
  enter details • e editor • t terminal • U update all • : all actions • / filter • ? help • q quit

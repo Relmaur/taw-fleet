@@ -18,6 +18,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/taw"
 	"github.com/Relmaur/taw-fleet/internal/tools"
 )
 
@@ -543,5 +544,18 @@ func TestPlanUpdateAllLeavesOutOtherBranches(t *testing.T) {
 	}
 	if len(plan.Skipped) != 1 || plan.Skipped[0].Reason == "" {
 		t.Errorf("skipped = %+v", plan.Skipped)
+	}
+}
+
+func TestUpdateQuestionFollowsTheThemeKind(t *testing.T) {
+	_, th := fixture()
+	pol := taw.Policy{Core: "minor", Scaffold: "auto", Deliver: "pr"}
+	th.Kind = site.KindClassic
+	if q := UpdateQuestion(th, pol); !strings.Contains(q, "framework files") {
+		t.Errorf("classic: %q", q)
+	}
+	th.Kind = site.KindGutenberg
+	if q := UpdateQuestion(th, pol); strings.Contains(q, "framework files") || !strings.Contains(q, "migrations, checks, then a pull request") {
+		t.Errorf("block: %q", q)
 	}
 }

@@ -43,7 +43,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 |---|---|
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
-| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live`, `vite`, `other` (themes of another GitHub account) |
+| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live`, `vite`, `other` (themes of another GitHub account), `classic`, `block` |
 | `w` | work on it: start the site (when stopped), open the theme in your editor, run Vite (`npm run dev`) in its own window and open the site once Vite answers (asks first). On a theme whose Vite is running (`vite` after its name), `w` stops Vite and the site |
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
@@ -63,7 +63,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
 | `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site |
-| `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy |
+| `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy. When `taw.json` delivers to another remote, `origin` (the copy) is fast-forwarded to the merge too |
+| `D` | back to the site's branch: switch the theme to its default branch (asks first; refused with uncommitted changes). A branch that tracks another repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of its own; other branches are kept |
 | `r` | refresh now (it also refreshes every minute) |
 | `ctrl+r` | refresh everything for every site, skipping the caches: the Local scan with the newest versions from GitHub, pull requests and deploys, the production sites, the BugSmash comments, then the sync check of every classic theme. The bottom line shows what's still running, then a summary |
 | `?` | keys and symbols |
@@ -305,8 +306,9 @@ range, the framework files, the migrations, the checks (lint, phpstan, tests, th
 
 The update screen shows what it's about (the versions, what `taw.json` says), a progress bar, and
 every step with its time and result, the latest output under them (`l` the full log). `esc` goes
-back to the list while it runs: the site's row shows the bar and the current step, and keeps the
-outcome for 15 minutes afterwards (`o` opens the screen again). When it ends, a result panel lists
+back to the list while it runs: the site's card shows one icon in its left margin (the spinner,
+then `✓` or `✗` for 15 minutes), the details pane's **UPDATE** section the step and the bar, and
+the bottom line the percentage (`o` opens the screen again). When it ends, a result panel lists
 what changed, the "For you" steps a migration left for a person, and the pull request (`o` opens
 it, `r` the report).
 
@@ -413,6 +415,7 @@ Font" in the terminal's settings (Terminal: Settings → Profiles → Text → F
 | `core.behind` | warning | taw/core is older than the newest release |
 | `core.lock-mismatch` | warning | `vendor/` and `composer.lock` disagree |
 | `git.no-upstream`, `git.behind`, `git.detached`, `git.no-remote` | warning | branch not pushed, commits to pull, not on a branch, no `origin` |
+| `git.foreign-upstream` | warning | the checked-out branch tracks another repository (a local branch of the scaffold, say), so the versions and files shown are that branch's, not the site's; `≠` after the branch. `D` fixes it |
 | `git.dirty`, `git.ahead`, `git.off-default`, `git.none` | note | uncommitted changes, commits to push, not on the default branch, not a repo |
 | `theme.symlink-broken` | error | a symlinked theme points at a folder that's gone |
 | `scaffold.behind` | note | an umbrella checkout of taw-theme/taw-gutenberg is behind its own release |

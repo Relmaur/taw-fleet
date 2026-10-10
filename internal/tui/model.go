@@ -54,6 +54,7 @@ type Actions interface {
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
+	SiteBranchTask(s site.Site, t site.Theme) (actions.Task, error)
 	PullTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	CreateTask(r create.Request) (actions.Task, error)
 	OpenComments(ctx context.Context, s site.Site) (string, error)
@@ -781,6 +782,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, k.Merge):
 		model, cmd := m.askMerge()
 		return model, cmd, true
+	case key.Matches(msg, k.SiteBranch):
+		model, cmd := m.askSiteBranch()
+		return model, cmd, true
 	case key.Matches(msg, k.Pull):
 		model, cmd := m.askPull()
 		return model, cmd, true
@@ -878,6 +882,9 @@ func (m Model) matches(r row, q string) bool {
 	s := m.rep.Sites[r.site]
 	t := s.Themes[r.theme]
 	hay := []string{s.Slug, s.Name, s.Domain, t.Dir, string(t.Kind), string(s.Status), t.Core.Installed}
+	if t.Kind == site.KindGutenberg {
+		hay = append(hay, "block") // the cards say "block"
+	}
 	if t.Core.Behind {
 		hay = append(hay, "behind")
 	}
