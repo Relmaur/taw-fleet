@@ -16,6 +16,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/style"
 	"github.com/Relmaur/taw-fleet/internal/tools"
 )
 
@@ -251,6 +252,41 @@ func newConfigCmd(d Deps) *cobra.Command {
 					return err
 				}
 				return renderConfig(cmd, d, a)
+			},
+		},
+		&cobra.Command{
+			Use:   "icons [symbols|nerd]",
+			Short: "The dashboard's icons: plain symbols (any font) or Nerd Font icons",
+			Long: "symbols (the default) works with every font. nerd needs the terminal set to a Nerd Font:\n" +
+				"  brew install --cask font-jetbrains-mono-nerd-font\n" +
+				"then choose \"JetBrainsMono Nerd Font\" in the terminal's settings (Terminal: Settings → Profiles → Text).\n" +
+				"Without a Nerd Font, nerd icons show as empty boxes: switch back with taw-fleet config icons symbols.",
+			Args: cobra.MaximumNArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				p := d.palette()
+				if len(args) == 0 {
+					cfg, _ := config.Load(d.Paths)
+					set := cfg.Icons
+					if set == "" {
+						set = "symbols"
+					}
+					_, err := lipgloss.Fprintln(cmd.OutOrStdout(), "icons: "+set+"  "+p.I.Logo+" "+p.I.Local+" "+p.I.Live+" "+p.I.Feedback+" "+p.I.Findings+" "+p.I.Update+" "+p.I.Branch)
+					return err
+				}
+				if _, ok := style.IconSets[args[0]]; !ok {
+					return fmt.Errorf("icons is symbols or nerd, not %q", args[0])
+				}
+				f, err := config.SetTop(d.Paths, "icons", args[0])
+				if err != nil {
+					return err
+				}
+				p = p.WithIcons(args[0])
+				msg := p.Fg(p.OK).Render("✓") + " icons = " + args[0] + " in " + f + "  " + p.I.Logo + " " + p.I.Local + " " + p.I.Live + " " + p.I.Feedback + " " + p.I.Update
+				if args[0] == "nerd" {
+					msg += "\n  " + p.Fg(p.Muted).Render("Boxes instead of icons? The terminal needs a Nerd Font: taw-fleet config icons --help")
+				}
+				_, err = lipgloss.Fprintln(cmd.OutOrStdout(), msg)
+				return err
 			},
 		},
 		&cobra.Command{

@@ -20,6 +20,7 @@ type Palette struct {
 	OK, Warn, Err, Info               color.Color
 	BadgeText                         color.Color
 	Selected                          color.Color // the selected row's background
+	I                                 Icons       // the glyphs (SymbolIcons unless the config says "nerd")
 }
 
 // New returns the palette for a dark or light background.
@@ -37,6 +38,7 @@ func New(dark bool) Palette {
 		Info:      ld(lipgloss.Color("#0969DA"), lipgloss.Color("#58A6FF")),
 		BadgeText: ld(lipgloss.Color("#FFFFFF"), lipgloss.Color("#0D1117")),
 		Selected:  ld(lipgloss.Color("#EFE9FB"), lipgloss.Color("#2E2845")),
+		I:         SymbolIcons,
 	}
 }
 

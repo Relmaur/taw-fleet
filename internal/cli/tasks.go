@@ -133,9 +133,9 @@ func newSyncCmd(d Deps, g *globals) *cobra.Command {
 
 func newUpdateCmd(d Deps, g *globals) *cobra.Command {
 	var theme string
-	var yes bool
+	var yes, all bool
 	cmd := &cobra.Command{
-		Use:   "update <site>",
+		Use:   "update <site> | --all",
 		Short: "Update this site: the whole update, as the theme's taw.json says (vendor/bin/taw update)",
 		Long: "Runs the theme's own `vendor/bin/taw update` with the site's PHP and Local's Composer: on a\n" +
 			"new branch it updates taw/core, applies the framework files, runs the migrations and the\n" +
@@ -144,9 +144,17 @@ func newUpdateCmd(d Deps, g *globals) *cobra.Command {
 			"newest taw/core in vendor/ first, so its first update is one step too.\n\n" +
 			"If a step fails, nothing is pushed: the theme's .taw/update-report.md says what failed and\n" +
 			"how to finish it by hand, and the dashboard's u offers Fix with Claude on the same report.",
-		Example: "  taw-fleet update ls-mxico\n  taw-fleet update ls-mxico --yes",
-		Args:    cobra.ExactArgs(1),
+		Example: "  taw-fleet update ls-mxico\n  taw-fleet update ls-mxico --yes\n  taw-fleet update --all",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if all {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if all {
+				return updateAll(cmd, d, g, yes)
+			}
 			s, t, a, err := resolveForTask(cmd, d, g, args[0], theme)
 			if err != nil {
 				return err
@@ -173,7 +181,44 @@ func newUpdateCmd(d Deps, g *globals) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
+	cmd.Flags().BoolVar(&all, "all", false, "every client theme that needs an update, one after another")
 	return cmd
+}
+
+// updateAll is `update --all`: the dashboard's U, in the terminal.
+func updateAll(cmd *cobra.Command, d Deps, g *globals, yes bool) error {
+	a, err := d.actions()
+	if err != nil {
+		return err
+	}
+	rep, err := d.scanner(g).Run(cmd.Context())
+	if err != nil {
+		return err
+	}
+	plan := a.PlanUpdateAll(cmd.Context(), rep.Sites)
+	if len(plan.Themes) == 0 {
+		p := d.palette()
+		_, err := lipgloss.Fprintln(cmd.OutOrStdout(), p.Fg(p.OK).Render("✓")+" Nothing to update: every client TAW theme is current")
+		return err
+	}
+	task, err := a.UpdateAllTask(plan)
+	if err != nil {
+		return err
+	}
+	sum, err := runTask(cmd, d, task, yes, task.Ask)
+	if errors.Is(err, errCancelled) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := printSummary(cmd, d, sum); err != nil {
+		return err
+	}
+	if sum.Failed {
+		return exitCode(1)
+	}
+	return nil
 }
 
 func newInspectCmd(d Deps, g *globals) *cobra.Command {

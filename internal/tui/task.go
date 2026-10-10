@@ -26,12 +26,15 @@ type taskState struct {
 	started  time.Time
 	finished time.Time
 	ch       chan taskEvent
-	scroll   int         // first line on screen when not following
-	follow   bool        // stick to the newest output
-	steps    []stepState // the checklist (an update); nil = a plain log
-	info     []string    // lines under the title
-	showLog  bool        // l: the full log instead of the checklist
-	target   string      // "siteID/themeDir": the table row that shows its progress
+	scroll   int          // first line on screen when not following
+	follow   bool         // stick to the newest output
+	steps    checklist    // the checklist (an update); nil = a plain log
+	batch    []*batchItem // an update-all's themes; nil otherwise
+	cur, sel int          // the batch theme running (-1: none) and the one selected
+	focus    bool         // enter: the selected batch theme's own screen
+	info     []string     // lines under the title
+	showLog  bool         // l: the full log instead of the checklist
+	target   string       // "siteID/themeDir": the table row that shows its progress
 }
 
 type taskEvent struct {
@@ -56,7 +59,10 @@ func (m Model) startTask(task actions.Task) (tea.Model, tea.Cmd) {
 	}
 	ch := make(chan taskEvent, 256)
 	m.task = &taskState{title: task.Title, running: true, started: m.deps.Now(), ch: ch, follow: true,
-		steps: newSteps(task.Steps), info: task.Info, target: task.Target}
+		steps: newSteps(task.Steps), info: task.Info, target: task.Target, cur: -1}
+	for _, b := range task.Batch {
+		m.task.batch = append(m.task.batch, &batchItem{BatchItem: b, steps: newSteps(b.Steps), state: "wait"})
+	}
 	if !task.Quiet {
 		m.mode = modeOutput
 	}
@@ -102,6 +108,15 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 		apply := pv.Apply
 		m.confirm = apply.Ask
 		m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startTask(apply) }
+	}
+	if all, ok := ev.sum.Report.(actions.UpdateAllOutcome); ok && ev.err == nil {
+		if stopped := all.Stopped(); len(stopped) > 0 {
+			m = m.offerFinishAll(stopped)
+		}
+		if m.deps.GitHub != nil {
+			model, cmd := m.fetchRepos(true) // the new pull requests in the PR column
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
 	}
 	if o, ok := ev.sum.Report.(actions.UpdateOutcome); ok && ev.err == nil {
 		if o.Stopped() {
@@ -173,6 +188,38 @@ func (m Model) syncOrUpdate(which string) (tea.Model, tea.Cmd) {
 	return m.askTask(task, question)
 }
 
+// offerFinishAll asks how to finish the updates of an update-all that
+// stopped: Claude in a window per theme, or each report in the editor.
+func (m Model) offerFinishAll(stopped []actions.UpdateOutcome) Model {
+	n := len(stopped)
+	m.confirm = fmt.Sprintf("Finish the %d %s that stopped:  1 Fix with Claude · 2 Do it myself", n, plural(n, "update", "updates"))
+	m.choices = []func(Model) (tea.Model, tea.Cmd){
+		func(m Model) (tea.Model, tea.Cmd) {
+			a, ctx, tty := m.deps.Actions, m.ctx, m.deps.TTY
+			var cmds []tea.Cmd
+			for _, o := range stopped {
+				cmds = append(cmds, func() tea.Msg {
+					l, err := a.FixUpdate(ctx, o, tty)
+					return launchedMsg{o.Theme.Dir, l, err}
+				})
+			}
+			return m, tea.Batch(cmds...)
+		},
+		func(m Model) (tea.Model, tea.Cmd) {
+			a, ctx := m.deps.Actions, m.ctx
+			return m, m.run(func() (string, error) {
+				for _, o := range stopped {
+					if _, err := a.OpenGuide(ctx, o); err != nil {
+						return "", fmt.Errorf("%s: %w", o.Theme.Dir, err)
+					}
+				}
+				return fmt.Sprintf("Opened %d %s in the editor", n, plural(n, "report", "reports")), nil
+			})
+		},
+	}
+	return m
+}
+
 // offerFinish asks how to finish an update that stopped: Claude works from
 // its report, or the report opens as the guide for a person (ADR-0004).
 func (m Model) offerFinish(o actions.UpdateOutcome) Model {
@@ -202,6 +249,51 @@ func (m Model) onOutputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	page := max(m.bodyHeight()-4, 1)
+	if t.batch != nil {
+		var it *batchItem
+		if t.sel >= 0 && t.sel < len(t.batch) {
+			it = t.batch[t.sel]
+		}
+		switch msg.String() {
+		case "l":
+			t.showLog = !t.showLog
+			return m, nil
+		case "up", "k":
+			if !t.focus && !t.showLog {
+				t.sel = max(t.sel-1, 0)
+				return m, nil
+			}
+		case "down", "j":
+			if !t.focus && !t.showLog {
+				t.sel = min(t.sel+1, len(t.batch)-1)
+				return m, nil
+			}
+		case "enter":
+			t.focus, t.showLog = true, false
+			return m, nil
+		case "esc", "q":
+			if t.focus || t.showLog {
+				t.focus, t.showLog = false, false
+				return m, nil
+			}
+		case "o", "r":
+			if it == nil || it.outcome == nil || it.outcome.Err != nil || m.deps.Actions == nil {
+				return m, nil
+			}
+			a, ctx, o := m.deps.Actions, m.ctx, it.outcome.UpdateOutcome
+			if msg.String() == "o" {
+				if o.Report.Delivered == nil || o.Report.Delivered.URL == "" {
+					return m, nil
+				}
+				url := o.Report.Delivered.URL
+				return m, m.run(func() (string, error) { return a.OpenURL(ctx, url) })
+			}
+			return m, m.run(func() (string, error) { return a.OpenGuide(ctx, o) })
+		}
+		if !t.showLog && msg.String() != "esc" && msg.String() != "q" && msg.String() != "ctrl+c" {
+			return m, nil
+		}
+	}
 	if t.steps != nil {
 		o, done := t.summary.Report.(actions.UpdateOutcome)
 		switch msg.String() {
@@ -263,8 +355,16 @@ func (m Model) outputScreen(height int) string {
 	if t == nil {
 		return block("", m.width, height)
 	}
-	if t.steps != nil && !t.showLog {
-		return m.updateScreen(height)
+	switch {
+	case t.showLog:
+	case t.batch != nil && t.focus:
+		v := t.batch[t.sel].view()
+		v.sub = fmt.Sprintf("theme %d of %d  ·  esc all themes", t.sel+1, len(t.batch))
+		return m.updateScreen(v, height)
+	case t.batch != nil:
+		return m.batchScreen(height)
+	case t.steps != nil:
+		return m.updateScreen(m.taskView(), height)
 	}
 	var state string
 	switch {

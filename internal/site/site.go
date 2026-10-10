@@ -229,6 +229,7 @@ type GitInfo struct {
 	Describe      string    `json:"describe,omitempty"`
 	LastTag       string    `json:"last_tag,omitempty"`
 	LastCommit    time.Time `json:"last_commit,omitzero"`
+	Remote        string    `json:"remote,omitempty"` // taw.json's delivery remote, when it isn't origin
 	RemoteURL     string    `json:"remote_url,omitempty"`
 	Repo          *Repo     `json:"repo,omitempty"`
 }

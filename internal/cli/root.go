@@ -60,7 +60,14 @@ type Deps struct {
 	active *scan.ActiveTheme // shared by every scan of this process (cache)
 }
 
-func (d Deps) palette() style.Palette { return style.New(d.Dark) }
+// palette is the look: the terminal's background, and the config's icons.
+func (d Deps) palette() style.Palette {
+	p := style.New(d.Dark)
+	if cfg, err := config.Load(d.Paths); err == nil {
+		p = p.WithIcons(cfg.Icons)
+	}
+	return p
+}
 
 // globals are the flags every command shares.
 type globals struct {
@@ -192,6 +199,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Paths:     d.Paths,
 			Version:   info.Version,
 			Dark:      d.Dark,
+			Icons:     d.iconSet(),
 			Refresh:   time.Minute,
 			Inline:    g.inWindow,
 		}
@@ -281,4 +289,12 @@ func Execute(info BuildInfo) int {
 		return 1
 	}
 	return 0
+}
+
+// iconSet is the config's "icons" ("" when there's no config).
+func (d Deps) iconSet() string {
+	if cfg, err := config.Load(d.Paths); err == nil {
+		return cfg.Icons
+	}
+	return ""
 }

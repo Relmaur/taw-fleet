@@ -62,7 +62,7 @@ var actionDocs = []actionDoc{
 	{"X", "Production", "Resolve comments with Claude", "Claude Code beside the dashboard, in the theme folder, with the resolve-comments skill on the site's open BugSmash comments. It plans first and asks before anything reaches production."},
 	{"a", "Claude", "Ask Claude…", "Pick one of the theme's skills; Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site."},
 	{"A", "Claude", "Update with an agent", "Claude Code beside the dashboard updates this theme's taw/core and scaffold with the update prompt (what h shows)."},
-	{"U", "Claude", "Update all with agents", "Every client theme that needs an update, in one Claude Code session with a subagent per theme. Asks first and lists what it leaves out."},
+	{"U", "Theme", "Update all", "Every client theme that needs an update, one after another, each as its taw.json says (vendor/bin/taw update), each ending in its own pull request. One question first, listing what it leaves out (uncommitted changes, another branch). Themes that stop: Fix with Claude or Do it myself."},
 	{"h", "Claude", "Hand off the update", "Show the update prompt for this theme; A sends it to Claude Code, c copies it."},
 	{"r", "App", "Refresh", "Read Local again now (it also refreshes every minute)."},
 	{"ctrl+r", "App", "Refresh everything", "Everything for every site, past the caches: Local, the newest versions, pull requests and deploys, production, BugSmash, then the scaffold check of every theme."},
@@ -359,7 +359,7 @@ func (m Model) paletteScreen(h int) string {
 			if len(lines) > 0 {
 				lines = append(lines, line{"", -1})
 			}
-			lines = append(lines, line{muted.Bold(true).Render(strings.ToUpper(it.group)), -1})
+			lines = append(lines, line{muted.Bold(true).Render(m.groupIcon(it.group) + " " + strings.ToUpper(it.group)), -1})
 		}
 		last = it.group
 		lines = append(lines, line{m.paletteRow(it, i == m.menuCursor, listW), i})
@@ -475,4 +475,24 @@ func (m Model) paletteDetail(it paletteItem, w int) string {
 		parts = append(parts, "", muted.Render(k), wrap.Render(v))
 	}
 	return strings.Join(parts, "\n")
+}
+
+// groupIcon marks a palette group's heading.
+func (m Model) groupIcon(group string) string {
+	i := m.pal.I
+	switch group {
+	case "Site":
+		return i.Site
+	case "Theme":
+		return i.Theme
+	case "Code & GitHub":
+		return i.Code
+	case "Production":
+		return i.Production
+	case "Claude":
+		return i.Claude
+	case "App":
+		return i.App
+	}
+	return i.Waiting // recent, and skills
 }

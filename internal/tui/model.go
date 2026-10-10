@@ -42,6 +42,8 @@ type Actions interface {
 	Copy(ctx context.Context, text string) error
 	Launch(ctx context.Context, s site.Site, t site.Theme, p handoff.Prompt, beside string) (actions.Launched, error)
 	PlanFleet(ctx context.Context, sites []site.Site) actions.FleetPlan
+	PlanUpdateAll(ctx context.Context, sites []site.Site) actions.FleetPlan
+	UpdateAllTask(plan actions.FleetPlan) (actions.Task, error)
 	LaunchFleet(ctx context.Context, plan actions.FleetPlan, findings map[string][]site.Finding, beside string) (actions.Launched, error)
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	SyncAllTask(sites []site.Site) (actions.Task, error)
@@ -77,6 +79,7 @@ type Deps struct {
 	Paths     paths.Paths
 	Version   string
 	Dark      bool             // first guess; the terminal's answer replaces it
+	Icons     string           // the config's icon set ("symbols", "nerd"); "" = symbols
 	Now       func() time.Time // nil = time.Now
 	Refresh   time.Duration    // re-scan this often; 0 = only on `r`
 	// Inline draws on the terminal's normal screen instead of the alternate
@@ -231,7 +234,7 @@ func New(ctx context.Context, d Deps) Model {
 
 func (m *Model) setDark(dark bool) {
 	m.dark = dark
-	m.pal = style.New(dark)
+	m.pal = style.New(dark).WithIcons(m.deps.Icons)
 	m.help.Styles = help.DefaultStyles(dark)
 	m.help.Styles.ShortKey = lipgloss.NewStyle().Foreground(m.pal.Accent)
 	m.help.Styles.FullKey = m.help.Styles.ShortKey

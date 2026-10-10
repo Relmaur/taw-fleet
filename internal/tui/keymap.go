@@ -49,7 +49,7 @@ func newKeyMap() keyMap {
 		Handoff:     key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "hand off")),
 		Copy:        key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy prompt")),
 		Agent:       key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "update with agent")),
-		UpdateAll:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "update all with agents")),
+		UpdateAll:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "update all")),
 		StartStop:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
 		Restart:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
 		Work:        key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "work on it")),
@@ -119,11 +119,29 @@ func (o outputKeys) FullHelp() [][]key.Binding { return o.k.FullHelp() }
 type stepKeys struct{ t *taskState }
 
 func (s stepKeys) ShortHelp() []key.Binding {
+	if s.t.batch != nil && !s.t.focus && !s.t.showLog {
+		pick := key.NewBinding(key.WithKeys("enter"), key.WithHelp("↑/↓ enter", "a theme's steps"))
+		keys := []key.Binding{pick, key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "full log"))}
+		if it := s.t.batch[s.t.sel]; it.outcome != nil && it.outcome.Err == nil {
+			if d := it.outcome.Report.Delivered; d != nil && d.URL != "" {
+				keys = append(keys, key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "its pull request")))
+			}
+			keys = append(keys, key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "its report")))
+		}
+		back := "back"
+		if s.t.running {
+			back = "back (it keeps running)"
+		}
+		return append(keys, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", back)))
+	}
 	log := key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "full log"))
 	if s.t.showLog {
 		log = key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "steps"))
 	}
 	back := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+	if s.t.batch != nil {
+		back = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "all themes"))
+	}
 	if s.t.running {
 		return []key.Binding{log, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (it keeps running)"))}
 	}

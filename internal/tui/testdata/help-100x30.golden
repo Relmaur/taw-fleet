@@ -9,7 +9,7 @@
    │  /   filter         L      check production    t terminal      S apply Tier 1             │    
    │  r   refresh        w      work on it          b site          u update this site         │    
    │  :   all actions    s      start/stop          B wp-admin      A update with agent        │    
-   │  o   last output    R      restart             P production    U update all with agents   │    
+   │  o   last output    R      restart             P production    U update all               │    
    │  n   new site       M      merge PR            g GitHub        h hand off                 │    
    │  q   quit           C      pull content        G PRs           c copy prompt              │    
    │                     a      ask Claude…         F comments      X resolve comments         │    
@@ -27,4 +27,4 @@
    │                                                                                           │    
    │  esc or ? to go back                                                                      │    
 
- enter details • e editor • t terminal • U update all with agents • : all actions • / filter …
+ enter details • e editor • t terminal • U update all • : all actions • / filter • ? help • q quit

@@ -1,6 +1,6 @@
- ◆ taw-fleet v0.3.0  ·  2 sites  ·  2 TAW themes  ·  1 running  ·  1 behind on taw/core                                    updated just now 
+ ◆ taw-fleet v0.3.0  ·  ⌂ 2 sites  ·  ◧ 2 TAW themes  ·  ● 1 running  ·  ↑ 1 behind on taw/core                            updated just now 
 
-    SITE · THEME             TAW/CORE          SYNC   GIT                               │  LOCAL ────────────────────────── this Mac · Local
+    SITE · THEME             TAW/CORE          SYNC   GIT                               │  ⌂ LOCAL ──────────────────────── this Mac · Local
 ─────────────────────────────────────────────────────────────────────────────────────── │  ○ bistro  http://bistro.local  halted            
 ▌ ○ bistro                   1.59.2 ▲ 1.76.1   —      chore/update-core ±5 ◇ unpushed   │    ~/Local Sites/bistro                           
     bistro-theme  classic                             2d ago                            │    PHP 8.2.29  ·  id b2                           
@@ -16,7 +16,7 @@
     taw-theme  classic                                2d ago                            │  │ bin/taw    yes                                │
                                                                                         │  ╰───────────────────────────────────────────────╯
                                                                                         │                                                   
-                                                                                        │  FINDINGS ───────────────────────────────── doctor
+                                                                                        │  ⚑ FINDINGS ─────────────────────────────── doctor
                                                                                         │    ▲ taw/core v1.59.2, latest is v1.76.1  bistro-…
                                                                                         │      → composer update taw/core, then read vendor…
                                                                                         │    ▲ branch chore/update-core isn't pushed (no up…
@@ -37,4 +37,4 @@
                                                                                         │                                                   
                                                                                         │                                                   
 
- enter details • e editor • t terminal • U update all with agents • : all actions • / filter • ? help • q quit
+ enter details • e editor • t terminal • U update all • : all actions • / filter • ? help • q quit
