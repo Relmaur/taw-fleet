@@ -197,7 +197,7 @@ func (w *LineWriter) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		line := string(w.buf[:i])
+		line := backspaced(string(w.buf[:i]))
 		w.buf = w.buf[i+1:]
 		if line != "" {
 			w.fn(line)
@@ -206,12 +206,31 @@ func (w *LineWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// backspaced applies the backspaces a program wrote to redraw its line
+// (Composer erases its spinner with them), as a terminal would.
+func backspaced(s string) string {
+	if !strings.Contains(s, "\b") {
+		return s
+	}
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r == '\b' {
+			if len(out) > 0 {
+				out = out[:len(out)-1]
+			}
+			continue
+		}
+		out = append(out, r)
+	}
+	return strings.TrimRight(string(out), " ")
+}
+
 // Flush sends a last line without a newline.
 func (w *LineWriter) Flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.buf) > 0 {
-		w.fn(string(w.buf))
+		w.fn(backspaced(string(w.buf)))
 		w.buf = nil
 	}
 }

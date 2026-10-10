@@ -48,6 +48,7 @@ type Actions interface {
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
 	FixUpdate(ctx context.Context, o actions.UpdateOutcome, beside string) (actions.Launched, error)
 	OpenGuide(ctx context.Context, o actions.UpdateOutcome) (string, error)
+	OpenURL(ctx context.Context, url string) (string, error)
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)

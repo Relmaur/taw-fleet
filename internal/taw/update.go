@@ -69,15 +69,17 @@ type UpdateReport struct {
 // Policy is what taw-fleet reads of the theme's taw.json, to ask the one
 // question before an update (taw/core's `policy` command says all of it).
 type Policy struct {
-	File    bool   // the theme has a taw.json
-	Core    string // minor | patch | pinned:<version>
-	Deliver string // pr | pr+merge | branch
+	File     bool     // the theme has a taw.json
+	Core     string   // minor | patch | pinned:<version>
+	Scaffold string   // auto | off
+	Checks   []string // lint, phpstan, test, build, smoke
+	Deliver  string   // pr | pr+merge | branch
 }
 
 // ReadPolicy reads taw.json's "update" settings that the question names;
 // the rest is taw/core's. A missing file means the defaults.
 func ReadPolicy(themeDir string) (Policy, error) {
-	p := Policy{Core: "minor", Deliver: "pr"}
+	p := Policy{Core: "minor", Scaffold: "auto", Checks: []string{"lint", "phpstan", "test", "build"}, Deliver: "pr"}
 	data, err := os.ReadFile(filepath.Join(themeDir, "taw.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return p, nil
@@ -88,8 +90,10 @@ func ReadPolicy(themeDir string) (Policy, error) {
 	p.File = true
 	var doc struct {
 		Update struct {
-			Core    string `json:"core"`
-			Deliver string `json:"deliver"`
+			Core     string    `json:"core"`
+			Scaffold string    `json:"scaffold"`
+			Checks   *[]string `json:"checks"`
+			Deliver  string    `json:"deliver"`
 		} `json:"update"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -97,6 +101,12 @@ func ReadPolicy(themeDir string) (Policy, error) {
 	}
 	if doc.Update.Core != "" {
 		p.Core = doc.Update.Core
+	}
+	if doc.Update.Scaffold != "" {
+		p.Scaffold = doc.Update.Scaffold
+	}
+	if doc.Update.Checks != nil {
+		p.Checks = *doc.Update.Checks
 	}
 	if doc.Update.Deliver != "" {
 		p.Deliver = doc.Update.Deliver
@@ -123,7 +133,7 @@ func (r Runner) Update(ctx context.Context, t site.Theme, out io.Writer) (Update
 
 	var rep UpdateReport
 	installed, _ := composer.InstalledVersion(t.RealPath, composer.CorePackage)
-	if composer.Older(installed, MinOneStep) || installed == "" {
+	if NeedsBridge(t) {
 		pol, err := ReadPolicy(t.RealPath)
 		if err != nil {
 			return rep, err

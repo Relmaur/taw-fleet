@@ -19,10 +19,13 @@ import (
 // Task is a longer job with live output: a scaffold sync or a taw/core
 // update. Run writes progress to out and returns a summary.
 type Task struct {
-	Title  string // "Sync check: chcapital"
-	Writes bool   // changes files in the theme (asks first)
-	Ask    string // the question to ask first, when it isn't Writes' generic one
-	Quiet  bool   // the dashboard stays on the table (the footer shows progress)
+	Title  string     // "Sync check: chcapital"
+	Writes bool       // changes files in the theme (asks first)
+	Ask    string     // the question to ask first, when it isn't Writes' generic one
+	Quiet  bool       // the dashboard stays on the table (the footer shows progress)
+	Steps  []taw.Step // a checklist the output follows (taw.ParseProgress); nil = a plain log
+	Info   []string   // lines under the title (what the task is about)
+	Target string     // the site ID and theme dir it works on ("id/dir"), for the table's row
 	Run    func(ctx context.Context, out io.Writer) (Summary, error)
 }
 
@@ -169,7 +172,9 @@ func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 		return Task{}, err
 	}
 	r := a.taw(s)
-	return Task{Title: "Update: " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
+	bridge := taw.NeedsBridge(t)
+	return Task{Title: "Update " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
+		Steps: taw.UpdatePlan(t, pol, bridge), Info: updateInfo(s, t, pol), Target: s.ID + "/" + t.Dir,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 			rep, err := r.Update(ctx, t, out)
 			if err != nil {
@@ -179,6 +184,34 @@ func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 			sum.Report = UpdateOutcome{Site: s, Theme: t, Report: rep}
 			return sum, nil
 		}}, nil
+}
+
+// updateInfo is the update's header: the site, the versions, and the
+// policy it follows.
+func updateInfo(s site.Site, t site.Theme, pol taw.Policy) []string {
+	from := strings.TrimPrefix(t.Core.Locked, "v")
+	if from == "" {
+		from = strings.TrimPrefix(t.Core.Installed, "v")
+	}
+	versions := "taw/core " + orBlank(from, "?")
+	if latest := strings.TrimPrefix(t.Core.Latest, "v"); latest != "" && latest != from {
+		versions += " → " + latest + " (newest)"
+	} else if latest != "" {
+		versions += " (newest)"
+	}
+	rng := map[string]string{"minor": "any 1.x release", "patch": "bug fixes only"}[pol.Core]
+	if rng == "" {
+		rng = strings.Replace(pol.Core, "pinned:", "pinned at ", 1)
+	}
+	ends := map[string]string{"pr": "a pull request for you to merge", "pr+merge": "a pull request that merges itself when CI passes (deploys)", "branch": "a commit on a branch, nothing pushed"}[pol.Deliver]
+	source := "taw.json"
+	if !pol.File {
+		source = "defaults (no taw.json)"
+	}
+	return []string{
+		s.Slug + "  ·  " + t.Dir + "  ·  " + versions,
+		source + ": " + rng + "  ·  checks " + strings.Join(pol.Checks, ", ") + "  ·  ends in " + ends,
+	}
 }
 
 // UpdateQuestion is the one question before an update, in the policy's words.

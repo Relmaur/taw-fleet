@@ -427,7 +427,8 @@ func (f *fakeActions) SyncTask(_ site.Site, t site.Theme, apply bool) (actions.T
 
 func (f *fakeActions) UpdateTask(s site.Site, t site.Theme) (actions.Task, error) {
 	ask := "Update " + t.Dir + "? taw/core, framework files, migrations, checks, then a pull request to merge."
-	return actions.Task{Title: "Update: " + t.Dir, Writes: true, Ask: ask, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+	steps := []taw.Step{{Key: "branch", Label: "New branch"}, {Key: "check:phpstan", Label: "Static analysis (PHPStan)"}, {Key: "commit", Label: "Commit"}, {Key: "deliver", Label: "Pull request"}}
+	return actions.Task{Title: "Update " + t.Dir, Writes: true, Ask: ask, Steps: steps, Target: s.ID + "/" + t.Dir, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
 		_, _ = out.Write([]byte("Working on a new branch, taw/update-20261010-120000 (from main)\nCheck: phpstan\n  ✗ phpstan failed\n"))
 		var rep taw.UpdateReport
 		rep.Status, rep.Branch, rep.ReportPath = "failed", "taw/update-20261010-120000", "/t/.taw/update-report.md"
@@ -445,6 +446,11 @@ func (f *fakeActions) UpdateTask(s site.Site, t site.Theme) (actions.Task, error
 func (f *fakeActions) FixUpdate(_ context.Context, o actions.UpdateOutcome, beside string) (actions.Launched, error) {
 	f.launched, f.beside = "fix "+o.Theme.Dir+" on "+o.Report.Branch, beside
 	return actions.Launched{Message: "Claude Code is finishing the update of " + o.Theme.Dir}, nil
+}
+
+func (f *fakeActions) OpenURL(_ context.Context, url string) (string, error) {
+	f.launched = "url " + url
+	return "Opened " + url, nil
 }
 
 func (f *fakeActions) OpenGuide(_ context.Context, o actions.UpdateOutcome) (string, error) {
@@ -773,8 +779,8 @@ func TestApplyAndUpdateAskFirst(t *testing.T) {
 	}
 	next, cmd := m.Update(keyMsg("y"))
 	m = drain(t, next.(Model), cmd)
-	if !strings.Contains(screen(m), "✗ failed") || !strings.Contains(screen(m), "stopped at phpstan") || !strings.Contains(screen(m), "✗ phpstan failed") {
-		t.Errorf("the stop is shown with its progress:\n%s", screen(m))
+	if !strings.Contains(screen(m), "✗ stopped") || !strings.Contains(screen(m), "✗  Static analysis (PHPStan)") {
+		t.Errorf("the stop is shown on the checklist:\n%s", screen(m))
 	}
 	if !strings.Contains(m.confirm, "1 Fix with Claude · 2 Do it myself") || len(m.choices) != 2 {
 		t.Fatalf("a stopped update offers both ways to finish it: %q", m.confirm)
@@ -783,6 +789,17 @@ func TestApplyAndUpdateAskFirst(t *testing.T) {
 	m = runCmd(t, m, keyMsg("1"))
 	if f.launched != "fix bistro-theme on taw/update-20261010-120000" || f.beside != "/dev/ttys004" || m.confirm != "" {
 		t.Errorf("1 hands the report to Claude beside the dashboard: %q %q", f.launched, f.beside)
+	}
+}
+
+func TestTheListShowsTheUpdateOnItsRow(t *testing.T) {
+	f := &fakeActions{}
+	m := press(t, withActions(t, 30, f), "j", "u")
+	next, cmd := m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	m = press(t, m, "n", "esc")
+	if m.mode != modeTable || !strings.Contains(screen(m), "✗ update stopped at Static analysis (PHPStan)") {
+		t.Errorf("back on the list, the row keeps the outcome:\n%s", screen(m))
 	}
 }
 
