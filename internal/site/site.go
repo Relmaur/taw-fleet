@@ -219,19 +219,24 @@ type ScaffoldInfo struct {
 
 // GitInfo is a theme repository's state.
 type GitInfo struct {
-	Branch        string    `json:"branch"`
-	Detached      bool      `json:"detached"`
-	DefaultBranch string    `json:"default_branch,omitempty"` // from origin/HEAD
-	Upstream      string    `json:"upstream,omitempty"`       // e.g. origin/main
-	Ahead         int       `json:"ahead"`
-	Behind        int       `json:"behind"`
-	Dirty         int       `json:"dirty"` // changed + untracked files
-	Describe      string    `json:"describe,omitempty"`
-	LastTag       string    `json:"last_tag,omitempty"`
-	LastCommit    time.Time `json:"last_commit,omitzero"`
-	Remote        string    `json:"remote,omitempty"` // taw.json's delivery remote, when it isn't origin
-	RemoteURL     string    `json:"remote_url,omitempty"`
-	Repo          *Repo     `json:"repo,omitempty"`
+	Branch        string `json:"branch"`
+	Detached      bool   `json:"detached"`
+	DefaultBranch string `json:"default_branch,omitempty"` // from origin/HEAD
+	Upstream      string `json:"upstream,omitempty"`       // e.g. origin/main
+	// ForeignUpstream is the other repository (owner/name, or the remote's
+	// name) the checked-out branch tracks, when its remote is neither origin
+	// nor the delivery remote: a local branch of the scaffold, say, whose
+	// files and versions aren't the site's.
+	ForeignUpstream string    `json:"foreign_upstream,omitempty"`
+	Ahead           int       `json:"ahead"`
+	Behind          int       `json:"behind"`
+	Dirty           int       `json:"dirty"` // changed + untracked files
+	Describe        string    `json:"describe,omitempty"`
+	LastTag         string    `json:"last_tag,omitempty"`
+	LastCommit      time.Time `json:"last_commit,omitzero"`
+	Remote          string    `json:"remote,omitempty"` // taw.json's delivery remote, when it isn't origin
+	RemoteURL       string    `json:"remote_url,omitempty"`
+	Repo            *Repo     `json:"repo,omitempty"`
 }
 
 // HasUpstream reports whether the branch tracks a remote branch.

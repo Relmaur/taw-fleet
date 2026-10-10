@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Relmaur/taw-fleet/internal/config"
+	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
@@ -110,5 +111,46 @@ func TestMergeTaskRefusesAndLeavesDirtyThemesAlone(t *testing.T) {
 	task, _ = a.MergeTask(s, th, pr)
 	if _, err := task.Run(context.Background(), io.Discard); err == nil {
 		t.Error("a refused merge fails the task")
+	}
+}
+
+func TestMergeTaskKeepsTheCopyInStep(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	a.Merger = &fakeMerger{}
+	s, th, pr := mergeFixture()
+	th.Git.Remote = "origin-agency" // taw.json's update.remote: origin is a copy
+
+	task, _ := a.MergeTask(s, th, pr)
+	if !strings.Contains(task.Ask, "Then origin (the copy) gets main too") {
+		t.Errorf("Ask = %q", task.Ask)
+	}
+	if _, err := task.Run(context.Background(), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	var git []string
+	for _, c := range f.Calls() {
+		git = append(git, strings.Join(c.Args, " "))
+	}
+	want := "switch main | pull --ff-only origin-agency main | branch -d chore/taw-core-1.78.1 | remote get-url origin | push origin main:main"
+	if strings.Join(git, " | ") != want {
+		t.Errorf("local git = %v", git)
+	}
+
+	// A copy with commits of its own can't fast-forward: it's left alone.
+	a2, f2 := setup(t, config.Config{})
+	a2.Merger = &fakeMerger{}
+	f2.Script = func(sp exec.Spec) (exec.Result, error) {
+		if len(sp.Args) > 0 && sp.Args[0] == "push" {
+			return exec.Result{Code: 1, Stderr: []byte("! [rejected] main -> main (non-fast-forward)")}, nil
+		}
+		return exec.Result{}, nil
+	}
+	task, _ = a2.MergeTask(s, th, pr)
+	sum, err := task.Run(context.Background(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Join(sum.Lines, "\n"); !strings.Contains(lines, "has commits of its own") || !strings.Contains(lines, "--force-with-lease origin main") {
+		t.Errorf("lines = %v", sum.Lines)
 	}
 }

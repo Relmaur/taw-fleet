@@ -123,6 +123,9 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 		if t.Core.Latest != "" && !t.Core.Behind {
 			extra = append(extra, "latest")
 		}
+		if g := t.Git; g != nil && !g.Detached && g.DefaultBranch != "" && g.Branch != g.DefaultBranch {
+			extra = append(extra, "from branch "+g.Branch)
+		}
 		if len(extra) > 0 {
 			core += muted.Render("  (" + strings.Join(extra, ", ") + ")")
 		}
@@ -133,7 +136,10 @@ func Cards(p style.Palette, ps paths.Paths, s site.Site, now time.Time, width in
 		} else {
 			gi := t.Git
 			state := p.Git(gi)
-			if gi.Upstream != "" {
+			switch {
+			case gi.ForeignUpstream != "":
+				state += p.Fg(p.Warn).Render("  tracks " + gi.ForeignUpstream)
+			case gi.Upstream != "":
 				state += muted.Render("  tracking " + gi.Upstream)
 			}
 			if gi.DefaultBranch != "" && gi.Branch != gi.DefaultBranch && !gi.Detached {

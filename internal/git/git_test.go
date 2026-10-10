@@ -226,3 +226,22 @@ func TestDeliveryRemote(t *testing.T) {
 		t.Errorf("taw.json: %q", got)
 	}
 }
+
+func TestInfoForeignUpstream(t *testing.T) {
+	_, clone := setup(t)
+	// A local branch of the scaffold, as chcapital had: main tracking the
+	// upstream remote (taw-theme) while the site's own branch is elsewhere.
+	scaffold, _ := setup(t)
+	gitCmd(t, clone, "remote", "add", "upstream", scaffold)
+	gitCmd(t, clone, "fetch", "-q", "upstream")
+	gitCmd(t, clone, "switch", "-q", "-c", "scaffold", "--track", "upstream/main")
+	g := info(t, clone)
+	if g.Upstream != "upstream/main" || g.ForeignUpstream != "upstream" {
+		t.Errorf("foreign upstream: %+v", g)
+	}
+
+	gitCmd(t, clone, "switch", "-q", "main")
+	if g := info(t, clone); g.ForeignUpstream != "" {
+		t.Errorf("origin's branch is the site's own: %+v", g)
+	}
+}

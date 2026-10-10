@@ -61,6 +61,9 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 	case st.Deploy != nil:
 		ask += " This starts the " + st.Deploy.Workflow + " workflow."
 	}
+	if t.Git != nil && t.Git.Remote != "" {
+		ask += " Then origin (the copy) gets " + st.Default + " too, when it can follow."
+	}
 	res := MergeResult{Repo: st.Repo, Number: pr.Number, Production: prod, Deploys: st.Deploy != nil}
 
 	return Task{
@@ -137,6 +140,9 @@ func (a *Actions) pullDefault(ctx context.Context, t site.Theme, def, merged str
 	if merged != def && git("branch", "-d", merged) == nil {
 		say("Deleted the local branch %s", merged)
 	}
+	if g.Remote != "" {
+		return a.updateCopy(git, def, say)
+	}
 	return ""
 }
 
@@ -145,4 +151,20 @@ func short(sha string) string {
 		return sha[:7]
 	}
 	return sha
+}
+
+// updateCopy brings origin's default branch up to the merge when the theme
+// delivers to another remote (taw.json's update.remote): origin is then a
+// copy, and it follows by fast-forward only. A copy with commits of its own
+// is left alone, with what to do.
+func (a *Actions) updateCopy(git func(...string) error, def string, say func(string, ...any)) string {
+	if git("remote", "get-url", "origin") != nil {
+		return ""
+	}
+	if err := git("push", "origin", def+":"+def); err != nil {
+		return "the copy on origin wasn't updated: its " + def + " has commits of its own, so it can't follow by fast-forward. " +
+			"Realign it once (git push --force-with-lease origin " + def + ", after checking it has nothing the other repository lacks), then M keeps it in step"
+	}
+	say("Pushed %s to origin too (the copy)", def)
+	return ""
 }

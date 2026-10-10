@@ -113,7 +113,7 @@ func newCommentsCmd(d Deps, g *globals) *cobra.Command {
 		Long: "List the comments reviewers left in BugSmash that nobody resolved yet, per site (newest\n" +
 			"first). Sites come from bugsmash_project in the config; the API key from the Keychain\n" +
 			"(taw-fleet comments key import) or $BUGSMASH_API_KEY. It only reads: resolve them with\n" +
-			"the umbrella's taw-resolve-comments skill.",
+			"the theme's resolve-comments skill (X in the dashboard).",
 		Example: "  taw-fleet comments\n  taw-fleet comments chcapital --json\n  taw-fleet comments projects",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

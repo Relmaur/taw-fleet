@@ -133,7 +133,7 @@ func checkFeedback(s site.Site) []site.Finding {
 		}
 	}
 	return finding(sev, "comments.open", fmt.Sprintf("%d open %s in BugSmash%s", f.Open, plural(f.Open, "comment", "comments"), when),
-		"X in the dashboard hands them to Claude (skill taw-resolve-comments), or ask Claude in the TAW umbrella: \"resolve comments on "+s.Slug+"\"")
+		"X in the dashboard hands them to Claude (the theme's resolve-comments skill), or run Claude Code in the theme folder: \"resolve the open comments on "+s.Slug+"\"")
 }
 
 func ageWords(d time.Duration) string {
@@ -285,8 +285,17 @@ func checkGit(s site.Site, t site.Theme) []site.Finding {
 			out = append(out, f(site.Info, "git.ahead", fmt.Sprintf("%d %s not pushed", g.Ahead, plural(g.Ahead, "commit", "commits")), "git push"))
 		}
 	}
-	if !g.Detached && g.DefaultBranch != "" && g.Branch != g.DefaultBranch {
-		out = append(out, f(site.Info, "git.off-default", fmt.Sprintf("on %s, not %s", g.Branch, g.DefaultBranch), ""))
+	if g.ForeignUpstream != "" {
+		to := g.DefaultBranch
+		if to == "" {
+			to = "<the site's branch>"
+		}
+		out = append(out, f(site.Warn, "git.foreign-upstream",
+			fmt.Sprintf("%s tracks %s, not the site's", g.Branch, g.ForeignUpstream),
+			"D (or git switch "+to+")"))
+	}
+	if !g.Detached && g.ForeignUpstream == "" && g.DefaultBranch != "" && g.Branch != g.DefaultBranch {
+		out = append(out, f(site.Info, "git.off-default", fmt.Sprintf("on %s, not %s", g.Branch, g.DefaultBranch), "D in the dashboard switches back, when that's what you want"))
 	}
 	if g.RemoteURL == "" {
 		out = append(out, f(site.Warn, "git.no-remote", "no "+remoteName(g)+" remote", "git remote add "+remoteName(g)+" <url>"))

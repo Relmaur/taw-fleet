@@ -622,6 +622,7 @@ func (m Model) helpScreen() string {
 		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "main", Upstream: "origin/main", Dirty: 3, Ahead: 1, Behind: 2}) +
 			"  uncommitted ±, to push ↑, to pull ↓   " + p.Fg(p.Brand).Render("@acct") + " another GitHub account",
 		p.Git(&site.GitInfo{Branch: "feature", DefaultBranch: "main"}) + "  not the default branch, not pushed",
+		p.Git(&site.GitInfo{Branch: "main", DefaultBranch: "master", Upstream: "upstream/main", ForeignUpstream: "Relmaur/taw-theme"}) + "  tracks another repository (the scaffold's, say): what's shown isn't the site's",
 		p.Sync(nil) + " " + p.Sync(&site.Drift{}) + " " + p.Sync(&site.Drift{Tier1: []string{"a", "b"}}) + " " + p.Sync(&site.Drift{Errors: []string{"x"}}) +
 			"  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed",
 		p.Live(&site.Production{Reachable: true, Verified: true}) + " " + p.Live(&site.Production{Reachable: true}) + " " + p.Live(&site.Production{}) + " " + p.Live(nil) +
