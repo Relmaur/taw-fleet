@@ -4,6 +4,8 @@ package git
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -38,10 +40,17 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 			info.Branch = ""
 		}
 	}
-	if head, ok, err := g.out("symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err != nil {
-		return nil, err
-	} else if ok {
-		info.DefaultBranch = strings.TrimPrefix(head, "origin/")
+	remote := DeliveryRemote(dir)
+	if remote != "origin" {
+		info.Remote = remote
+	}
+	for _, r := range []string{remote, "origin"} {
+		if head, ok, err := g.out("symbolic-ref", "-q", "--short", "refs/remotes/"+r+"/HEAD"); err != nil {
+			return nil, err
+		} else if ok {
+			info.DefaultBranch = strings.TrimPrefix(head, r+"/")
+			break
+		}
 	}
 	if up, ok, err := g.out("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"); err != nil {
 		return nil, err
@@ -75,7 +84,7 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 			info.LastCommit = t
 		}
 	}
-	if url, ok, err := g.out("remote", "get-url", "origin"); err != nil {
+	if url, ok, err := g.out("remote", "get-url", remote); err != nil {
 		return nil, err
 	} else if ok {
 		info.RemoteURL = url
@@ -84,6 +93,26 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 		}
 	}
 	return info, nil
+}
+
+// DeliveryRemote is the git remote the theme's updates go to: taw.json's
+// "update.remote" (an agency site whose production deploys from another
+// organization than origin), else origin. Its repository is the one the
+// dashboard reads pull requests and deploys from.
+func DeliveryRemote(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "taw.json"))
+	if err != nil {
+		return "origin"
+	}
+	var doc struct {
+		Update struct {
+			Remote string `json:"remote"`
+		} `json:"update"`
+	}
+	if json.Unmarshal(data, &doc) != nil || doc.Update.Remote == "" {
+		return "origin"
+	}
+	return doc.Update.Remote
 }
 
 type gitRunner struct {

@@ -490,3 +490,58 @@ func TestLaunchFleetWritesPromptsAndAddsDirs(t *testing.T) {
 		t.Errorf("empty plan: %v", err)
 	}
 }
+
+// Update all: the themes one after another, each with its own update; one
+// that stops doesn't stop the next.
+func TestUpdateAllTaskRunsEachThemeInTurn(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	s, th := fixture()
+	var plan FleetPlan
+	for _, dir := range []string{"one", "two"} {
+		x := th
+		x.Dir, x.RealPath = dir, filepath.Join(t.TempDir(), dir)
+		mustWriteBody(t, filepath.Join(x.RealPath, "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.91.2"}]}`)
+		plan.Themes = append(plan.Themes, FleetEntry{Site: s, Theme: x})
+	}
+	f.Script = func(sp exec.Spec) (exec.Result, error) {
+		if strings.HasSuffix(sp.Dir, "one") {
+			return exec.Result{Code: 1, Stdout: []byte(`{"status":"failed","branch":"taw/update-1","failure":{"step":"phpstan"}}`)}, nil
+		}
+		return exec.Result{Stdout: []byte(`{"status":"updated","branch":"taw/update-2","core":{"from":"v1.91.2","to":"v1.92.0"},"delivered":{"how":"pr","url":"https://github.com/x/two/pull/3"}}`)}, nil
+	}
+	task, err := a.UpdateAllTask(plan)
+	if err != nil || len(task.Batch) != 2 || !strings.HasPrefix(task.Ask, "Update 2 themes, one after another") {
+		t.Fatalf("task=%+v err=%v", task, err)
+	}
+	var out strings.Builder
+	sum, err := task.Run(context.Background(), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), BatchStart+"x1/one\n") || !strings.Contains(out.String(), BatchEnd+"x1/two updated https://github.com/x/two/pull/3\n") {
+		t.Errorf("markers:\n%s", out.String())
+	}
+	res := sum.Report.(UpdateAllOutcome)
+	if len(res.Items) != 2 || len(res.Stopped()) != 1 || res.Stopped()[0].Theme.Dir != "one" || !sum.Failed ||
+		sum.Headline != "Update all: 1 updated, 1 stopped" {
+		t.Errorf("sum = %+v", sum)
+	}
+}
+
+func TestPlanUpdateAllLeavesOutOtherBranches(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	s, th := fixture()
+	other := th
+	other.Dir = "busy"
+	g := *th.Git
+	g.Branch = "feature/x"
+	other.Git = &g
+	s.Themes = []site.Theme{th, other}
+	plan := a.PlanUpdateAll(context.Background(), []site.Site{s})
+	if len(plan.Themes) != 1 || plan.Themes[0].Theme.Dir != "ls-mexico" {
+		t.Fatalf("themes = %+v", plan.Themes)
+	}
+	if len(plan.Skipped) != 1 || plan.Skipped[0].Reason == "" {
+		t.Errorf("skipped = %+v", plan.Skipped)
+	}
+}

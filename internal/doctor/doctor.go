@@ -276,7 +276,7 @@ func checkGit(s site.Site, t site.Theme) []site.Finding {
 	case g.Detached:
 		out = append(out, f(site.Warn, "git.detached", "HEAD is detached (not on a branch)", "git switch <branch>"))
 	case !g.HasUpstream():
-		out = append(out, f(site.Warn, "git.no-upstream", "branch "+g.Branch+" isn't pushed (no upstream)", "git push -u origin "+g.Branch))
+		out = append(out, f(site.Warn, "git.no-upstream", "branch "+g.Branch+" isn't pushed (no upstream)", "git push -u "+remoteName(g)+" "+g.Branch))
 	default:
 		if g.Behind > 0 {
 			out = append(out, f(site.Warn, "git.behind", fmt.Sprintf("%d %s to pull from %s", g.Behind, plural(g.Behind, "commit", "commits"), g.Upstream), "git pull"))
@@ -289,9 +289,17 @@ func checkGit(s site.Site, t site.Theme) []site.Finding {
 		out = append(out, f(site.Info, "git.off-default", fmt.Sprintf("on %s, not %s", g.Branch, g.DefaultBranch), ""))
 	}
 	if g.RemoteURL == "" {
-		out = append(out, f(site.Warn, "git.no-remote", "no origin remote", "git remote add origin <url>"))
+		out = append(out, f(site.Warn, "git.no-remote", "no "+remoteName(g)+" remote", "git remote add "+remoteName(g)+" <url>"))
 	}
 	return out
+}
+
+// remoteName is the remote the theme delivers to: taw.json's, else origin.
+func remoteName(g *site.GitInfo) string {
+	if g.Remote != "" {
+		return g.Remote
+	}
+	return "origin"
 }
 
 // checkGitHub reads the theme's pull requests and deploys (taw-fleet prs).

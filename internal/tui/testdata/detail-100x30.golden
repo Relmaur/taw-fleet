@@ -1,6 +1,6 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
- LOCAL ──────────────────────────────────────────────────────────────────────────── this Mac · Local
+ ⌂ LOCAL ────────────────────────────────────────────────────────────────────────── this Mac · Local
  ○ bistro  http://bistro.local  halted                                                              
    ~/Local Sites/bistro                                                                             
    PHP 8.2.29  ·  id b2                                                                             
@@ -16,7 +16,7 @@
  │ bin/taw    yes                                             │                                     
  ╰────────────────────────────────────────────────────────────╯                                     
                                                                                                     
- FINDINGS ─────────────────────────────────────────────────────────────────────────────────── doctor
+ ⚑ FINDINGS ───────────────────────────────────────────────────────────────────────────────── doctor
    ▲ taw/core v1.59.2, latest is v1.76.1  bistro-theme  core.behind                                 
      → composer update taw/core, then read vendor/taw/core/UPGRADING.md                             
    ▲ branch chore/update-core isn't pushed (no upstream)  bistro-theme  git.no-upstream             

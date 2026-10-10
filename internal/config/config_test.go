@@ -88,3 +88,32 @@ func TestInitWritesAValidTemplateOnce(t *testing.T) {
 		t.Errorf("examples: %+v %v", c, err)
 	}
 }
+
+func TestSetTopKeepsTheRest(t *testing.T) {
+	p := paths.ForHome(t.TempDir(), nil)
+	f, err := SetTop(p, "icons", "nerd") // no file yet: the template, then the key
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, err := Load(p); err != nil || c.Icons != "nerd" {
+		t.Fatalf("icons = %q, %v", c.Icons, err)
+	}
+	data, _ := os.ReadFile(f)
+	if !strings.Contains(string(data), "# icons = \"nerd\"\nicons = \"nerd\"") || !strings.Contains(string(data), "# [sites.ls-mxico]") {
+		t.Errorf("set under its example, the rest kept:\n%s", data)
+	}
+	// A config with a table and no example: the key goes above the table.
+	if err := os.WriteFile(f, []byte("editor = \"Zed\"\n\n[sites.acme]\nnotes = \"x\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetTop(p, "icons", "symbols"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetTop(p, "icons", "nerd"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(f)
+	if string(data) != "editor = \"Zed\"\n\nicons = \"nerd\"\n\n[sites.acme]\nnotes = \"x\"\n" {
+		t.Errorf("got:\n%s", data)
+	}
+}

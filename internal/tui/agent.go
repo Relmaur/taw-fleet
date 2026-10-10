@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -96,41 +95,32 @@ func (m Model) planFleet() (tea.Model, tea.Cmd) {
 	}
 	a, ctx, sites := m.deps.Actions, m.ctx, m.rep.Sites
 	m.setFlash("Checking which themes need an update…", false)
-	return m, func() tea.Msg { return fleetPlannedMsg{a.PlanFleet(ctx, sites)} }
+	return m, func() tea.Msg { return fleetPlannedMsg{a.PlanUpdateAll(ctx, sites)} }
 }
 
-// fleetPlanned asks before launching: the themes it updates and the ones
-// it leaves out.
+// fleetPlanned asks before updating every theme that needs it (U), one
+// after another, with no agent: each as its taw.json says.
 func (m Model) fleetPlanned(p actions.FleetPlan) (tea.Model, tea.Cmd) {
-	var left []string
-	for _, s := range p.Skipped {
-		left = append(left, s.Theme+" ("+s.Reason+")")
-	}
 	if len(p.Themes) == 0 {
 		msg := "Nothing to update: every client TAW theme is current"
-		if len(left) > 0 {
-			msg += "; left out: " + strings.Join(left, ", ")
+		if left := leftOut(p); left != "" {
+			msg += "; left out: " + left
 		}
 		m.setFlash(msg, false)
 		return m, nil
 	}
-	var names []string
-	for _, e := range p.Themes {
-		names = append(names, e.Theme.Dir)
+	task, err := m.deps.Actions.UpdateAllTask(p)
+	if err != nil {
+		m.setFlash(err.Error(), true)
+		return m, nil
 	}
-	n := len(p.Themes)
-	q := fmt.Sprintf("Update %d %s with agents: %s?", n, plural(n, "theme", "themes"), strings.Join(names, ", "))
-	if len(left) > 0 {
-		q += " Leaving out " + strings.Join(left, ", ") + "."
+	return m.askTask(task, "")
+}
+
+func leftOut(p actions.FleetPlan) string {
+	var left []string
+	for _, s := range p.Skipped {
+		left = append(left, s.Theme+" ("+s.Reason+")")
 	}
-	m.confirm = q
-	m.onYes = func(m Model) (tea.Model, tea.Cmd) {
-		a, ctx, tty, findings := m.deps.Actions, m.ctx, m.deps.TTY, m.findings
-		label := fmt.Sprintf("the update of %d %s", n, plural(n, "theme", "themes"))
-		return m, func() tea.Msg {
-			l, err := a.LaunchFleet(ctx, p, findings, tty)
-			return launchedMsg{label, l, err}
-		}
-	}
-	return m, nil
+	return strings.Join(left, ", ")
 }

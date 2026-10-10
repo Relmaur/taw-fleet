@@ -49,7 +49,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
 | `A` | update with agent: Claude Code in a window beside the dashboard, in the theme folder, with the update prompt |
-| `U` | update all with agents: every client TAW theme that needs it, in one Claude Code session with a subagent per theme (asks first) |
+| `U` | update all: every client TAW theme that needs it, one after another, each as its `taw.json` says (asks first; see [Update every theme at once](#update-every-theme-at-once)) |
 | `h` | show that prompt first; then `A` sends it to Claude Code, `c` copies it |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
@@ -75,16 +75,22 @@ Each row is a two-line card: the site on top with its columns, and underneath it
 theme's kind, the production host (when there's room), the age of the oldest open BugSmash
 comment under **FB**, and how long ago the last commit was under **GIT**. The selected card is
 tinted. While every row fits, a blank line separates the cards; when they don't, they sit tight
-and the rule under the column names says where you are (`1–19 of 24`). The TAW ecosystem's own
+and the rule under the column names says where you are (`1–19 of 24`). While a site updates, or for
+15 minutes after, its card carries one icon in the left margin, under the status dot: `◷` waiting
+its turn, a spinner while it runs, `✓` updated, `✗` stopped; the full story is in the details
+beside the list. The TAW ecosystem's own
 themes (the umbrella's taw-theme and taw-gutenberg, linked into a Local site) come last, under
 their own label: they're the scaffolds client themes are made from, not client sites, and the
 header counts only client sites.
 
 At 120 columns and wider, the selected site's details sit beside the table (the pane narrows, or
 steps aside, when the table needs the room), in sections that say where each part comes from:
-**LOCAL** (this Mac), **LIVE** (the production site's companion), **FEEDBACK** (BugSmash) and
+**UPDATE** (while a site updates, or just after: the step, the bar, the pull request; `o` opens
+the update screen), **LOCAL** (this Mac), **LIVE** (the production site's companion), **FEEDBACK** (BugSmash) and
 **FINDINGS** (`doctor`). The colors follow
-your terminal's light or dark background. When the output isn't a terminal (piped, CI),
+your terminal's light or dark background. The header, the sections and the `:` menu carry icons:
+plain Unicode symbols by default, or Nerd Font icons with `taw-fleet config icons nerd` (see
+[Settings](#settings)). When the output isn't a terminal (piped, CI),
 `taw-fleet` prints the `list` table instead.
 
 ```bash
@@ -110,7 +116,7 @@ Every read command takes `--json` (for scripts and Claude sessions) and `--offli
 GitHub; use the cached newest versions).
 
 ```
- ◆ taw-fleet v1.10.0 · 8 sites · 8 themes · 5 running · 8 behind                  updated just now
+ ◆ taw-fleet v1.15.0  ·  ⌂ 8 sites  ·  ◧ 8 TAW themes  ·  ● 5 running  ·  ↑ 8 behind on taw/core       updated just now
 
     SITE · THEME                       TAW/CORE         SYNC  LIVE  FB   PR   DEPLOY  GIT
 ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -347,25 +353,25 @@ Terminal is used instead).
 
 ### Update every theme at once
 
-`U` in the dashboard (or `taw-fleet handoff --all --launch`) updates every client TAW theme that
-needs it in one Claude Code session, in a window beside the dashboard:
+`U` in the dashboard (or `taw-fleet update --all`) updates every client TAW theme that needs it,
+one after another, each the way `u` would: the theme's own `vendor/bin/taw update`, as its
+`taw.json` says, ending in its own pull request. No agent is involved.
 
 - **Which themes:** those behind on taw/core (checked against GitHub right then, not the
-  hour-long cache) or with scaffold drift. Left out, with the reason: uncommitted changes, a
-  branch other than the default (a `chore/…` branch is resumed), no git, and the umbrella's own
+  hour-long cache) or with scaffold drift, on their default branch with a clean tree. Left out,
+  with the reason: uncommitted changes, another branch, no git, and the umbrella's own
   scaffolds. `U` lists both and asks first.
-- **How:** Claude Code starts with every theme folder added (`--add-dir`) and a coordinator
-  prompt. The coordinator runs one subagent per theme, at most 3 at a time. Each follows the
-  update-theme skill's **batch mode** (taw-theme v1.12.45+): branch, `composer update taw/core
-  --with-dependencies`, sync with the rule-based manifest suggestions, UPGRADING checks, tests,
-  commit, and a JSON result. Nothing is pushed.
-- **Your decisions, once:** when all are done, the coordinator asks you in one round which docs
-  changes to apply, which sites to start for checks that need WordPress, and which branches to
-  push and open PRs for. Then it reports one table.
-- When you `/exit`, the dashboard rescans.
+- **The screen:** one line per theme (`◷` waiting, the running one with its bar and step, `✓`
+  with its pull request, `✗` with the step that stopped it) and the overall progress. `↑`/`↓`
+  and `enter` show a theme's steps, `o` its pull request, `r` its report, `l` the full log. `esc`
+  goes back to the list while it runs; each site's card shows its icon meanwhile.
+- **A theme that stops doesn't stop the others.** Its work stays on its branch with
+  `.taw/update-report.md`, and the end offers Fix with Claude for it, as `u` does.
+- `taw-fleet update --all` exits 1 when any theme stopped.
 
-The prompts are in `~/Library/Caches/taw-fleet/handoff/fleet-<time>/` (`coordinator.md` and one
-file per theme).
+To hand the whole round to Claude Code instead (one session, a subagent per theme, every
+decision asked once at the end): `taw-fleet handoff --all --launch`. Its prompts are in
+`~/Library/Caches/taw-fleet/handoff/fleet-<time>/`.
 
 ### Settings
 
@@ -376,6 +382,7 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
 window = false           # the dashboard in the current terminal (default: a new window)
+icons = "nerd"           # Nerd Font icons (default "symbols": plain Unicode, any font)
 
 [create]                 # defaults for taw-fleet create / n (all optional)
 kind = "classic"         # or "block"
@@ -389,6 +396,14 @@ production_url = "https://lsmexico.mx"
 notes = "Deploys from main."   # included in the handoff prompt
 bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"   # its BugSmash project (taw-fleet comments projects)
 ```
+
+**Icons.** `taw-fleet config icons nerd` switches to Nerd Font icons and `taw-fleet config icons
+symbols` back; it changes that one line and keeps the rest of the file. The terminal needs a Nerd
+Font for them: `brew install --cask font-jetbrains-mono-nerd-font`, then pick "JetBrainsMono Nerd
+Font" in the terminal's settings (Terminal: Settings → Profiles → Text → Font).
+
+**Delivery remote.** The update pushes to `origin`, or to the remote the theme's `taw.json` names
+(`"update": {"remote": "origin-agency"}`, taw/core 1.92.0+); `M` and the deploy status follow the same one.
 
 ### What `doctor` checks
 

@@ -126,7 +126,11 @@ func (a *Actions) pullDefault(ctx context.Context, t site.Theme, def, merged str
 			return "local theme: git switch " + def + ": " + err.Error()
 		}
 	}
-	if err := git("pull", "--ff-only"); err != nil {
+	pull := []string{"pull", "--ff-only"}
+	if g.Remote != "" { // taw.json's delivery remote: where the merge happened
+		pull = append(pull, g.Remote, def)
+	}
+	if err := git(pull...); err != nil {
 		return "local theme: git pull: " + err.Error()
 	}
 	say("Pulled %s in %s", def, t.Dir)

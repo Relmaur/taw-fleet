@@ -497,6 +497,48 @@ func (f *fakeActions) LaunchSkill(_ context.Context, s site.Site, t site.Theme, 
 
 func (f *fakeActions) PlanFleet(context.Context, []site.Site) actions.FleetPlan { return f.plan }
 
+func (f *fakeActions) PlanUpdateAll(context.Context, []site.Site) actions.FleetPlan { return f.plan }
+
+func (f *fakeActions) UpdateAllTask(p actions.FleetPlan) (actions.Task, error) {
+	steps := []taw.Step{{Key: "branch", Label: "New branch"}, {Key: "check:phpstan", Label: "Static analysis (PHPStan)"}, {Key: "commit", Label: "Commit"}, {Key: "deliver", Label: "Pull request"}}
+	var items []actions.BatchItem
+	for _, e := range p.Themes {
+		items = append(items, actions.BatchItem{Target: e.Site.ID + "/" + e.Theme.Dir, Label: e.Site.Slug + " · " + e.Theme.Dir, Steps: steps})
+	}
+	ask := fmt.Sprintf("Update %d themes, one after another, each as its taw.json says. Leaving out fsspx--theme (2 uncommitted change(s)).", len(items))
+	return actions.Task{Title: fmt.Sprintf("Update all · %d themes", len(items)), Writes: true, Ask: ask, Batch: items, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		var res actions.UpdateAllOutcome
+		for i, e := range p.Themes {
+			_, _ = fmt.Fprintln(out, actions.BatchStart+items[i].Target)
+			_, _ = fmt.Fprintln(out, "Working on a new branch, taw/update-"+fmt.Sprint(i+1)+" (from main)\n  ✓ git checkout\nCheck: phpstan")
+			var rep taw.UpdateReport
+			rep.Branch, rep.ReportPath = "taw/update-"+fmt.Sprint(i+1), "/t/report.md"
+			if i == 0 {
+				_, _ = fmt.Fprintln(out, "  ✓ phpstan passed\nPushing taw/update-1 and opening a pull request")
+				rep.Status = "updated"
+				rep.Core.From, rep.Core.To = "v1.89.0", "v1.91.2"
+				rep.Delivered = &struct {
+					How  string `json:"how"`
+					URL  string `json:"url"`
+					Note string `json:"note"`
+				}{How: "pr", URL: "https://github.com/acme/acme/pull/7"}
+			} else {
+				_, _ = fmt.Fprintln(out, "  ✗ phpstan failed")
+				rep.Status = "failed"
+				rep.Failure = &struct {
+					Step    string `json:"step"`
+					Command string `json:"command"`
+					Out     string `json:"out"`
+					Reason  string `json:"reason"`
+				}{Step: "phpstan", Command: "composer run phpstan"}
+			}
+			_, _ = fmt.Fprintln(out, actions.BatchEnd+items[i].Target+" "+rep.Status)
+			res.Items = append(res.Items, actions.UpdateItemOutcome{UpdateOutcome: actions.UpdateOutcome{Site: e.Site, Theme: e.Theme, Report: rep}, Target: items[i].Target})
+		}
+		return actions.Summary{Headline: "Update all: 1 updated, 1 stopped", Report: res, Failed: true}, nil
+	}}, nil
+}
+
 func (f *fakeActions) LaunchFleet(_ context.Context, p actions.FleetPlan, _ map[string][]site.Finding, beside string) (actions.Launched, error) {
 	f.fleet, f.beside = &p, beside
 	return actions.Launched{Message: "Claude Code is updating 2 themes in the window on the right", Done: filepath.Join(f.doneDir, "coordinator.done")}, nil
@@ -798,8 +840,12 @@ func TestTheListShowsTheUpdateOnItsRow(t *testing.T) {
 	next, cmd := m.Update(keyMsg("y"))
 	m = drain(t, next.(Model), cmd)
 	m = press(t, m, "n", "esc")
-	if m.mode != modeTable || !strings.Contains(screen(m), "✗ update stopped at Static analysis (PHPStan)") {
-		t.Errorf("back on the list, the row keeps the outcome:\n%s", screen(m))
+	if m.mode != modeTable || !strings.Contains(screen(m), "✗ bistro-theme  classic") {
+		t.Errorf("back on the list, the row keeps a mark:\n%s", screen(m))
+	}
+	m = press(t, m, "enter")
+	if !strings.Contains(screen(m), "⟳ UPDATE") || !strings.Contains(screen(m), "stopped at Static analysis (PHPStan)") {
+		t.Errorf("the details say how it ended:\n%s", screen(m))
 	}
 }
 
@@ -874,9 +920,9 @@ func TestUpdateWithAgent(t *testing.T) {
 	}
 }
 
-func TestUpdateAllWithAgents(t *testing.T) {
+func TestUpdateAll(t *testing.T) {
 	f := &fakeActions{doneDir: t.TempDir()}
-	m := withActions(t, 24, f)
+	m := withActions(t, 30, f)
 	m.deps.TTY = "/dev/ttys004"
 	m = runCmd(t, m, keyMsg("U"))
 	if !strings.Contains(screen(m), "Nothing to update") || m.confirm != "" {
@@ -885,34 +931,36 @@ func TestUpdateAllWithAgents(t *testing.T) {
 
 	rep := fixtureReport()
 	f.plan = actions.FleetPlan{
-		Themes:  []actions.FleetEntry{{Site: rep.Sites[0], Theme: site.Theme{Dir: "acme"}}, {Site: rep.Sites[1], Theme: site.Theme{Dir: "bistro-theme"}}},
+		Themes:  []actions.FleetEntry{{Site: rep.Sites[0], Theme: rep.Sites[0].Themes[0]}, {Site: rep.Sites[1], Theme: rep.Sites[1].Themes[0]}},
 		Skipped: []handoff.FleetSkip{{Site: "x", Theme: "fsspx--theme", Reason: "2 uncommitted change(s)"}},
 	}
 	m = runCmd(t, m, keyMsg("U"))
-	want := "Update 2 themes with agents: acme, bistro-theme? Leaving out fsspx--theme (2 uncommitted change(s))."
-	if m.confirm != want {
+	if !strings.HasPrefix(m.confirm, "Update 2 themes, one after another") || !strings.Contains(m.confirm, "Leaving out fsspx--theme (2 uncommitted change(s))") {
 		t.Fatalf("confirm = %q", m.confirm)
 	}
-	m = press(t, m, "n")
-	if f.fleet != nil {
-		t.Fatal("n launches nothing")
-	}
-	m = runCmd(t, m, keyMsg("U"))
 	next, cmd := m.Update(keyMsg("y"))
-	m = step(t, next.(Model), cmd())
-	if f.fleet == nil || len(f.fleet.Themes) != 2 || f.beside != "/dev/ttys004" {
-		t.Fatalf("launched = %+v beside %q", f.fleet, f.beside)
+	m = drain(t, next.(Model), cmd)
+	got := screen(m)
+	for _, want := range []string{"Update all · 2 themes", "2 of 2 themes", "acme-shop · acme", "pull request #7", "stopped at Static analysis (PHPStan)", "1 pull request opened"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
 	}
-	if !strings.Contains(screen(m), "updating 2 themes") || len(m.agents) != 1 {
-		t.Errorf("launched:\n%s", screen(m))
+	if !strings.Contains(m.confirm, "Finish the 1 update that stopped") {
+		t.Fatalf("confirm = %q", m.confirm)
 	}
-	if err := os.WriteFile(filepath.Join(f.doneDir, "coordinator.done"), nil, 0o600); err != nil {
-		t.Fatal(err)
+	m = runCmd(t, m, keyMsg("1"))
+	if f.launched != "fix bistro-theme on taw/update-2" {
+		t.Errorf("1 opens Claude on the stopped one: %q", f.launched)
 	}
-	m.scanning = false
-	m = step(t, m, tickMsg(now))
-	if !strings.Contains(screen(m), "Claude Code finished: the update of 2 themes") || !m.scanning {
-		t.Errorf("finished:\n%s", screen(m))
+	// enter shows a theme's own steps; esc goes back to all of them.
+	m = press(t, m, "down", "enter")
+	if !strings.Contains(screen(m), "theme 2 of 2") || !strings.Contains(screen(m), "✗  Static analysis (PHPStan)") {
+		t.Errorf("the theme's steps:\n%s", screen(m))
+	}
+	m = press(t, m, "esc", "esc")
+	if m.mode != modeTable || !strings.Contains(screen(m), "✓ acme  classic") || !strings.Contains(screen(m), "✗ bistro-theme  classic") {
+		t.Errorf("the rows keep a mark each:\n%s", screen(m))
 	}
 }
 

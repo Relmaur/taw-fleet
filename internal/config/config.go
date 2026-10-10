@@ -20,6 +20,7 @@ type Config struct {
 	Editor   string          `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
 	Terminal string          `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
 	Window   *bool           `toml:"window"`   // the dashboard in its own window; nil = true
+	Icons    string          `toml:"icons"`    // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
 	Umbrella string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
 	Create   Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
@@ -116,6 +117,11 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # same as taw-fleet --window=false).
 # window = false
 
+# The icons: "symbols" (plain Unicode, any font: the default) or "nerd" (Nerd
+# Font icons, for a terminal set to a Nerd Font, such as one installed with
+# brew install --cask font-jetbrains-mono-nerd-font). taw-fleet config icons nerd
+# icons = "nerd"
+
 # Defaults for taw-fleet create (n in the dashboard). Empty: asked, or
 # Local's preferred PHP and web server. The admin password is always
 # generated and shown once; it's never stored here.
@@ -135,6 +141,52 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # and in doctor. The API key goes in the Keychain: taw-fleet comments key import
 # bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"
 `
+
+// SetTop sets a top-level key (one before any [table]) to a string value in
+// the settings file, keeping everything else, comments included: the key's
+// line is replaced, or its commented example, or it's added above the first
+// table. A missing file is created from the template first.
+func SetTop(p paths.Paths, key, value string) (string, error) {
+	f := File(p)
+	if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
+		if _, err := Init(p); err != nil {
+			return f, err
+		}
+	}
+	data, err := os.ReadFile(f)
+	if err != nil {
+		return f, err
+	}
+	line := fmt.Sprintf("%s = %q", key, value)
+	lines := strings.Split(string(data), "\n")
+	set, firstTable := regexp.MustCompile(`^\s*`+regexp.QuoteMeta(key)+`\s*=`), -1
+	example := regexp.MustCompile(`^#\s*` + regexp.QuoteMeta(key) + `\s*=`)
+	exampleAt := -1
+	for i, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "[") && firstTable < 0 {
+			firstTable = i
+		}
+		if firstTable >= 0 {
+			break
+		}
+		if set.MatchString(l) {
+			lines[i] = line
+			return f, os.WriteFile(f, []byte(strings.Join(lines, "\n")), 0o644)
+		}
+		if example.MatchString(l) {
+			exampleAt = i
+		}
+	}
+	switch {
+	case exampleAt >= 0:
+		lines = append(lines[:exampleAt+1], append([]string{line}, lines[exampleAt+1:]...)...)
+	case firstTable >= 0:
+		lines = append(lines[:firstTable], append([]string{line, ""}, lines[firstTable:]...)...)
+	default:
+		lines = append(lines, line)
+	}
+	return f, os.WriteFile(f, []byte(strings.Join(lines, "\n")), 0o644)
+}
 
 // Init writes the template. It refuses to overwrite an existing file.
 func Init(p paths.Paths) (string, error) {

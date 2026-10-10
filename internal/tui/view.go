@@ -74,7 +74,7 @@ func (m Model) detailWidth() int {
 func (m Model) header() string {
 	p := m.pal
 	muted := p.Fg(p.Muted)
-	left := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render("◆ taw-fleet")
+	left := " " + lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render(p.I.Logo+" taw-fleet")
 	if m.deps.Version != "" {
 		left += " " + muted.Render(m.deps.Version)
 		if tag := m.rep.Latest[scan.LatestFleet]; tag != "" && m.deps.Version != "dev" && selfupdate.Newer(m.deps.Version, tag) {
@@ -115,16 +115,18 @@ func (m Model) header() string {
 		}
 		stats := func(compact bool) string {
 			sep, themeWord, behindWord := "  ·  ", "TAW ", " on taw/core"
+			ic := func(icon string) string { return icon + " " }
 			if compact {
 				sep, themeWord, behindWord = " · ", "", ""
+				ic = func(string) string { return "" }
 			}
 			parts := []string{
-				muted.Render(fmt.Sprintf("%d %s", sites, plural(sites, "site", "sites"))),
-				muted.Render(fmt.Sprintf("%d %s%s", themes, themeWord, plural(themes, "theme", "themes"))),
-				p.Fg(p.OK).Render(fmt.Sprintf("%d running", running)),
+				muted.Render(fmt.Sprintf("%s%d %s", ic(p.I.Sites), sites, plural(sites, "site", "sites"))),
+				muted.Render(fmt.Sprintf("%s%d %s%s", ic(p.I.Themes), themes, themeWord, plural(themes, "theme", "themes"))),
+				p.Fg(p.OK).Render(fmt.Sprintf("%s%d running", ic(p.I.Running), running)),
 			}
 			if behind > 0 {
-				parts = append(parts, p.Fg(p.Warn).Render(fmt.Sprintf("%d behind%s", behind, behindWord)))
+				parts = append(parts, p.Fg(p.Warn).Render(fmt.Sprintf("%s%d behind%s", ic(p.I.Behind), behind, behindWord)))
 			}
 			return muted.Render(sep) + strings.Join(parts, muted.Render(sep))
 		}
@@ -480,7 +482,12 @@ func (m Model) table(width int) string {
 			c.fbCol(fbCell) +
 			c.ghCols(p.PRs(t.GitHub), deploy) +
 			gitCell(p, t, c.git)
-		bottom := "    " +
+		margin := "    "
+		if icon, ok := m.rowIcon(s.ID + "/" + t.Dir); ok {
+			// An update of this theme: a mark under the status dot; the detail pane has the rest.
+			margin = "  " + icon + " "
+		}
+		bottom := margin +
 			pad(m.subline(s, t, sel, c.host), c.card) + sep +
 			pad("", c.core) + sep +
 			pad("", c.sync) + sep +
@@ -488,10 +495,6 @@ func (m Model) table(width int) string {
 			c.fbCol(fbAge) +
 			c.ghCols("", "") +
 			ansi.Truncate(lastCommit, c.git, "…")
-		if prog, ok := m.rowProgress(s.ID+"/"+t.Dir, width-4-c.card-ansi.StringWidth(sep)); ok {
-			// An update of this theme: its progress takes the rest of the card's second line.
-			bottom = "    " + pad(m.subline(s, t, sel, c.host), c.card) + sep + prog
-		}
 		if sel {
 			selAt = len(lines)
 			top, bottom = tint(top, width, p.Selected), tint(bottom, width, p.Selected)
@@ -539,11 +542,11 @@ func shortAge(d time.Duration) string {
 // --- detail -----------------------------------------------------------------
 
 func (m Model) detailContent(width int) string {
-	s, _, ok := m.selectedTheme()
+	s, t, ok := m.selectedTheme()
 	if !ok {
 		return ""
 	}
-	return render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width)
+	return m.updateSection(s.ID+"/"+t.Dir, width) + render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width)
 }
 
 // detailPane is the right-hand pane on wide terminals.
@@ -688,7 +691,7 @@ func (m Model) footer() string {
 		keys = handoffKeys{m.keys}
 	case m.mode == modeOutput:
 		keys = outputKeys{m.keys, m.task != nil && m.task.running, m.task != nil && !m.task.running && m.task.summary.Secret != ""}
-		if m.task != nil && m.task.steps != nil {
+		if m.task != nil && (m.task.steps != nil || m.task.batch != nil) {
 			keys = stepKeys{m.task}
 		}
 	case m.mode == modeCreate:

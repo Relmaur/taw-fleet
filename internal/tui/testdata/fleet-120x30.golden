@@ -1,6 +1,6 @@
- ◆ taw-fleet v0.3.0  ·  3 sites  ·  4 TAW themes  ·  2 running  ·  1 behind on taw/core                updated just now 
+ ◆ taw-fleet v0.3.0  ·  ⌂ 3 sites  ·  ◧ 4 TAW themes  ·  ● 2 running  ·  ↑ 1 behind on taw/core        updated just now 
 
-    SITE · THEME            TAW/CORE         SYNC  LIVE  FB   GIT            │  LOCAL ───────────────── this Mac · Local
+    SITE · THEME            TAW/CORE         SYNC  LIVE  FB   GIT            │  ⌂ LOCAL ─────────────── this Mac · Local
 ──────────────────────────────────────────────────────────────────────────── │  ● acme-shop  http://acme.local  running 
 ▌ ● acme-shop               1.76.1           —     ●     3    main           │    ~/Local Sites/acme-shop               
     acme  classic                                        3d   2d ago         │    PHP 8.2.30  ·  id a1                  
@@ -17,14 +17,14 @@
                                                                              │  │ bin/taw    yes                       │
                                                                              │  ╰──────────────────────────────────────╯
                                                                              │                                          
-                                                                             │  LIVE ──────────── production · companion
+                                                                             │  ◎ LIVE ────────── production · companion
                                                                              │  ● https://acme.mx  checked just now     
                                                                              │    WordPress   ·  PHP   ·  taw/core 1.76…
                                                                              │    companion   ·  verified               
                                                                              │                                          
-                                                                             │  FEEDBACK ──── client comments · BugSmash
+                                                                             │  ✉ FEEDBACK ─────────────────────────────
                                                                              │  ● acme.mx  checked just now             
                                                                              │    3 open comments, the oldest 3 days ago
                                                                              │  ↓ more: enter                           
 
- enter details • e editor • t terminal • U update all with agents • : all actions • / filter • ? help • q quit
+ enter details • e editor • t terminal • U update all • : all actions • / filter • ? help • q quit

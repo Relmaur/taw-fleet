@@ -213,3 +213,16 @@ func TestParseRemote(t *testing.T) {
 		t.Error("WebURL/FullName")
 	}
 }
+
+func TestDeliveryRemote(t *testing.T) {
+	dir := t.TempDir()
+	if got := DeliveryRemote(dir); got != "origin" {
+		t.Errorf("no taw.json: %q", got)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "taw.json"), []byte(`{"update": {"remote": "origin-agency"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := DeliveryRemote(dir); got != "origin-agency" {
+		t.Errorf("taw.json: %q", got)
+	}
+}

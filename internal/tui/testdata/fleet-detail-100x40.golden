@@ -1,6 +1,6 @@
  ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
 
- LOCAL ──────────────────────────────────────────────────────────────────────────── this Mac · Local
+ ⌂ LOCAL ────────────────────────────────────────────────────────────────────────── this Mac · Local
  ● acme-shop  http://acme.local  running                                                            
    ~/Local Sites/acme-shop                                                                          
    PHP 8.2.30  ·  id a1                                                                             
@@ -17,12 +17,12 @@
  │ bin/taw    yes                                │                                                  
  ╰───────────────────────────────────────────────╯                                                  
                                                                                                     
- LIVE ─────────────────────────────────────────────────────────────────────── production · companion
+ ◎ LIVE ───────────────────────────────────────────────────────────────────── production · companion
  ● https://acme.mx  checked just now                                                                
    WordPress   ·  PHP   ·  taw/core 1.76.1                                                          
    companion   ·  verified                                                                          
                                                                                                     
- FEEDBACK ─────────────────────────────────────────────────────────────── client comments · BugSmash
+ ✉ FEEDBACK ───────────────────────────────────────────────────────────── client comments · BugSmash
  ● acme.mx  checked just now                                                                        
    3 open comments, the oldest 3 days ago                                                           
    ▎ Actualizar texto por: "Buró de crédito Evaluación flexible."                                   
@@ -32,7 +32,7 @@
    ▎ Cambiar el nombre por: Despojo de inmuebles… un problema creciente.                            
      #99 · /multimedia/ · Paola · 3 days ago                                                        
                                                                                                     
- FINDINGS ─────────────────────────────────────────────────────────────────────────────────── doctor
+ ⚑ FINDINGS ───────────────────────────────────────────────────────────────────────────────── doctor
    ▲ 3 open comments in BugSmash, the oldest 3 days old  comments.open                              
      → X in the dashboard hands them to Claude (skill taw-resolve-comments), or ask Claude in the T…
                                                                                                     

@@ -23,22 +23,22 @@ import (
 // caps the cards (0 = as wide as their content).
 func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding, now time.Time, width int) string {
 	var b strings.Builder
-	b.WriteString(Section(p, "LOCAL", p.OK, "this Mac · Local", width))
+	b.WriteString(Section(p, p.I.Local+" LOCAL", p.OK, "this Mac · Local", width))
 	b.WriteString(Header(p, ps, s, width))
 	b.WriteString("\n")
 	b.WriteString(Cards(p, ps, s, now, width))
 	if s.Production != nil {
 		b.WriteString("\n")
-		b.WriteString(Section(p, "LIVE", p.Brand, "production · companion", width))
+		b.WriteString(Section(p, p.I.Live+" LIVE", p.Brand, "production · companion", width))
 		b.WriteString(Production(p, s.Production, now, width))
 	}
 	if s.Feedback != nil {
 		b.WriteString("\n")
-		b.WriteString(Section(p, "FEEDBACK", p.Accent, "client comments · BugSmash", width))
+		b.WriteString(Section(p, p.I.Feedback+" FEEDBACK", p.Accent, "client comments · BugSmash", width))
 		b.WriteString(Feedback(p, s.Feedback, now, width))
 	}
 	b.WriteString("\n")
-	b.WriteString(Section(p, "FINDINGS", p.Muted, "doctor", width))
+	b.WriteString(Section(p, p.I.Findings+" FINDINGS", p.Muted, "doctor", width))
 	b.WriteString(Findings(p, findings, false, width))
 	return b.String()
 }
