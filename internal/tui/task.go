@@ -26,8 +26,12 @@ type taskState struct {
 	started  time.Time
 	finished time.Time
 	ch       chan taskEvent
-	scroll   int  // first line on screen when not following
-	follow   bool // stick to the newest output
+	scroll   int         // first line on screen when not following
+	follow   bool        // stick to the newest output
+	steps    []stepState // the checklist (an update); nil = a plain log
+	info     []string    // lines under the title
+	showLog  bool        // l: the full log instead of the checklist
+	target   string      // "siteID/themeDir": the table row that shows its progress
 }
 
 type taskEvent struct {
@@ -51,7 +55,8 @@ func (m Model) startTask(task actions.Task) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	ch := make(chan taskEvent, 256)
-	m.task = &taskState{title: task.Title, running: true, started: m.deps.Now(), ch: ch, follow: true}
+	m.task = &taskState{title: task.Title, running: true, started: m.deps.Now(), ch: ch, follow: true,
+		steps: newSteps(task.Steps), info: task.Info, target: task.Target}
 	if !task.Quiet {
 		m.mode = modeOutput
 	}
@@ -73,12 +78,14 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 	}
 	if !ev.done {
 		t.lines = append(t.lines, ev.line)
+		t.progress(ev.line, m.deps.Now())
 		if len(t.lines) > maxTaskLines {
 			t.lines = t.lines[len(t.lines)-maxTaskLines:]
 		}
 		return m, listen(t.ch)
 	}
 	t.running, t.summary, t.err, t.finished = false, ev.sum, ev.err, m.deps.Now()
+	t.finishSteps(t.finished)
 	if m.full.active && t.title == m.full.syncTitle {
 		m.full.syncResult = ev.sum.Headline
 		if ev.err != nil {
@@ -169,11 +176,7 @@ func (m Model) syncOrUpdate(which string) (tea.Model, tea.Cmd) {
 // offerFinish asks how to finish an update that stopped: Claude works from
 // its report, or the report opens as the guide for a person (ADR-0004).
 func (m Model) offerFinish(o actions.UpdateOutcome) Model {
-	step := "a step"
-	if o.Report.Failure != nil {
-		step = o.Report.Failure.Step
-	}
-	m.confirm = o.Theme.Dir + " stopped at " + step + ":  1 Fix with Claude · 2 Do it myself (open the guide)"
+	m.confirm = "Finish the update of " + o.Theme.Dir + ":  1 Fix with Claude · 2 Do it myself"
 	m.choices = []func(Model) (tea.Model, tea.Cmd){
 		func(m Model) (tea.Model, tea.Cmd) {
 			a, ctx, tty := m.deps.Actions, m.ctx, m.deps.TTY
@@ -199,6 +202,29 @@ func (m Model) onOutputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	page := max(m.bodyHeight()-4, 1)
+	if t.steps != nil {
+		o, done := t.summary.Report.(actions.UpdateOutcome)
+		switch msg.String() {
+		case "l":
+			t.showLog = !t.showLog
+			return m, nil
+		case "o":
+			if done && o.Report.Delivered != nil && o.Report.Delivered.URL != "" && m.deps.Actions != nil {
+				a, ctx, url := m.deps.Actions, m.ctx, o.Report.Delivered.URL
+				return m, m.run(func() (string, error) { return a.OpenURL(ctx, url) })
+			}
+			return m, nil
+		case "r":
+			if done && !t.running && m.deps.Actions != nil {
+				a, ctx := m.deps.Actions, m.ctx
+				return m, m.run(func() (string, error) { return a.OpenGuide(ctx, o) })
+			}
+			return m, nil
+		}
+		if !t.showLog && msg.String() != "esc" && msg.String() != "q" && msg.String() != "ctrl+c" {
+			return m, nil // the checklist doesn't scroll
+		}
+	}
 	switch {
 	case msg.String() == "esc" || msg.String() == "q":
 		m.mode = modeTable // the task keeps running; o comes back
@@ -236,6 +262,9 @@ func (m Model) outputScreen(height int) string {
 	muted := p.Fg(p.Muted)
 	if t == nil {
 		return block("", m.width, height)
+	}
+	if t.steps != nil && !t.showLog {
+		return m.updateScreen(height)
 	}
 	var state string
 	switch {

@@ -488,6 +488,10 @@ func (m Model) table(width int) string {
 			c.fbCol(fbAge) +
 			c.ghCols("", "") +
 			ansi.Truncate(lastCommit, c.git, "…")
+		if prog, ok := m.rowProgress(s.ID+"/"+t.Dir, width-4-c.card-ansi.StringWidth(sep)); ok {
+			// An update of this theme: its progress takes the rest of the card's second line.
+			bottom = "    " + pad(m.subline(s, t, sel, c.host), c.card) + sep + prog
+		}
 		if sel {
 			selAt = len(lines)
 			top, bottom = tint(top, width, p.Selected), tint(bottom, width, p.Selected)
@@ -647,7 +651,7 @@ func (m Model) footer() string {
 	case m.full.active && m.mode != modeOutput:
 		status = " " + m.spin.View() + " " + muted.Render("Refreshing everything: "+strings.Join(m.refreshPending(), ", ")+"…")
 	case m.task != nil && m.task.running && m.mode != modeOutput:
-		status = " " + m.spin.View() + " " + muted.Render(m.task.title+"…  (o shows the output)")
+		status = " " + m.spin.View() + " " + muted.Render(m.task.title+"…"+m.task.stepSummary()+"  (o shows the output)")
 	case len(m.busy) > 0:
 		var parts []string
 		for id, op := range m.busy {
@@ -684,6 +688,9 @@ func (m Model) footer() string {
 		keys = handoffKeys{m.keys}
 	case m.mode == modeOutput:
 		keys = outputKeys{m.keys, m.task != nil && m.task.running, m.task != nil && !m.task.running && m.task.summary.Secret != ""}
+		if m.task != nil && m.task.steps != nil {
+			keys = stepKeys{m.task}
+		}
 	case m.mode == modeCreate:
 		keys = createKeys{}
 	case m.mode == modeMenu, m.mode == modeSkills:

@@ -47,6 +47,11 @@ func (a *Actions) FixUpdate(ctx context.Context, o UpdateOutcome, beside string)
 	return a.LaunchSkill(ctx, o.Site, o.Theme, "update-fix", p, beside)
 }
 
+// OpenURL opens a link (an update's pull request) in the browser.
+func (a *Actions) OpenURL(ctx context.Context, url string) (string, error) {
+	return "Opened " + url, a.open.URL(ctx, url)
+}
+
 // OpenGuide is "Do it myself": the update's report in the editor.
 func (a *Actions) OpenGuide(ctx context.Context, o UpdateOutcome) (string, error) {
 	path := o.Report.ReportPath

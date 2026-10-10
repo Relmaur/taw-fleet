@@ -295,8 +295,14 @@ installed is used unless the config names another.
 the theme's `taw.json`, it works on a new `taw/update-<date>` branch: taw/core within the policy's
 range, the framework files, the migrations, the checks (lint, phpstan, tests, the build when
 `node_modules` is there), one commit, then a pull request for you to merge with `M` (or what
-`taw.json`'s `deliver` says). Progress shows as it runs; the summary lists what changed, the
-"For you" steps a migration left for a person, and the pull request.
+`taw.json`'s `deliver` says).
+
+The update screen shows what it's about (the versions, what `taw.json` says), a progress bar, and
+every step with its time and result, the latest output under them (`l` the full log). `esc` goes
+back to the list while it runs: the site's row shows the bar and the current step, and keeps the
+outcome for 15 minutes afterwards (`o` opens the screen again). When it ends, a result panel lists
+what changed, the "For you" steps a migration left for a person, and the pull request (`o` opens
+it, `r` the report).
 
 - A theme with uncommitted changes is refused before anything runs: the update needs its own branch.
 - A theme on an older taw/core gets the newest in `vendor/` first (its `composer.lock` goes back), so

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"charm.land/bubbles/v2/key"
+
+	"github.com/Relmaur/taw-fleet/internal/actions"
 )
 
 // keyMap is every key the dashboard answers to. It also feeds the help bar.
@@ -112,6 +114,30 @@ func (o outputKeys) ShortHelp() []key.Binding {
 }
 
 func (o outputKeys) FullHelp() [][]key.Binding { return o.k.FullHelp() }
+
+// stepKeys is the help bar on a task with a checklist (an update).
+type stepKeys struct{ t *taskState }
+
+func (s stepKeys) ShortHelp() []key.Binding {
+	log := key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "full log"))
+	if s.t.showLog {
+		log = key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "steps"))
+	}
+	back := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+	if s.t.running {
+		return []key.Binding{log, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (it keeps running)"))}
+	}
+	keys := []key.Binding{log}
+	if o, ok := s.t.summary.Report.(actions.UpdateOutcome); ok {
+		if o.Report.Delivered != nil && o.Report.Delivered.URL != "" {
+			keys = append(keys, key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open the pull request")))
+		}
+		keys = append(keys, key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "the report")))
+	}
+	return append(keys, back)
+}
+
+func (s stepKeys) FullHelp() [][]key.Binding { return [][]key.Binding{s.ShortHelp()} }
 
 // confirmKeys is the help bar while a question is open.
 type confirmKeys struct {
