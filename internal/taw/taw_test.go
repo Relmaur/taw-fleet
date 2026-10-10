@@ -101,66 +101,6 @@ func TestSyncRunsWithSitePHPAndStreams(t *testing.T) {
 	}
 }
 
-func TestUpdateCore(t *testing.T) {
-	dir := t.TempDir()
-	write := func(rel, body string) {
-		p := filepath.Join(dir, rel)
-		_ = os.MkdirAll(filepath.Dir(p), 0o755)
-		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	f := &exec.FakeRunner{Script: func(s exec.Spec) (exec.Result, error) {
-		_, _ = s.Stdout.Write([]byte("Updating dependencies\n"))
-		_, _ = s.Stderr.Write([]byte("  - Upgrading taw/core (v1.59.2 => v1.76.1)\n"))
-		write("vendor/composer/installed.json", `{"packages":[{"name":"taw/core","version":"v1.76.1"}]}`)
-		write("vendor/taw/core/UPGRADING.md", "## Per version\n\n### v1.55.0: old\n### v1.60.0: new thing\n### v1.70.0 – v1.73.0: range\n### v1.80.0: future\n")
-		return exec.Result{}, nil
-	}}
-	var out strings.Builder
-	r := Runner{Exec: f, PHP: "/L/php", Composer: "/L/composer.phar"}
-	res, err := r.UpdateCore(context.Background(), classic(dir), &out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.From != "v1.59.2" || res.To != "v1.76.1" || len(res.Sections) != 2 ||
-		res.Sections[0].Heading != "v1.60.0: new thing" || res.Sections[1].Version != "v1.73.0" {
-		t.Errorf("res = %+v", res)
-	}
-	c := f.Calls()[0]
-	if c.Name != "/L/php" || !reflect.DeepEqual(c.Args, []string{"/L/composer.phar", "update", "taw/core", "--with-dependencies", "--no-interaction", "--no-progress"}) {
-		t.Errorf("call = %+v", c)
-	}
-	if !strings.Contains(out.String(), "Upgrading taw/core") {
-		t.Errorf("out = %q", out.String())
-	}
-
-	// Composer exits 0 but taw/core didn't move (a dependency held it back).
-	stuck := Runner{Exec: &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) {
-		write("vendor/composer/installed.json", `{"packages":[{"name":"taw/core","version":"v1.59.2"}]}`)
-		return exec.Result{}, nil
-	}}}
-	if _, err := stuck.UpdateCore(context.Background(), classic(dir), &out); err == nil || !strings.Contains(err.Error(), "still 1.59.2") || !strings.Contains(err.Error(), "why-not") {
-		t.Errorf("a no-op update is an error: %v", err)
-	}
-
-	failing := Runner{Exec: &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) { return exec.Result{Code: 2}, nil }}}
-	if _, err := failing.UpdateCore(context.Background(), classic(dir), &out); err == nil || !strings.Contains(err.Error(), "exited 2") {
-		t.Errorf("failure: %v", err)
-	}
-}
-
-func TestUpgradeSections(t *testing.T) {
-	md := "### v1.24.0: users route\n### v1.33.0 – v1.40.0: forms\n### v1.41.0: tabs\n### How to read this\n### v1.76.1: tabs restyle\n"
-	got := UpgradeSections(md, "v1.35.0", "v1.41.0")
-	if len(got) != 2 || got[0].Version != "v1.40.0" || got[1].Version != "v1.41.0" {
-		t.Errorf("got %+v", got)
-	}
-	if got := UpgradeSections(md, "v1.76.1", "v1.76.1"); len(got) != 0 {
-		t.Errorf("nothing newer: %+v", got)
-	}
-}
-
 func TestInspectNeedsARunningSite(t *testing.T) {
 	r := Runner{Exec: &exec.FakeRunner{}}
 	_, err := r.Inspect(context.Background(), site.Site{Slug: "acme"}, classic(t.TempDir()))
@@ -198,5 +138,19 @@ func TestDriftCache(t *testing.T) {
 	got := LoadDrift(dir, "ch-capital---taw", "chcapital")
 	if got == nil || got.Tier1[0] != "bin/" || !got.At.Equal(d.At) {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestReadPolicy(t *testing.T) {
+	dir := t.TempDir()
+	p, err := ReadPolicy(dir)
+	if err != nil || p.File || p.Core != "minor" || p.Deliver != "pr" {
+		t.Fatalf("no taw.json = the defaults: %+v %v", p, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "taw.json"), []byte(`{"update": {"core": "patch", "deliver": "branch"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if p, err = ReadPolicy(dir); err != nil || !p.File || p.Core != "patch" || p.Deliver != "branch" {
+		t.Errorf("taw.json: %+v %v", p, err)
 	}
 }

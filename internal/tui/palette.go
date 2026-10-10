@@ -52,7 +52,7 @@ var actionDocs = []actionDoc{
 	{"y", "Theme", "Check against the scaffold", "Compare the theme with the taw-theme scaffold (bin/taw sync): which framework files differ (Tier 1) and which to review (Tier 2). Read-only."},
 	{"Y", "Theme", "Check every theme", "The scaffold check on every classic TAW theme at once, three at a time. Keeps the SYNC column current."},
 	{"S", "Theme", "Apply the scaffold (Tier 1)", "Write the framework-owned files that differ from the scaffold (bin/, workflows, framework skills…). Asks first; Tier 2 stays for review."},
-	{"u", "Theme", "Update taw/core", "composer update taw/core in the theme, then list the UPGRADING.md sections to check. Asks first."},
+	{"u", "Theme", "Update this site", "The whole update, as the theme's taw.json says (vendor/bin/taw update): on a new branch, taw/core, the framework files, the migrations and the checks, then a pull request. One question first. If it stops, Fix with Claude or Do it myself from the same guide."},
 	{"g", "Code & GitHub", "Open the repository", "The theme's GitHub repository in your browser."},
 	{"G", "Code & GitHub", "Open pull requests", "The theme's open pull requests on GitHub."},
 	{"M", "Code & GitHub", "Merge a pull request", "Merge the theme's pull request (asks which when there are several, then asks again: merging a client theme deploys production), then follow the deploy."},

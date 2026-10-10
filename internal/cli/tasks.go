@@ -48,7 +48,11 @@ var errCancelled = errors.New("cancelled")
 func printSummary(cmd *cobra.Command, d Deps, sum actions.Summary) error {
 	p := d.palette()
 	var b strings.Builder
-	b.WriteString(p.Fg(p.OK).Render("✓") + " " + lipgloss.NewStyle().Bold(true).Render(sum.Headline) + "\n")
+	mark := p.Fg(p.OK).Render("✓")
+	if sum.Failed {
+		mark = p.Fg(p.Err).Render("✗")
+	}
+	b.WriteString(mark + " " + lipgloss.NewStyle().Bold(true).Render(sum.Headline) + "\n")
 	for _, l := range sum.Lines {
 		b.WriteString("  " + l + "\n")
 	}
@@ -132,11 +136,14 @@ func newUpdateCmd(d Deps, g *globals) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "update <site>",
-		Short: "Update a theme's taw/core (composer update taw/core) and list what to check",
-		Long: "Run `composer update taw/core` in the theme with the site's PHP and Local's Composer,\n" +
-			"then list the vendor/taw/core/UPGRADING.md sections between the old and new version.\n" +
-			"composer.lock and vendor/ change; commit them yourself. For the full flow (branch,\n" +
-			"scaffold sync, checks, commit) hand it to an agent: taw-fleet handoff <site>.",
+		Short: "Update this site: the whole update, as the theme's taw.json says (vendor/bin/taw update)",
+		Long: "Runs the theme's own `vendor/bin/taw update` with the site's PHP and Local's Composer: on a\n" +
+			"new branch it updates taw/core, applies the framework files, runs the migrations and the\n" +
+			"checks, commits, and opens a pull request (or what taw.json's \"deliver\" says). It asks\n" +
+			"nothing after the first question. A theme on taw/core older than " + strings.TrimPrefix(taw.MinOneStep, "v") + " gets the\n" +
+			"newest taw/core in vendor/ first, so its first update is one step too.\n\n" +
+			"If a step fails, nothing is pushed: the theme's .taw/update-report.md says what failed and\n" +
+			"how to finish it by hand, and the dashboard's u offers Fix with Claude on the same report.",
 		Example: "  taw-fleet update ls-mxico\n  taw-fleet update ls-mxico --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -144,36 +151,29 @@ func newUpdateCmd(d Deps, g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !t.Core.Behind && t.Core.Latest != "" {
-				p := d.palette()
-				_, err := lipgloss.Fprintln(cmd.OutOrStdout(), p.Fg(p.OK).Render("✓")+" "+t.Dir+" already has the newest taw/core ("+strings.TrimPrefix(t.Core.Installed, "v")+")")
-				return err
-			}
 			task, err := a.UpdateTask(*s, t)
 			if err != nil {
 				return fmt.Errorf("%s: %w", t.Dir, err)
 			}
-			q := fmt.Sprintf("Update taw/core in %s from %s to %s%s?", t.Dir, strings.TrimPrefix(t.Core.Installed, "v"), latestOr(t.Core.Latest), dirtyNote(t))
-			sum, err := runTask(cmd, d, task, yes, q)
+			sum, err := runTask(cmd, d, task, yes, task.Ask)
 			if errors.Is(err, errCancelled) {
 				return nil
 			}
 			if err != nil {
 				return err
 			}
-			return printSummary(cmd, d, sum)
+			if err := printSummary(cmd, d, sum); err != nil {
+				return err
+			}
+			if sum.Failed {
+				return exitCode(1) // the summary said why
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
 	return cmd
-}
-
-func latestOr(v string) string {
-	if v == "" {
-		return "the newest"
-	}
-	return strings.TrimPrefix(v, "v")
 }
 
 func newInspectCmd(d Deps, g *globals) *cobra.Command {

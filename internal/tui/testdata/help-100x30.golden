@@ -7,7 +7,7 @@
    │  ↑/k up             enter  details             e editor        y sync check               │    
    │  ↓/j down           ctrl+r refresh all         f Finder        Y check all themes         │    
    │  /   filter         L      check production    t terminal      S apply Tier 1             │    
-   │  r   refresh        w      work on it          b site          u update taw/core          │    
+   │  r   refresh        w      work on it          b site          u update this site         │    
    │  :   all actions    s      start/stop          B wp-admin      A update with agent        │    
    │  o   last output    R      restart             P production    U update all with agents   │    
    │  n   new site       M      merge PR            g GitHub        h hand off                 │    

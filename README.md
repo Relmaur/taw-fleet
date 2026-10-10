@@ -48,14 +48,14 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
 | `g` `G` | open the theme's GitHub repository, its pull requests |
-| `A` | update with agent: Claude Code in a window beside the dashboard, in the theme folder, with the update prompt (also offered by `u`) |
+| `A` | update with agent: Claude Code in a window beside the dashboard, in the theme folder, with the update prompt |
 | `U` | update all with agents: every client TAW theme that needs it, in one Claude Code session with a subagent per theme (asks first) |
 | `h` | show that prompt first; then `A` sends it to Claude Code, `c` copies it |
 | `s` `R` | start or stop the site, restart it (asks first; needs the Local app open) |
 | `y` `S` | check the theme against the taw-theme scaffold (`bin/taw sync`); apply Tier 1 (asks first) |
 | `Y` | check every classic TAW theme against the scaffold at once (read-only; keeps the SYNC column and `U` current) |
 | `:` | all actions: type to find one, enter runs it on the selected theme |
-| `u` | update taw/core (`composer update taw/core`, asks first), then list the UPGRADING.md sections to check |
+| `u` | update this site: the whole update as the theme's `taw.json` says (`vendor/bin/taw update`), one question first; if it stops, `1` Fix with Claude or `2` Do it myself (see [Update this site](#update-this-site)) |
 | `o` | show the last sync/update/create output again (`esc` leaves a running one in the background) |
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
 | `L` | check the production sites, the BugSmash comments and GitHub now (see below); otherwise every 5 minutes |
@@ -264,7 +264,7 @@ never deletes on production.
 ```bash
 taw-fleet sync chcapital          # read-only: Tier 1 / Tier 2 differences from taw-theme, taw/core status
 taw-fleet sync ls-mxico --apply   # write Tier 1 (asks first); Tier 2 is never written
-taw-fleet update ls-mxico         # composer update taw/core (asks first), then the UPGRADING.md sections to work through
+taw-fleet update ls-mxico         # update this site: the whole update as taw.json says (asks first), a pull request at the end
 taw-fleet inspect chcapital       # blocks, fields and forms of a running site (bin/taw inspect)
 ```
 
@@ -288,9 +288,27 @@ Editors (Cursor, Visual Studio Code, PhpStorm, Zed, Sublime Text, Nova) and term
 iTerm2, Warp, kitty, Terminal) are found in `/Applications` and `~/Applications`; the first one
 installed is used unless the config names another.
 
+### Update this site
+
+`u` in the dashboard (or `taw-fleet update <site>`) runs the theme's own `vendor/bin/taw update`
+(taw/core 1.91.2+), with the site's PHP and Local's Composer. After one question, in the words of
+the theme's `taw.json`, it works on a new `taw/update-<date>` branch: taw/core within the policy's
+range, the framework files, the migrations, the checks (lint, phpstan, tests, the build when
+`node_modules` is there), one commit, then a pull request for you to merge with `M` (or what
+`taw.json`'s `deliver` says). Progress shows as it runs; the summary lists what changed, the
+"For you" steps a migration left for a person, and the pull request.
+
+- A theme with uncommitted changes is refused before anything runs: the update needs its own branch.
+- A theme on an older taw/core gets the newest in `vendor/` first (its `composer.lock` goes back), so
+  its first update is one step too and its report says "1.89.0 → 1.91.2".
+- If a step fails, nothing is pushed. The work stays on the branch and the theme's
+  `.taw/update-report.md` says what failed, why, and how to fix, check, finish and undo it. The
+  dashboard offers `1` Fix with Claude (Claude Code in the theme folder, with that report as its
+  prompt; it asks before pushing and never merges) or `2` Do it myself (the report in your editor).
+
 ### Hand an update to an agent
 
-In the dashboard, `A` (or `A` instead of `y` when `u` asks) opens Claude Code in a new window
+In the dashboard, `A` opens Claude Code in a new window
 with the prompt below as its first message, in the theme folder. In Terminal, the dashboard moves
 to the left half of its screen and Claude's window takes the right half, so you can watch both.
 When Claude exits (`/exit`), its window closes and the dashboard rescans, so a new taw/core

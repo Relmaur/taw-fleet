@@ -32,6 +32,7 @@ type Summary struct {
 	Lines    []string // the details
 	Report   any      // the raw result (sync report, update result)
 	Secret   string   // something to copy once and not keep (a new site's password)
+	Failed   bool     // it ran, and what it did failed or was refused (Lines say why)
 }
 
 func (a *Actions) taw(s site.Site) taw.Runner {
@@ -137,35 +138,173 @@ func onlyManifests(paths []string) bool {
 	return true
 }
 
-// UpdateTask runs `composer update taw/core` in the theme and lists the
-// UPGRADING.md sections that now apply.
+// UpdateOutcome is an UpdateTask's Summary.Report: the theme and what
+// `bin/taw update` reported, for "Fix with Claude" or "Do it myself".
+type UpdateOutcome struct {
+	Site   site.Site
+	Theme  site.Theme
+	Report taw.UpdateReport
+}
+
+// Stopped is an update that failed part-way: its work is on a branch, and
+// the report holds the steps to finish it.
+func (o UpdateOutcome) Stopped() bool { return o.Report.Status == "failed" }
+
+// UpdateTask is "Update this site": the theme's whole update, as its
+// taw.json says, with no questions after this one (`bin/taw update`). A
+// theme with uncommitted changes is refused before anything runs.
 func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 	if err := taw.Guard(t, false); err != nil {
 		return Task{}, err
 	}
+	if t.Git == nil {
+		return Task{}, errors.New("the theme isn't a git repository, so an update can't go on its own branch (git init, commit, then update)")
+	}
+	if t.Git.Dirty > 0 {
+		return Task{}, fmt.Errorf("it has %d uncommitted %s: commit or stash %s first (the update works on its own branch)",
+			t.Git.Dirty, plural(t.Git.Dirty, "change", "changes"), plural(t.Git.Dirty, "it", "them"))
+	}
+	pol, err := taw.ReadPolicy(t.RealPath)
+	if err != nil {
+		return Task{}, err
+	}
 	r := a.taw(s)
-	return Task{Title: "Update taw/core: " + t.Dir, Writes: true, Run: func(ctx context.Context, out io.Writer) (Summary, error) {
-		res, err := r.UpdateCore(ctx, t, out)
-		if err != nil {
-			return Summary{}, err
-		}
-		from, to := strings.TrimPrefix(res.From, "v"), strings.TrimPrefix(res.To, "v")
-		sum := Summary{Report: res}
-		if from == to {
-			sum.Headline = t.Dir + ": taw/core already " + to
-			sum.Lines = []string{"taw/core is " + to + "; Composer changed nothing."}
+	return Task{Title: "Update: " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
+		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
+			rep, err := r.Update(ctx, t, out)
+			if err != nil {
+				return Summary{}, err
+			}
+			sum := summarizeUpdate(t, rep)
+			sum.Report = UpdateOutcome{Site: s, Theme: t, Report: rep}
 			return sum, nil
-		}
-		sum.Headline = fmt.Sprintf("%s: taw/core %s → %s; %d UPGRADING.md %s to check", t.Dir, from, to, len(res.Sections), plural(len(res.Sections), "section", "sections"))
-		sum.Lines = append(sum.Lines, "taw/core "+from+" → "+to+" (composer.lock and vendor/ changed; commit them on a branch)")
-		if len(res.Sections) > 0 {
-			sum.Lines = append(sum.Lines, "Work through these sections of vendor/taw/core/UPGRADING.md, each has a Check:")
-			for _, sec := range res.Sections {
-				sum.Lines = append(sum.Lines, "  • "+sec.Heading)
+		}}, nil
+}
+
+// UpdateQuestion is the one question before an update, in the policy's words.
+func UpdateQuestion(t site.Theme, pol taw.Policy) string {
+	core := "taw/core"
+	switch {
+	case pol.Core == "patch":
+		core = "taw/core (bug fixes)"
+	case strings.HasPrefix(pol.Core, "pinned:"):
+		core = "taw/core (pinned " + strings.TrimPrefix(pol.Core, "pinned:") + ")"
+	}
+	deliver := "a pull request to merge"
+	switch pol.Deliver {
+	case "pr+merge":
+		deliver = "a pull request that merges itself (deploys)"
+	case "branch":
+		deliver = "a commit on a branch"
+	}
+	return fmt.Sprintf("Update %s? %s, framework files, migrations, checks, then %s.", t.Dir, core, deliver)
+}
+
+func summarizeUpdate(t site.Theme, rep taw.UpdateReport) Summary {
+	from, to := strings.TrimPrefix(rep.Core.From, "v"), strings.TrimPrefix(rep.Core.To, "v")
+	var lines []string
+	if from != "" && to != "" && from != to {
+		lines = append(lines, "taw/core "+from+" → "+to)
+	}
+	if rep.Bridged != "" {
+		lines = append(lines, "  (its taw/core had no one-step update: vendor/ got the newest first, so this one was a single step too)")
+	}
+	if len(rep.Changed) > 0 {
+		lines = append(lines, fmt.Sprintf("%d %s changed, committed on %s", len(rep.Changed), plural(len(rep.Changed), "file", "files"), rep.Branch))
+	}
+	if len(rep.Migrations) > 0 {
+		lines = append(lines, "Migrations: "+strings.Join(rep.Migrations, ", "))
+	}
+	for _, m := range rep.Manual {
+		lines = append(lines, "For you: "+firstSentence(m)+" (steps in the report)")
+	}
+	for _, h := range rep.Held {
+		lines = append(lines, "Off in taw.json: "+h)
+	}
+	if len(rep.Checks) > 0 {
+		var cs []string
+		for _, c := range rep.Checks {
+			switch c.Status {
+			case "pass":
+				cs = append(cs, c.Name+" ✓")
+			case "fail":
+				cs = append(cs, c.Name+" ✗")
+			default:
+				cs = append(cs, c.Name+" – not run here")
 			}
 		}
-		return sum, nil
-	}}, nil
+		lines = append(lines, "Checks: "+strings.Join(cs, " · "))
+	}
+
+	sum := Summary{}
+	switch rep.Status {
+	case "updated":
+		sum.Headline = t.Dir + ": updated"
+		if to != "" {
+			sum.Headline += " to taw/core " + to
+		}
+		if rep.Delivered != nil {
+			if rep.Delivered.URL != "" {
+				sum.Headline += "; pull request " + rep.Delivered.URL
+			}
+			lines = append(lines, rep.Delivered.Note)
+		}
+	case "up-to-date":
+		sum.Headline = t.Dir + ": nothing to update (taw/core " + orBlank(from, "current") + ", framework files and migrations current)"
+	case "refused":
+		sum.Failed = true
+		sum.Headline = t.Dir + ": the update didn't start; nothing changed"
+		if rep.Failure != nil {
+			lines = append(lines, rep.Failure.Reason)
+		}
+	default: // failed
+		sum.Failed = true
+		step := "a step"
+		if rep.Failure != nil {
+			step = rep.Failure.Step
+		}
+		sum.Headline = t.Dir + ": the update stopped at " + step + "; nothing was pushed"
+		if rep.Failure != nil && rep.Failure.Command != "" {
+			lines = append(lines, "Failed: "+rep.Failure.Command)
+			if first := firstLine(rep.Failure.Out); first != "" {
+				lines = append(lines, "  "+first)
+			}
+		}
+		if rep.Branch != "" {
+			lines = append(lines, "The work so far is on "+rep.Branch+".")
+		}
+		lines = append(lines, "To finish it: the steps are in "+taw.ReportFile+", for a person or for Claude (the same guide).")
+	}
+	if rep.ReportPath != "" && rep.Status != "failed" && rep.Status != "up-to-date" {
+		lines = append(lines, "The report: "+taw.ReportFile)
+	}
+	sum.Lines = lines
+	return sum
+}
+
+// firstSentence is a migration's manual step up to its first period: the
+// summary line; the whole step is in the report.
+func firstSentence(s string) string {
+	if i := strings.Index(s, ". "); i > 0 {
+		return s[:i+1]
+	}
+	return s
+}
+
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			return l
+		}
+	}
+	return ""
+}
+
+func orBlank(s, alt string) string {
+	if s == "" {
+		return alt
+	}
+	return s
 }
 
 func plural(n int, one, many string) string {

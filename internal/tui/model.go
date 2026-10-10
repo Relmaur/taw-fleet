@@ -46,6 +46,8 @@ type Actions interface {
 	SyncTask(s site.Site, t site.Theme, apply bool) (actions.Task, error)
 	SyncAllTask(sites []site.Site) (actions.Task, error)
 	UpdateTask(s site.Site, t site.Theme) (actions.Task, error)
+	FixUpdate(ctx context.Context, o actions.UpdateOutcome, beside string) (actions.Launched, error)
+	OpenGuide(ctx context.Context, o actions.UpdateOutcome) (string, error)
 	WorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	StopWorkTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
@@ -789,7 +791,7 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Output):
 		if m.task == nil {
-			m.setFlash("nothing has run yet (y checks the scaffold, u updates taw/core)", false)
+			m.setFlash("nothing has run yet (y checks the scaffold, u updates the site)", false)
 		} else {
 			m.mode = modeOutput
 		}

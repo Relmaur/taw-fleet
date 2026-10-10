@@ -57,7 +57,7 @@ func newKeyMap() keyMap {
 		SyncAll:     key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "check all themes")),
 		Menu:        key.NewBinding(key.WithKeys(":"), key.WithHelp(":", "all actions")),
 		SyncApply:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "apply Tier 1")),
-		UpdateCore:  key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update taw/core")),
+		UpdateCore:  key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update this site")),
 		Output:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "last output")),
 		New:         key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new site")),
 		CopySecret:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy password")),
