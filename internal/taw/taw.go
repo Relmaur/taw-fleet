@@ -1,23 +1,17 @@
-// Package taw runs a theme's own TAW tooling: `bin/taw sync` and
-// `bin/taw inspect` (shipped by taw/core), and `composer update taw/core`.
-// It also reads the UPGRADING.md that comes with taw/core.
+// Package taw runs a theme's own TAW tooling, shipped by taw/core:
+// `bin/taw sync`, `bin/taw inspect` and `vendor/bin/taw update`.
 package taw
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/Relmaur/taw-fleet/internal/composer"
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
@@ -26,7 +20,6 @@ import (
 const (
 	SyncTimeout    = 2 * time.Minute
 	InspectTimeout = time.Minute
-	UpdateTimeout  = 5 * time.Minute
 )
 
 // ErrUmbrella refuses the umbrella's own taw-theme and taw-gutenberg: they
@@ -182,84 +175,6 @@ func (r Runner) Inspect(ctx context.Context, s site.Site, t site.Theme) (json.Ra
 		return nil, fmt.Errorf("bin/taw inspect exited %d: %s", res.Code, tail(strings.TrimSpace(string(res.Stderr)+"\n"+out), 400))
 	}
 	return json.RawMessage(out[i:]), nil
-}
-
-// UpdateResult is what `composer update taw/core` changed.
-type UpdateResult struct {
-	From, To string
-	Sections []Section // UPGRADING.md sections to work through
-}
-
-// UpdateCore runs `composer update taw/core --with-dependencies` and reads
-// the new version and the UPGRADING.md sections that now apply. Composer's
-// output goes to out as it's written.
-//
-// --with-dependencies lets Composer move taw/core's own dependencies too:
-// without it, a release that needs a newer one (v1.77.0 needs
-// enshrined/svg-sanitize ^1.0) is a silent no-op that exits 0. A behind
-// theme whose version didn't move is an error.
-func (r Runner) UpdateCore(ctx context.Context, t site.Theme, out io.Writer) (UpdateResult, error) {
-	if err := Guard(t, false); err != nil {
-		return UpdateResult{}, err
-	}
-	from := t.Core.Installed
-	name, args := "composer", []string{"update", "taw/core", "--with-dependencies", "--no-interaction", "--no-progress"}
-	if r.Composer != "" {
-		name, args = r.php(), append([]string{r.Composer}, args...)
-	}
-	ctx, cancel := context.WithTimeout(ctx, UpdateTimeout)
-	defer cancel()
-	res, err := r.Exec.Run(ctx, exec.Spec{Dir: t.RealPath, Name: name, Args: args, Stdout: out, Stderr: out,
-		Env: []string{"COMPOSER_NO_INTERACTION=1"}})
-	if err != nil {
-		return UpdateResult{}, err
-	}
-	if res.Code != 0 {
-		return UpdateResult{}, fmt.Errorf("composer exited %d (output above)", res.Code)
-	}
-	to, err := composer.InstalledVersion(t.RealPath, composer.CorePackage)
-	if err != nil {
-		return UpdateResult{}, fmt.Errorf("after the update: %w", err)
-	}
-	if t.Core.Behind && to == from {
-		return UpdateResult{}, fmt.Errorf("taw/core is still %s: Composer couldn't move it to %s (see its output above; `composer why-not taw/core %s` says what holds it back)",
-			strings.TrimPrefix(from, "v"), strings.TrimPrefix(t.Core.Latest, "v"), strings.TrimPrefix(t.Core.Latest, "v"))
-	}
-	result := UpdateResult{From: from, To: to}
-	if md, err := os.ReadFile(filepath.Join(t.RealPath, "vendor", "taw", "core", "UPGRADING.md")); err == nil {
-		result.Sections = UpgradeSections(string(md), from, to)
-	}
-	return result, nil
-}
-
-// Section is a "### vX.Y.Z: title" part of UPGRADING.md.
-type Section struct {
-	Heading string // as written, without the ###
-	Version string // the newest version the section covers
-}
-
-var versionRe = regexp.MustCompile(`v?\d+\.\d+\.\d+`)
-
-// UpgradeSections returns the sections of UPGRADING.md's per-version list
-// that cover a version newer than from, up to to.
-func UpgradeSections(md, from, to string) []Section {
-	var out []Section
-	sc := bufio.NewScanner(strings.NewReader(md))
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if !strings.HasPrefix(line, "### ") {
-			continue
-		}
-		vs := versionRe.FindAllString(line, -1)
-		if len(vs) == 0 {
-			continue
-		}
-		newest := vs[len(vs)-1]
-		if composer.Older(from, newest) && !composer.Older(to, newest) {
-			out = append(out, Section{Heading: strings.TrimPrefix(line, "### "), Version: newest})
-		}
-	}
-	return out
 }
 
 // LineWriter calls fn with each complete line written to it. Safe for the

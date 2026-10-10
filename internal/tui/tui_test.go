@@ -26,6 +26,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"github.com/Relmaur/taw-fleet/internal/taw"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files")
@@ -424,10 +425,31 @@ func (f *fakeActions) SyncTask(_ site.Site, t site.Theme, apply bool) (actions.T
 	}}, nil
 }
 
-func (f *fakeActions) UpdateTask(_ site.Site, t site.Theme) (actions.Task, error) {
-	return actions.Task{Title: "Update taw/core: " + t.Dir, Writes: true, Run: func(context.Context, io.Writer) (actions.Summary, error) {
-		return actions.Summary{}, errors.New("composer exited 2 (output above)")
+func (f *fakeActions) UpdateTask(s site.Site, t site.Theme) (actions.Task, error) {
+	ask := "Update " + t.Dir + "? taw/core, framework files, migrations, checks, then a pull request to merge."
+	return actions.Task{Title: "Update: " + t.Dir, Writes: true, Ask: ask, Run: func(_ context.Context, out io.Writer) (actions.Summary, error) {
+		_, _ = out.Write([]byte("Working on a new branch, taw/update-20261010-120000 (from main)\nCheck: phpstan\n  ✗ phpstan failed\n"))
+		var rep taw.UpdateReport
+		rep.Status, rep.Branch, rep.ReportPath = "failed", "taw/update-20261010-120000", "/t/.taw/update-report.md"
+		rep.Failure = &struct {
+			Step    string `json:"step"`
+			Command string `json:"command"`
+			Out     string `json:"out"`
+			Reason  string `json:"reason"`
+		}{Step: "phpstan", Command: "composer run phpstan"}
+		return actions.Summary{Failed: true, Headline: t.Dir + ": the update stopped at phpstan; nothing was pushed",
+			Lines: []string{"The work so far is on taw/update-20261010-120000."}, Report: actions.UpdateOutcome{Site: s, Theme: t, Report: rep}}, nil
 	}}, nil
+}
+
+func (f *fakeActions) FixUpdate(_ context.Context, o actions.UpdateOutcome, beside string) (actions.Launched, error) {
+	f.launched, f.beside = "fix "+o.Theme.Dir+" on "+o.Report.Branch, beside
+	return actions.Launched{Message: "Claude Code is finishing the update of " + o.Theme.Dir}, nil
+}
+
+func (f *fakeActions) OpenGuide(_ context.Context, o actions.UpdateOutcome) (string, error) {
+	f.launched = "guide " + o.Report.ReportPath
+	return "Opened the guide (.taw/update-report.md) in Zed", nil
 }
 
 func (f *fakeActions) CreateTask(r create.Request) (actions.Task, error) {
@@ -746,18 +768,35 @@ func TestApplyAndUpdateAskFirst(t *testing.T) {
 		t.Error("n runs nothing")
 	}
 	m = press(t, m, "u")
-	if !strings.Contains(screen(m), "Update taw/core in bistro-theme from 1.59.2 to 1.76.1?") {
-		t.Fatalf("question:\n%s", screen(m))
+	if !strings.Contains(m.confirm, "Update bistro-theme? taw/core, framework files") || m.onAgent != nil {
+		t.Fatalf("one question, in taw.json's words, and no agent: %q", m.confirm)
 	}
 	next, cmd := m.Update(keyMsg("y"))
 	m = drain(t, next.(Model), cmd)
-	if !strings.Contains(screen(m), "✗ failed") || !strings.Contains(screen(m), "composer exited 2") {
-		t.Errorf("failure shown:\n%s", screen(m))
+	if !strings.Contains(screen(m), "✗ failed") || !strings.Contains(screen(m), "stopped at phpstan") || !strings.Contains(screen(m), "✗ phpstan failed") {
+		t.Errorf("the stop is shown with its progress:\n%s", screen(m))
 	}
-	// acme is current: u says so instead of asking.
-	m = press(t, m, "esc", "k", "u")
-	if m.confirm != "" || !strings.Contains(screen(m), "acme already has the newest taw/core") {
-		t.Errorf("current theme:\n%s", screen(m))
+	if !strings.Contains(m.confirm, "1 Fix with Claude · 2 Do it myself") || len(m.choices) != 2 {
+		t.Fatalf("a stopped update offers both ways to finish it: %q", m.confirm)
+	}
+	m.deps.TTY = "/dev/ttys004"
+	m = runCmd(t, m, keyMsg("1"))
+	if f.launched != "fix bistro-theme on taw/update-20261010-120000" || f.beside != "/dev/ttys004" || m.confirm != "" {
+		t.Errorf("1 hands the report to Claude beside the dashboard: %q %q", f.launched, f.beside)
+	}
+}
+
+func TestAStoppedUpdateOpensItsGuide(t *testing.T) {
+	f := &fakeActions{}
+	m := press(t, withActions(t, 24, f), "j", "u")
+	next, cmd := m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	if !strings.Contains(screen(m), "1 Fix with Claude · 2 Do it myself") {
+		t.Errorf("the choice shows under the output:\n%s", screen(m))
+	}
+	m = runCmd(t, m, keyMsg("2"))
+	if f.launched != "guide /t/.taw/update-report.md" {
+		t.Errorf("2 opens the guide for a person: %q\n%s", f.launched, screen(m))
 	}
 }
 
@@ -765,10 +804,7 @@ func TestUpdateWithAgent(t *testing.T) {
 	f := &fakeActions{doneDir: t.TempDir()}
 	m := withActions(t, 24, f)
 	m.deps.TTY = "/dev/ttys004"
-	m = press(t, m, "j", "u")
-	if !strings.Contains(screen(m), "A update with agent") {
-		t.Fatalf("the update question offers the agent:\n%s", screen(m))
-	}
+	m = press(t, m, "j")
 	m = runCmd(t, m, keyMsg("A"))
 	if f.launched != "bistro-theme" || f.beside != "/dev/ttys004" || m.confirm != "" || m.task != nil {
 		t.Fatalf("A opens Claude beside the dashboard instead of composer: %q %q confirm=%q", f.launched, f.beside, m.confirm)

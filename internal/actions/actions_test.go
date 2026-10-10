@@ -8,6 +8,7 @@ import (
 	osexec "os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -305,25 +306,87 @@ func TestSyncTaskSummaryAndCache(t *testing.T) {
 	}
 }
 
-func TestUpdateTaskSummary(t *testing.T) {
+func TestUpdateRefusesADirtyTree(t *testing.T) {
 	a, _ := setup(t, config.Config{})
 	s, th := fixture()
+	th.Git.Dirty = 2
+	if _, err := a.UpdateTask(s, th); err == nil || !strings.Contains(err.Error(), "2 uncommitted changes: commit or stash them first") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// A theme on taw/core 1.89: vendor/ gets the one-step update first, the lock
+// goes back, then vendor/bin/taw update runs as the policy says.
+func TestUpdateTaskBridgesAnOldThemeAndOpensAPullRequest(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	s, th := fixture()
 	th.RealPath = t.TempDir()
-	a.Exec = &exec.FakeRunner{Script: func(exec.Spec) (exec.Result, error) {
-		mustWriteBody(t, filepath.Join(th.RealPath, "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.76.1"}]}`)
-		mustWriteBody(t, filepath.Join(th.RealPath, "vendor", "taw", "core", "UPGRADING.md"), "### v1.60.0: a\n### v1.76.1: b\n")
+	installed := filepath.Join(th.RealPath, "vendor", "composer", "installed.json")
+	mustWriteBody(t, installed, `{"packages":[{"name":"taw/core","version":"v1.89.0"}]}`)
+	mustWriteBody(t, filepath.Join(th.RealPath, "taw.json"), `{"update": {"deliver": "pr+merge"}}`)
+	f.Script = func(sp exec.Spec) (exec.Result, error) {
+		args := strings.Join(sp.Args, " ")
+		switch {
+		case strings.Contains(args, "update taw/core"): // composer, or Local's php composer.phar
+			mustWriteBody(t, installed, `{"packages":[{"name":"taw/core","version":"v1.91.2"}]}`)
+		case strings.HasPrefix(args, "vendor/bin/taw update"):
+			_, _ = sp.Stderr.Write([]byte("Working on a new branch, taw/update-1 (from main)\n"))
+			mustWriteBody(t, filepath.Join(th.RealPath, ".taw", "update-report.md"), "# TAW update\n")
+			return exec.Result{Stdout: []byte(`{"status":"updated","branch":"taw/update-1","core":{"from":"v1.89.0","to":"v1.91.2"},"changed":["AGENTS.md","composer.lock"],"migrations":["1.91.0/agent-docs"],"manual":["CLAUDE.md has this site's own changes"],"held":[],"checks":[{"name":"lint","status":"pass"},{"name":"build","status":"skip","reason":"no node_modules"}],"failure":null,"delivered":{"how":"pr+merge","url":"https://github.com/Relmaur/ls-mexico--theme/pull/9","note":"Pull request opened; it merges by itself when CI passes."}}`)}, nil
+		}
 		return exec.Result{}, nil
-	}}
+	}
 	task, err := a.UpdateTask(s, th)
-	if err != nil || !task.Writes {
+	if err != nil || !task.Writes || task.Ask != "Update ls-mexico? taw/core, framework files, migrations, checks, then a pull request that merges itself (deploys)." {
 		t.Fatalf("task=%+v err=%v", task, err)
 	}
+	var out strings.Builder
+	sum, err := task.Run(context.Background(), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := f.Calls()
+	if len(calls) != 3 || !strings.Contains(strings.Join(calls[0].Args, " "), "update taw/core") || strings.Join(calls[1].Args, " ") != "checkout -- composer.lock" || !strings.HasPrefix(strings.Join(calls[2].Args, " "), "vendor/bin/taw update --json --composer=") {
+		t.Fatalf("composer → git checkout composer.lock → update, got %+v", calls)
+	}
+	if !slices.Contains(calls[0].Env, "TAW_NO_UPGRADE=1") {
+		t.Error("the bridge holds the theme's own hook back")
+	}
+	if !strings.Contains(out.String(), "has no one-step update") || !strings.Contains(out.String(), "Working on a new branch") {
+		t.Errorf("progress:\n%s", out.String())
+	}
+	joined := strings.Join(sum.Lines, "\n")
+	if sum.Failed || sum.Headline != "ls-mexico: updated to taw/core 1.91.2; pull request https://github.com/Relmaur/ls-mexico--theme/pull/9" ||
+		!strings.Contains(joined, "taw/core 1.89.0 → 1.91.2") || !strings.Contains(joined, "vendor/ got the newest first") ||
+		!strings.Contains(joined, "For you: CLAUDE.md") || !strings.Contains(joined, "Checks: lint ✓ · build – not run here") {
+		t.Errorf("sum = %+v", sum)
+	}
+}
+
+func TestAStoppedUpdateHandsItsReportToClaude(t *testing.T) {
+	a, f := setup(t, config.Config{})
+	s, th := fixture()
+	th.RealPath = t.TempDir()
+	mustWriteBody(t, filepath.Join(th.RealPath, "vendor", "composer", "installed.json"), `{"packages":[{"name":"taw/core","version":"v1.91.2"}]}`)
+	f.Script = func(exec.Spec) (exec.Result, error) {
+		mustWriteBody(t, filepath.Join(th.RealPath, ".taw", "update-report.md"), "# TAW update: ls-mexico\n\n## What failed: phpstan\n")
+		return exec.Result{Code: 1, Stdout: []byte(`{"status":"failed","branch":"taw/update-2","core":{"from":"v1.91.2","to":"v1.92.0"},"failure":{"step":"phpstan","command":"composer run phpstan","out":"Line 4"}}`)}, nil
+	}
+	task, _ := a.UpdateTask(s, th)
 	sum, err := task.Run(context.Background(), io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.Headline != "ls-mexico: taw/core 1.59.2 → 1.76.1; 2 UPGRADING.md sections to check" || !strings.Contains(strings.Join(sum.Lines, "\n"), "• v1.60.0: a") {
-		t.Errorf("sum = %+v", sum)
+	if len(f.Calls()) != 1 {
+		t.Errorf("a current taw/core runs update directly: %d calls", len(f.Calls()))
+	}
+	o, ok := sum.Report.(UpdateOutcome)
+	if !ok || !o.Stopped() || !sum.Failed || sum.Headline != "ls-mexico: the update stopped at phpstan; nothing was pushed" {
+		t.Fatalf("sum = %+v", sum)
+	}
+	p, err := FixPrompt(o)
+	if err != nil || !strings.Contains(p.Text, "## What failed: phpstan") || !strings.Contains(p.Text, "Work on the branch taw/update-2") || !strings.Contains(p.Text, "Never merge") {
+		t.Errorf("the prompt is the report plus what Claude may do:\n%s %v", p.Text, err)
 	}
 }
 

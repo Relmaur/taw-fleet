@@ -88,13 +88,22 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 	if ev.err != nil {
 		m.setFlash(t.title+": "+ev.err.Error(), true)
 	} else {
-		m.setFlash(ev.sum.Headline, false)
+		m.setFlash(ev.sum.Headline, ev.sum.Failed)
 	}
 	var cmds []tea.Cmd
 	if pv, ok := ev.sum.Report.(actions.PullPreview); ok && ev.err == nil && pv.Apply.Run != nil {
 		apply := pv.Apply
 		m.confirm = apply.Ask
 		m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startTask(apply) }
+	}
+	if o, ok := ev.sum.Report.(actions.UpdateOutcome); ok && ev.err == nil {
+		if o.Stopped() {
+			m = m.offerFinish(o)
+		}
+		if o.Report.Delivered != nil && o.Report.Delivered.URL != "" && m.deps.GitHub != nil {
+			model, cmd := m.fetchRepos(true) // the new pull request in the PR column
+			m, cmds = model.(Model), append(cmds, cmd)
+		}
 	}
 	if res, ok := ev.sum.Report.(actions.MergeResult); ok && ev.err == nil {
 		if res.Deploys {
@@ -148,23 +157,38 @@ func (m Model) syncOrUpdate(which string) (tea.Model, tea.Cmd) {
 		task, err = m.deps.Actions.SyncTask(s, t, true)
 		question = "Write the Tier 1 framework files in " + t.Dir + "?" + dirty
 	case "update":
-		if !t.Core.Behind && t.Core.Latest != "" {
-			m.setFlash(t.Dir+" already has the newest taw/core", false)
-			return m, nil
-		}
-		task, err = m.deps.Actions.UpdateTask(s, t)
-		question = fmt.Sprintf("Update taw/core in %s from %s to %s?%s", t.Dir, strings.TrimPrefix(t.Core.Installed, "v"), strings.TrimPrefix(t.Core.Latest, "v"), dirty)
+		task, err = m.deps.Actions.UpdateTask(s, t) // asks its own question (taw.json's words)
 	}
 	if err != nil {
 		m.setFlash(t.Dir+": "+err.Error(), true)
 		return m, nil
 	}
-	model, cmd := m.askTask(task, question)
-	if mm, ok := model.(Model); ok && which == "update" && mm.confirm != "" {
-		mm.onAgent = func(m Model) (tea.Model, tea.Cmd) { return m.runAgent() }
-		return mm, cmd
+	return m.askTask(task, question)
+}
+
+// offerFinish asks how to finish an update that stopped: Claude works from
+// its report, or the report opens as the guide for a person (ADR-0004).
+func (m Model) offerFinish(o actions.UpdateOutcome) Model {
+	step := "a step"
+	if o.Report.Failure != nil {
+		step = o.Report.Failure.Step
 	}
-	return model, cmd
+	m.confirm = o.Theme.Dir + " stopped at " + step + ":  1 Fix with Claude · 2 Do it myself (open the guide)"
+	m.choices = []func(Model) (tea.Model, tea.Cmd){
+		func(m Model) (tea.Model, tea.Cmd) {
+			a, ctx, tty := m.deps.Actions, m.ctx, m.deps.TTY
+			m.mode = modeTable
+			return m, func() tea.Msg {
+				l, err := a.FixUpdate(ctx, o, tty)
+				return launchedMsg{o.Theme.Dir, l, err}
+			}
+		},
+		func(m Model) (tea.Model, tea.Cmd) {
+			a, ctx := m.deps.Actions, m.ctx
+			return m, m.run(func() (string, error) { return a.OpenGuide(ctx, o) })
+		},
+	}
+	return m
 }
 
 // onOutputKey handles keys in the output view.
@@ -217,7 +241,7 @@ func (m Model) outputScreen(height int) string {
 	switch {
 	case t.running:
 		state = m.spin.View() + " " + muted.Render("running for "+m.deps.Now().Sub(t.started).Round(time.Second).String())
-	case t.err != nil:
+	case t.err != nil, t.summary.Failed:
 		state = p.Fg(p.Err).Render("✗ failed")
 	default:
 		state = p.Fg(p.OK).Render("✓ done") + muted.Render(" in "+t.finished.Sub(t.started).Round(time.Second).String())
@@ -232,7 +256,11 @@ func (m Model) outputScreen(height int) string {
 		if t.err != nil {
 			foot = append(foot, " "+p.Fg(p.Err).Render("✗ "+t.err.Error()))
 		} else {
-			foot = append(foot, " "+p.Fg(p.OK).Render("✓ ")+lipgloss.NewStyle().Bold(true).Render(t.summary.Headline))
+			mark := p.Fg(p.OK).Render("✓ ")
+			if t.summary.Failed {
+				mark = p.Fg(p.Err).Render("✗ ")
+			}
+			foot = append(foot, " "+mark+lipgloss.NewStyle().Bold(true).Render(t.summary.Headline))
 			for _, l := range t.summary.Lines {
 				foot = append(foot, "   "+l)
 			}
