@@ -42,6 +42,8 @@ Run `taw-fleet` on its own for the dashboard. It opens in a new window of your t
 nothing to scroll back to, and the window closes when you quit.
 `taw-fleet --window=false`, or `window = false` in the settings, keeps it in the current
 terminal. When it can't open a window, or the output isn't a terminal, it stays where it is.
+`taw-fleet --site <site>` opens it on that site, its details showing (what a
+[notification](#notifications-taw-fleet-watch)'s click runs).
 
 | Key | Does |
 |---|---|
@@ -571,6 +573,42 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Preview first:** taw/core's `content:import` dry run lists what would be created or changed, and writes nothing.
 - **Then the import, after you confirm:** production wins, media is downloaded, and taw/core saves a rollback snapshot to `wp-content/uploads/taw-private/` first.
 - A stopped Local site is started first (it asks). Snapshots are kept in `~/Library/Caches/taw-fleet/content/`.
+
+## Notifications (`taw-fleet watch`)
+
+`taw-fleet watch install` checks the fleet in the background every 5 minutes, also after a
+restart (a launchd agent, `~/Library/LaunchAgents/com.relmaur.taw-fleet.watch.plist`). It tells
+you, once, with a macOS notification, what changed since the last check:
+
+| Notification | When |
+|---|---|
+| **Deploy failed** | a theme's deploy workflow failed (production keeps the last good deploy) |
+| **CI failed on main** | the default branch's newest commit didn't pass its checks |
+| **Production is down** / **is back** | a production site's companion didn't answer two checks in a row (one is often a blip) / answers again |
+| **Production not verified** | it answered without its pinned key's signature |
+| **New comments** | new client comments in the site's BugSmash project |
+| **Update ready to merge** | an update's pull request (`taw/update-…`) passed its checks: `M` merges it |
+
+Clicking a notification opens the dashboard on that site, its details showing. That needs
+`terminal-notifier`, which the Homebrew cask installs; macOS asks once whether it may show
+notifications (System Settings → Notifications → terminal-notifier, Banners). Without it, the
+same notification comes through Script Editor, and clicking it doesn't open the dashboard.
+
+The first check only notes the fleet as it is: nothing already failing is told. A check that
+can't ask GitHub, a site or BugSmash keeps what the last one saw, so an outage doesn't repeat old
+news. Each production site's checks are kept per day (`~/Library/Application Support/taw-fleet/watch/`):
+the monthly report's uptime.
+
+```bash
+taw-fleet watch install            # every 5 minutes, in the background (--every 10m)
+taw-fleet watch status             # on or off, the last check, what it told lately
+taw-fleet watch test ls-mxico      # a notification now, to see it arrive and where a click goes
+taw-fleet watch --once             # one check here (--json, --no-notify)
+taw-fleet watch                    # check every 5 minutes in this terminal, until ctrl+c
+taw-fleet watch uninstall          # stop
+```
+
+The agent's output (only news and problems) goes to `~/Library/Application Support/taw-fleet/watch/watch.log`.
 
 ## Other GitHub accounts
 

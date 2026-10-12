@@ -77,7 +77,8 @@ func (d Deps) palette() style.Palette {
 type globals struct {
 	offline  bool
 	window   bool
-	inWindow bool // started by openWindow: draw inline, the window is ours
+	inWindow bool   // started by openWindow: draw inline, the window is ours
+	site     string // open the dashboard on this site (a notification's click)
 }
 
 func (d Deps) github(g *globals) *github.Client {
@@ -144,16 +145,22 @@ func (d Deps) coreLatest(g *globals) func(context.Context) (string, error) {
 // --window=false or the config's window = false says not to. The new window
 // runs with --window=false. When no window opens, it says why and the
 // dashboard opens here instead.
-func (d Deps) openWindow(cmd *cobra.Command, g *globals) bool {
+//
+// force opens one whatever the settings say: there's no terminal to draw in
+// (a notification's click).
+func (d Deps) openWindow(cmd *cobra.Command, g *globals, force bool) bool {
 	a, err := d.actions()
 	if err != nil {
+		if force {
+			_, _ = fmt.Fprintf(d.Err, "Couldn't open a new window (%v).\n", err)
+		}
 		return false // the dashboard reports a broken config
 	}
 	want := a.Config.OpensWindow()
 	if cmd.Flags().Changed("window") {
 		want = g.window
 	}
-	if !want {
+	if !want && !force {
 		return false
 	}
 	exe := d.Executable
@@ -165,6 +172,9 @@ func (d Deps) openWindow(cmd *cobra.Command, g *globals) bool {
 		args := []string{"--window=false", "--in-window"}
 		if g.offline {
 			args = append(args, "--offline")
+		}
+		if g.site != "" {
+			args = append(args, "--site", g.site)
 		}
 		var term string
 		if term, err = a.Window(cmd.Context(), path, args); err == nil {
@@ -191,9 +201,15 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.Args = cobra.NoArgs
 	root.RunE = func(cmd *cobra.Command, _ []string) error {
 		if !d.Interactive {
+			if g.site != "" { // a notification's click: no terminal here
+				if d.openWindow(cmd, g, true) {
+					return nil
+				}
+				return errors.New("couldn't open the dashboard in a new window")
+			}
 			return runList(cmd, d, g, false, false)
 		}
-		if d.openWindow(cmd, g) {
+		if d.openWindow(cmd, g, false) {
 			return nil
 		}
 		deps := tui.Deps{
@@ -206,6 +222,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			Icons:     d.iconSet(),
 			Refresh:   time.Minute,
 			Inline:    g.inWindow,
+			Select:    g.site,
 		}
 		deps.SiteOp = d.runSiteOp
 		deps.EndLeftovers = func(ctx context.Context, l local.Leftovers) (local.Leftovers, error) {
@@ -248,6 +265,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.Flags().BoolVar(&g.window, "window", true, "open the dashboard in a new terminal window (config: window)")
 	root.Flags().BoolVar(&g.inWindow, "in-window", false, "")
 	_ = root.Flags().MarkHidden("in-window")
+	root.Flags().StringVar(&g.site, "site", "", "open the dashboard on this site, its details showing")
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
@@ -255,7 +273,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g))
 	return root
 }
 

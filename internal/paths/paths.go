@@ -20,6 +20,7 @@ type Paths struct {
 	LocalSupport string   // ~/Library/Application Support/Local
 	LocalApp     string   // /Applications/Local.app
 	CacheDir     string   // ~/Library/Caches/taw-fleet
+	DataDir      string   // ~/Library/Application Support/taw-fleet: what must outlive a cache (watch's state and history)
 	ConfigDir    string   // $XDG_CONFIG_HOME/taw-fleet or ~/.config/taw-fleet
 	Applications []string // where apps are installed, searched in order
 
@@ -61,6 +62,7 @@ func ForHome(home string, getenv func(string) string) Paths {
 		LocalSupport: filepath.Join(home, "Library", "Application Support", "Local"),
 		LocalApp:     "/Applications/Local.app",
 		CacheDir:     filepath.Join(home, "Library", "Caches", "taw-fleet"),
+		DataDir:      filepath.Join(home, "Library", "Application Support", "taw-fleet"),
 		ConfigDir:    config,
 		Applications: []string{"/Applications", filepath.Join(home, "Applications"), "/System/Applications/Utilities"},
 		Getenv:       getenv,

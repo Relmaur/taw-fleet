@@ -12,7 +12,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 |---|---|
 | `cmd/taw-fleet/main.go` | Entry point; `version`/`commit` are set by the release build, else read from Go's build info (`go install`) |
 | `internal/cli` | cobra commands (`list`, `show`, `doctor`, `version`); table or `--json`; global `--offline` |
-| `internal/paths` | Every filesystem root (`Home`, `LocalSupport`, `LocalApp`, …); `$TAW_FLEET_HOME` overrides `~` |
+| `internal/paths` | Every filesystem root (`Home`, `LocalSupport`, `LocalApp`, `CacheDir`, `DataDir` for what must outlive a cache, …); `$TAW_FLEET_HOME` overrides `~` |
 | `internal/exec` | `Runner` (argument lists + context timeout), `OSRunner`, `FakeRunner` |
 | `internal/local` | Local's `sites.json`, `site-statuses.json`, MySQL sockets, bundled PHP/Composer/wp-cli; `GraphQL` (Local app API: live statuses, start/stop/restart); `WPSpec` |
 | `internal/composer` | `Detect` (TAW? CLASSIC or BLOCK?), installed/locked versions, semver helpers |
@@ -36,6 +36,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/live` | Production checks: `Keychain` (the signing key, through `internal/keychain`), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
 | `internal/bugsmash` | Open BugSmash review comments per site (read-only REST, `X-API-Key`): `KeyStore` (Keychain, then `$BUGSMASH_API_KEY`), `Client` (`Project`, `Projects`, `OpenComments`), `Prober.Check`/`CheckAll` (5-min cache), `NoKey`, `Apply` → `Site.Feedback` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
+| `internal/watch` | `taw-fleet watch`: `Check` (last `State` + the fleet → `Event`s, each told once; first sight only notes; failed checks keep the last state; uptime per day), `Load`/`Save` (`DataDir/watch/state.json`), `Notifier` (terminal-notifier with `-execute taw-fleet --site <slug>`, osascript fallback, `ErrNotAllowed`), `Agent` (launchd: `Install`/`Uninstall`/`Status`, `gui/<uid>`) |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
 Releases: `.goreleaser.yaml` + `.github/workflows/release.yml` on `v*` tags. The archive names

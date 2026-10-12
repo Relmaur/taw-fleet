@@ -87,6 +87,9 @@ type Deps struct {
 	// one, keeping its scrollback empty: for a window of its own, where
 	// scrolling up should find nothing behind the dashboard.
 	Inline bool
+	// Select is the site to open the dashboard on, its details showing: a
+	// folder, name or domain ("" = the first).
+	Select string
 	// Production is the sites (by folder) with a production URL in the
 	// config: they're listed first, and `/live` filters to them.
 	Production map[string]bool
@@ -197,6 +200,7 @@ type Model struct {
 	form            *huh.Form          // the new-site form (modeCreate)
 	fields          *createform.Fields // its answers
 	selectAfterScan string             // site slug to select once the next scan lands
+	detailAfterScan bool               // and show its details (Deps.Select)
 
 	agents map[string]string // Claude Code windows still open: done file → theme dir
 
@@ -222,6 +226,7 @@ func New(ctx context.Context, d Deps) Model {
 		d.Now = time.Now
 	}
 	m := Model{deps: d, ctx: ctx, keys: newKeyMap(), now: d.Now()}
+	m.selectAfterScan, m.detailAfterScan = d.Select, d.Select != ""
 	m.filter = textinput.New()
 	m.filter.Prompt = "/ "
 	m.menuInput = textinput.New()
@@ -863,10 +868,15 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 			m.cursor = vi
 		}
 	}
-	if m.selectAfterScan != "" { // a site was just created: select it
+	if m.selectAfterScan != "" { // a site was just created, or Deps.Select: select it
+		want := strings.ToLower(m.selectAfterScan)
 		for vi, ri := range m.visible {
-			if rep.Sites[m.rows[ri].site].Slug == m.selectAfterScan {
+			s := rep.Sites[m.rows[ri].site]
+			if strings.ToLower(s.Slug) == want || strings.ToLower(s.Name) == want || strings.ToLower(s.Domain) == want {
 				m.cursor, m.selectAfterScan = vi, ""
+				if m.detailAfterScan {
+					m.mode, m.scroll, m.detailAfterScan = modeDetail, 0, false
+				}
 				break
 			}
 		}
