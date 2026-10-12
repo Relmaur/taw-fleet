@@ -21,6 +21,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/agent"
 	"github.com/Relmaur/taw-fleet/internal/bugsmash"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/create"
@@ -116,6 +117,13 @@ type Deps struct {
 	// Feedback reads the open BugSmash comments (cached unless fresh). nil =
 	// no FB column.
 	Feedback func(ctx context.Context, fresh bool) (map[string]site.Feedback, error)
+
+	// Chat starts Claude Code for the chat (>), resuming a session when
+	// resume isn't "". nil = no chat (Claude Code isn't installed).
+	Chat func(ctx context.Context, sc agent.Scope, resume string) (*agent.Session, error)
+	// ChatWrites are taw-fleet's MCP write tools: called without their
+	// token they only return the question, so the chat lets them through.
+	ChatWrites map[string]bool
 }
 
 type mode int
@@ -129,6 +137,7 @@ const (
 	modeCreate
 	modeMenu
 	modeSkills
+	modeChat
 )
 
 // row is one line of the table: a TAW theme of a site.
@@ -224,6 +233,10 @@ type Model struct {
 	menuFrom   mode            // where the menu goes back to
 	skills     []actions.Skill // the skills the a picker offers
 	recent     []string        // the : menu's last-run action keys
+
+	chats    map[string]*chatState // conversations by scope ("fleet", "slug/theme")
+	chat     string                // the one on screen (modeChat)
+	chatFrom mode                  // where esc goes back to
 
 	filtering bool
 	filter    textinput.Model
@@ -425,6 +438,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(msg.Width - 2)
+		for _, c := range m.chats {
+			c.input.SetWidth(max(msg.Width-4, 10))
+		}
 		m.clamp()
 		if m.form != nil {
 			m.form = m.form.WithWidth(m.formWidth())
@@ -573,8 +589,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mergeDoneMsg:
 		return m.onMergeDone(msg)
 
+	case chatStartedMsg:
+		return m.onChatStarted(msg)
+
+	case chatEventMsg:
+		return m.onChatEvent(msg)
+
 	case spinner.TickMsg:
-		if !m.scanning && !m.liveFetching && !m.feedbackFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) && len(m.runningMerges()) == 0 {
+		if !m.scanning && !m.liveFetching && !m.feedbackFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) && len(m.runningMerges()) == 0 && !m.chatWorking() {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -588,6 +610,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.mode == modeChat {
+		return m.onChatKey(msg)
+	}
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
@@ -697,6 +722,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.openMenu()
 		case key.Matches(msg, k.Agent):
 			return m.runAgent()
+		case key.Matches(msg, k.Chat):
+			return m.openChat()
 		case key.Matches(msg, k.StartStop):
 			return m.askSiteOp(false)
 		case key.Matches(msg, k.Restart):
@@ -774,6 +801,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openHandoff()
 	case key.Matches(msg, k.Agent):
 		return m.runAgent()
+	case key.Matches(msg, k.Chat):
+		return m.openChat()
 	case key.Matches(msg, k.UpdateAll):
 		return m.planFleet()
 	case key.Matches(msg, k.StartStop):

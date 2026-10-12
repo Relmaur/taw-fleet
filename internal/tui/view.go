@@ -156,6 +156,8 @@ func (m Model) body() string {
 		return block(m.helpScreen(), m.width, h)
 	case m.mode == modeMenu, m.mode == modeSkills:
 		return block(m.paletteScreen(h), m.width, h)
+	case m.mode == modeChat:
+		return m.chatScreen(h)
 	case !m.loaded && m.err != nil:
 		return block(center(p.Fg(p.Err).Render("✗ "+m.err.Error()), m.width, h), m.width, h)
 	case m.mode == modeCreate && m.form != nil:
@@ -681,6 +683,8 @@ func (m Model) footer() string {
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.mergeStatus() != "" && m.mode != modeOutput:
 		status = " " + m.spin.View() + " " + muted.Render(m.mergeStatus())
+	case m.chatStatus() != "":
+		status = " " + m.spin.View() + " " + muted.Render(m.chatStatus())
 	case m.filtering:
 		status = " " + m.filter.View()
 	case m.filter.Value() != "":
@@ -707,6 +711,10 @@ func (m Model) footer() string {
 		keys = createKeys{}
 	case m.mode == modeMenu, m.mode == modeSkills:
 		keys = menuKeys{}
+	case m.mode == modeChat:
+		if c := m.currentChat(); c != nil {
+			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working}
+		}
 	}
 	// bubbles' help can overflow when the ellipsis itself doesn't fit: cut it.
 	return ansi.Truncate(status, m.width, "…") + "\n" + ansi.Truncate(" "+m.help.View(keys), m.width, "…")
