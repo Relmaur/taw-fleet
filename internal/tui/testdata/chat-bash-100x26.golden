@@ -1,0 +1,26 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+ ✦ Claude · acme-shop (acme)                                                               opus-5-5 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ you  merge the update and deploy it                                                                
+                                                                                                    
+ ✦    PR #12 (Update taw/core to 1.95.1) passed CI. Merging it deploys acme.mx.                     
+      ✓ taw-fleet merge pr  acme-shop                                                               
+      ⠋ Bash  git status --short                                                                    
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ ? Claude wants to use Bash: Show the theme's uncommitted changes                                   
+   git status --short                                                                               
+
+ y yes • n no • a yes, and don't ask again in this chat

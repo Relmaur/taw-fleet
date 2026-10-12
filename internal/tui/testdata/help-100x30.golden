@@ -13,7 +13,7 @@
    │  n   new site         M      merge PR            g GitHub            h hand off           │    
    │  z   restore point    D      site's branch       G PRs               c copy prompt        │    
    │  q   quit             C      pull content        F comments          X resolve comments   │    
-   │                       a      ask Claude…         m monthly report                         │    
+   │                       a      ask Claude…         m monthly report    > chat with Claude   │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
@@ -27,4 +27,4 @@
    │  3 2 0 ?  FB: open BugSmash comments, one waiting over 2 days, none open, check failed    │    
    │  2✓ 2✗  open PRs: CI passed, failed   ✓ ↑2 ⟳ ✗  deploy: current, behind, running, failed  │    
 
- enter details • e editor • t terminal • U update all • : all actions • / filter • ? help • q quit
+ enter details • > chat • t terminal • U update all • : all actions • / filter • ? help • q quit

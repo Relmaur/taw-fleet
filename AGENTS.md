@@ -37,6 +37,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/bugsmash` | Open BugSmash review comments per site (read-only REST, `X-API-Key`): `KeyStore` (Keychain, then `$BUGSMASH_API_KEY`), `Client` (`Project`, `Projects`, `OpenComments`), `Prober.Check`/`CheckAll` (5-min cache), `NoKey`, `Apply` → `Site.Feedback` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/report` | Monthly client reports: `Gather` (Sources: GitHub `Month`, BugSmash `MonthComments`, the companion, watch's uptime, PageSpeed; a failed source is a Note, never a failed report; housekeeping PRs counted, not listed), `Markdown`/`HTML` from one doc model (en/es; notes stay out of the client's text), `Save`/`List` (`~/TAW Fleet/reports/<site>/<month>.{md,html}`, `paths.FleetDir`) |
+| `internal/agent` | The chat's engine (`>`): `Start` runs the person's own `claude --print` with stream-json both ways, `--permission-prompts host --permission-prompt-tool stdio` and an `initialize` control request; `Parse` turns its lines into `Event`s; `Session.Say`/`Answer`/`Stop`; `Prompt`/`ScopeOf` (what Claude is told, printed by `chat --prompt`); `OnlyAsks` (a taw-fleet write without its token only returns the question, so it's let through and the person answers that question when the token comes back). Plan: umbrella `docs/plans/taw-fleet-agent.md` § 8 |
 | `internal/pagespeed` | PageSpeed Insights v5 (`Client.Run`: Lighthouse scores + CrUX field data); key in the Keychain (`KeyItem`, `report key import`) or `$PAGESPEED_API_KEY` |
 | `internal/restore` | Restore points: `Store.Save` (Guard first: outside the site, every theme and any git repository, else `ErrUnsafe`; `wp db export -` → 0600 gzip via the site's Local `mysqldump`; theme branch + commit; merge = git only; prune to `restore_keep`), `List`/`Find`, `Check`/`Restore` (saves a `before-restore` point, `git switch`, `wp db import -` from the gzip stream). Database copies live only in `DataDir/restore/` |
 | `internal/watch` | `taw-fleet watch`: `Check` (last `State` + the fleet → `Event`s, each told once; first sight only notes; failed checks keep the last state; uptime per day), `Load`/`Save` (`DataDir/watch/state.json`), `Notifier` (terminal-notifier with `-execute taw-fleet --site <slug>`, osascript fallback, `ErrNotAllowed`), `Agent` (launchd: `Install`/`Uninstall`/`Status`, `gui/<uid>`) |
@@ -82,7 +83,8 @@ go run ./cmd/taw-fleet version
 
 - **Filesystem and environment come in through `paths.Paths`. Commands run through
   `exec.Runner`.** No package calls `os.UserHomeDir()` or `exec.Command` directly, except the two
-  default implementations.
+  default implementations, and `agent`'s `execStart` (a conversation streams both ways, which
+  `Runner` can't do; tests replace it through `agent.Starter`).
 - **Tests never touch the real `~/Library`, `~/Local Sites`, GitHub, BugSmash or Local's API.** Use
   `t.TempDir()`, `testdata/`, `FakeRunner` and `httptest`. CI runs on a clean macOS runner, which
   would catch it.

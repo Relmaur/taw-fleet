@@ -20,7 +20,7 @@ type keyMap struct {
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
 	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch, Restore    key.Binding
 	Report                                                            key.Binding
-	Comments, Resolve, Ask                                            key.Binding
+	Comments, Resolve, Ask, Chat                                      key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -73,6 +73,7 @@ func newKeyMap() keyMap {
 		Comments:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "comments")),
 		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
 		Ask:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ask Claude…")),
+		Chat:        key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat with Claude")),
 	}
 }
 
@@ -81,7 +82,8 @@ type detailKeys struct{ k keyMap }
 
 func (d detailKeys) ShortHelp() []key.Binding {
 	up := key.NewBinding(key.WithKeys("up"), key.WithHelp("↑/↓", "scroll"))
-	return []key.Binding{up, d.k.PageDown, d.k.Back, d.k.Help, d.k.Quit}
+	chat := key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat about this site"))
+	return []key.Binding{up, d.k.PageDown, chat, d.k.Back, d.k.Help, d.k.Quit}
 }
 
 func (d detailKeys) FullHelp() [][]key.Binding { return d.k.FullHelp() }
@@ -182,7 +184,8 @@ func (c confirmKeys) FullHelp() [][]key.Binding { return c.k.FullHelp() }
 
 // ShortHelp is the one-line help bar.
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Detail, k.Editor, k.Terminal, k.UpdateAll, k.Menu, k.Filter, k.Help, k.Quit}
+	chat := key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat"))
+	return []key.Binding{k.Detail, chat, k.Terminal, k.UpdateAll, k.Menu, k.Filter, k.Help, k.Quit}
 }
 
 // FullHelp is the help screen, in columns.
@@ -191,7 +194,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.Quit},
 		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Ask},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report},
-		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve},
+		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve, k.Chat},
 	}
 }
 
