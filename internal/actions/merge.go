@@ -99,6 +99,9 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 				lines = append(lines, note)
 			}
 			head := fmt.Sprintf("Merged #%d into %s", pr.Number, st.Default)
+			if res.Deploys {
+				lines = append(lines, CacheAfterDeploy)
+			}
 			switch {
 			case res.Deploys && prod != "":
 				head += "; deploying " + strings.TrimPrefix(strings.TrimPrefix(prod, "https://"), "http://")
@@ -109,6 +112,11 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 		},
 	}, nil
 }
+
+// CacheAfterDeploy is taw/core's own reminder (TAW\Update\Report::CACHE_AFTER_DEPLOY):
+// a page cache cleared while the deploy runs is rebuilt from the old code.
+const CacheAfterDeploy = "Once the deploy has finished, not while it runs, clear the site's page cache " +
+	"(Hummingbird, WP Rocket, the host's cache): a cache cleared during the deploy is rebuilt from the old code."
 
 // pullDefault switches the local theme to the default branch and pulls,
 // then deletes the merged branch, when the tree is clean and on one of
