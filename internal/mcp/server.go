@@ -51,6 +51,8 @@ var Tools = []ToolDoc{
 		"The open review comments clients left on each production site in BugSmash: how many, how old, the latest ones with their page and text."},
 	{"production", "Production sites", "taw-fleet live --json", "LIVE column, L",
 		"Each production site through its TAW companion: reachable, verified, WordPress/PHP/taw-core versions, plugins, known vulnerabilities, recent errors."},
+	{"restore_points", "Restore points", "taw-fleet restore <site> --json", "RESTORE section, z",
+		"A site's restore points, newest first: what each holds (the Local database copy and its size, the theme's branch and commit), why it was made (before an update, a merge, a content import) and when. restore_site puts one back."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
 		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands run at once: " +
 			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
@@ -133,6 +135,12 @@ func NewServer(d Deps) *sdk.Server {
 	})
 	sdk.AddTool(s, tool("comments"), func(ctx context.Context, _ *sdk.CallToolRequest, in maybeSiteIn) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, flags(withSite([]string{"comments"}, in.Site, "--json"), in.Offline, "--offline"))
+	})
+	sdk.AddTool(s, tool("restore_points"), func(ctx context.Context, _ *sdk.CallToolRequest, in siteIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Site) == "" {
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		}
+		return run(ctx, d, []string{"restore", in.Site, "--json"})
 	})
 	sdk.AddTool(s, tool("production"), func(ctx context.Context, _ *sdk.CallToolRequest, in offlineIn) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, flags([]string{"live", "--json"}, in.Offline, "--offline"))

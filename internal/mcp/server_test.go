@@ -110,8 +110,8 @@ func TestToolsNameTheirCommandAndWritesAreMarked(t *testing.T) {
 		}
 	}
 	for _, tl := range res.Tools {
-		if tl.Name == "merge_pr" && (tl.Annotations.DestructiveHint == nil || !*tl.Annotations.DestructiveHint) {
-			t.Error("merge_pr reaches production: destructiveHint")
+		if (tl.Name == "merge_pr" || tl.Name == "restore_site") && (tl.Annotations.DestructiveHint == nil || !*tl.Annotations.DestructiveHint) {
+			t.Errorf("%s reaches production or replaces a database: destructiveHint", tl.Name)
 		}
 	}
 }
@@ -131,6 +131,7 @@ func TestToolsRunTheCommands(t *testing.T) {
 		{"pull_requests", map[string]any{}, "prs --json"},
 		{"comments", map[string]any{"site": "fsspx-taw", "offline": true}, "comments fsspx-taw --json --offline"},
 		{"production", map[string]any{}, "live --json"},
+		{"restore_points", map[string]any{"site": "ls-mxico"}, "restore ls-mxico --json"},
 	} {
 		c.fleet = nil
 		r, out := call(t, cs, tc.tool, tc.args)
@@ -232,6 +233,8 @@ func TestWritesAskFirst(t *testing.T) {
 		{"stop_site", map[string]any{"site": "chcapital"}, "stop chcapital"},
 		{"sync_apply", map[string]any{"site": "chcapital"}, "sync chcapital --apply"},
 		{"pull_content", map[string]any{"site": "chcapital"}, "pull chcapital"},
+		{"restore_site", map[string]any{"site": "ls-mxico"}, "restore ls-mxico latest"},
+		{"restore_site", map[string]any{"site": "ls-mxico", "point": "20261012-180000-update"}, "restore ls-mxico 20261012-180000-update"},
 	} {
 		c.ask = nil
 		call(t, cs, tc.tool, tc.args)

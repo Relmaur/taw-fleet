@@ -30,6 +30,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
@@ -61,6 +62,8 @@ type Actions interface {
 	ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, error)
 	SkillPrompt(s site.Site, t site.Theme, sk actions.Skill, findings []site.Finding) handoff.Prompt
 	LaunchSkill(ctx context.Context, s site.Site, t site.Theme, kind string, p handoff.Prompt, beside string) (actions.Launched, error)
+	Restores() restore.Store
+	RestoreTask(ctx context.Context, s site.Site, t site.Theme, p restore.Point) (actions.Task, error)
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -193,6 +196,8 @@ type Model struct {
 	reposAt       time.Time
 	followed      map[string]following   // merged pull requests whose deploy is watched, by repo
 	merges        map[string]*mergeState // M, by "siteID/themeDir": running, or ended lately
+
+	restores map[string][]restore.Point // restore points by site slug, newest first
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -450,7 +455,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
+		cmds = append(cmds, m.loadRestores())
 		return m, tea.Batch(cmds...)
+
+	case restoresMsg:
+		m.restores = msg
+		return m, nil
 
 	case reposDoneMsg:
 		return m.onRepos(msg)
@@ -793,6 +803,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Merge):
 		model, cmd := m.askMerge()
+		return model, cmd, true
+	case key.Matches(msg, k.Restore):
+		model, cmd := m.askRestore()
 		return model, cmd, true
 	case key.Matches(msg, k.SiteBranch):
 		model, cmd := m.askSiteBranch()

@@ -27,6 +27,10 @@ func setup(t *testing.T, cfg config.Config) (*Actions, *exec.FakeRunner) {
 	home := t.TempDir()
 	p := paths.ForHome(home, nil)
 	f := &exec.FakeRunner{}
+	if cfg.RestoreKeep == nil { // restore points are tested on their own (restore_test.go)
+		none := 0
+		cfg.RestoreKeep = &none
+	}
 	a := New(p, f, cfg)
 	a.Tools = tools.Inventory{
 		Editors:   []tools.App{{Name: "Cursor", Path: "/Applications/Cursor.app"}, {Name: "PhpStorm", Path: "/Applications/PhpStorm.app"}},

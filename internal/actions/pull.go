@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -125,6 +126,9 @@ func (a *Actions) applyPull(s site.Site, t site.Theme, file, from string, pv Pul
 		Ask:    ask,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 			say := sayTo(out)
+			if err := a.checkpoint(ctx, s, t, restore.BeforeImport, "before importing "+from+"'s content", out); err != nil {
+				return Summary{}, err
+			}
 			say("Importing (media is downloaded from %s)…", from)
 			rep, err := a.taw(s).ContentApply(ctx, s, t, file, out)
 			if err != nil {

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/taw"
 )
@@ -181,6 +182,9 @@ func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 	return Task{Title: "Update " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
 		Steps: taw.UpdatePlan(t, pol, bridge), Info: updateInfo(s, t, pol), Target: s.ID + "/" + t.Dir,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
+			if err := a.checkpoint(ctx, s, t, restore.BeforeUpdate, "before updating "+t.Dir, out); err != nil {
+				return Summary{}, err
+			}
 			rep, err := r.Update(ctx, t, out)
 			if err != nil {
 				return Summary{}, err

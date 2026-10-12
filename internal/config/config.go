@@ -17,13 +17,16 @@ import (
 
 // Config is the user's preferences.
 type Config struct {
-	Editor   string          `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
-	Terminal string          `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
-	Window   *bool           `toml:"window"`   // the dashboard in its own window; nil = true
-	Icons    string          `toml:"icons"`    // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
-	Umbrella string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
-	Create   Create          `toml:"create"`   // defaults for taw-fleet create
-	Sites    map[string]Site `toml:"sites"`    // keyed by site folder name
+	Editor   string `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
+	Terminal string `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
+	Window   *bool  `toml:"window"`   // the dashboard in its own window; nil = true
+	Icons    string `toml:"icons"`    // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
+	// RestoreKeep is how many restore points taw-fleet keeps per site; nil
+	// = 5, 0 = none are made.
+	RestoreKeep *int            `toml:"restore_keep"`
+	Umbrella    string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
+	Create      Create          `toml:"create"`   // defaults for taw-fleet create
+	Sites       map[string]Site `toml:"sites"`    // keyed by site folder name
 
 	// GitHubOwners are the owner's GitHub accounts and organizations: a
 	// theme whose repository belongs to another one is marked @owner.
@@ -79,6 +82,9 @@ func Load(p paths.Paths) (Config, error) {
 	default:
 		return c, fmt.Errorf("%s: icons must be \"symbols\" or \"nerd\"", File(p))
 	}
+	if c.RestoreKeep != nil && (*c.RestoreKeep < 0 || *c.RestoreKeep > 50) {
+		return c, fmt.Errorf("%s: restore_keep must be 0 (none) to 50", File(p))
+	}
 	switch c.Create.Kind {
 	case "", "classic", "block":
 	default:
@@ -97,6 +103,17 @@ func Load(p paths.Paths) (Config, error) {
 
 // uuid is a BugSmash project id.
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// DefaultRestoreKeep is how many restore points a site keeps by default.
+const DefaultRestoreKeep = 5
+
+// Restores is how many restore points to keep per site (0 = none are made).
+func (c Config) Restores() int {
+	if c.RestoreKeep == nil {
+		return DefaultRestoreKeep
+	}
+	return *c.RestoreKeep
+}
 
 // OpensWindow reports whether the dashboard opens in its own window.
 func (c Config) OpensWindow() bool { return c.Window == nil || *c.Window }
@@ -126,6 +143,12 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # Font icons, for a terminal set to a Nerd Font, such as one installed with
 # brew install --cask font-jetbrains-mono-nerd-font). taw-fleet config icons nerd
 # icons = "nerd"
+
+# Restore points: before an update (u, U), a merge (M) and a content import
+# (C), taw-fleet saves the Local site's database and the theme's commit, in
+# ~/Library/Application Support/taw-fleet/restore/ (never in a site or a
+# repository). It keeps this many per site; 0 makes none.
+# restore_keep = 5
 
 # Your GitHub accounts and organizations: a theme whose repository belongs to
 # another account is marked @account in the dashboard (/other filters them).

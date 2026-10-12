@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/taw"
 )
 
@@ -238,7 +239,34 @@ func (m Model) offerFinish(o actions.UpdateOutcome) Model {
 			return m, m.run(func() (string, error) { return a.OpenGuide(ctx, o) })
 		},
 	}
+	if m.deps.Actions.Restores().Keep > 0 {
+		m.confirm += " · 3 Put it back"
+		m.choices = append(m.choices, func(m Model) (tea.Model, tea.Cmd) { return m.putBackUpdate(o) })
+	}
 	return m
+}
+
+// putBackUpdate is 3 after an update stopped: the restore point saved just
+// before it, after the restore's own question.
+func (m Model) putBackUpdate(o actions.UpdateOutcome) (tea.Model, tea.Cmd) {
+	points, err := m.deps.Actions.Restores().List(o.Site.Slug)
+	if err != nil {
+		m.setFlash(err.Error(), true)
+		return m, nil
+	}
+	for _, p := range points {
+		if p.Theme == o.Theme.Dir && p.Reason == restore.BeforeUpdate {
+			task, err := m.deps.Actions.RestoreTask(m.ctx, o.Site, o.Theme, p)
+			if err != nil {
+				m.setFlash(o.Site.Slug+": "+err.Error(), true)
+				return m, nil
+			}
+			m.mode = modeTable
+			return m.askTask(task, task.Ask)
+		}
+	}
+	m.setFlash("no restore point from before this update (restore_keep, or it couldn't be saved)", true)
+	return m, nil
 }
 
 // onOutputKey handles keys in the output view.

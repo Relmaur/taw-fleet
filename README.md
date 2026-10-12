@@ -69,6 +69,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
 | `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site |
+| `z` | put back a restore point: asks which (the site's newest first), then puts it back after asking again (see [Restore points](#restore-points)) |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy. Several sites can merge at once: each site's card shows the spinner, then `✓` or `✗`, and its details a **MERGE** section (merged, this Mac back on the site's branch, deploying, on production). Untracked files (the update's `.taw/` report) don't keep the checkout on the update branch. When `taw.json` delivers to another remote, `origin` (the copy) is fast-forwarded to the merge too |
 | `D` | back to the site's branch: switch the theme to its default branch (asks first; refused with uncommitted changes). A branch that tracks another repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of its own; other branches are kept |
 | `r` | refresh now (it also refreshes every minute) |
@@ -573,6 +574,37 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Preview first:** taw/core's `content:import` dry run lists what would be created or changed, and writes nothing.
 - **Then the import, after you confirm:** production wins, media is downloaded, and taw/core saves a rollback snapshot to `wp-content/uploads/taw-private/` first.
 - A stopped Local site is started first (it asks). Snapshots are kept in `~/Library/Caches/taw-fleet/content/`.
+
+## Restore points
+
+Before an update (`u`, `U`), a merge (`M`) and a content import (`C`), taw-fleet saves a restore
+point: the Local site's database, when the site runs, and the theme's branch and commit. A merge
+keeps only the branch (it changes production, never the Local database). If the point can't be
+saved, the step doesn't run.
+
+**Where the database copies live, and where they never do.** Points are kept in
+`~/Library/Application Support/taw-fleet/restore/<site>/`, never in a site folder, a theme or a
+git repository: before writing anything, taw-fleet checks that folder is outside the site and
+every theme, and that git doesn't see it as part of a repository (a dotfiles repository at `~`
+counts). If it is, nothing is saved and the step stops. The copy goes from `wp db export -`
+(stdout, with the site's own `mysqldump` from Local) straight into a gzip file only you can read
+(0600, in 0700 folders), so no `.sql` file is ever written anywhere else; the folder also has a
+`.gitignore` of `*`. Putting one back streams the copy into `wp db import -`, never unpacked on disk.
+
+taw-fleet keeps the newest 5 per site (`restore_keep` in the settings; 0 makes none).
+
+- **`z`** in the dashboard asks which point to put back, then puts it back after asking: the
+  theme onto the point's branch (commits made since stay) and the database from its copy. The
+  details list the newest points in a **RESTORE** section.
+- **After an update stops,** `3 Put it back` restores the point from just before it.
+- **Undo:** a restore first saves how things are now as a point, so it can be put back too.
+
+```bash
+taw-fleet restore ls-mxico                  # the points, newest first
+taw-fleet restore ls-mxico latest           # put the newest back (asks first)
+taw-fleet restore ls-mxico 20261012-183000-update --yes
+taw-fleet restore ls-mxico --save           # one now
+```
 
 ## Notifications (`taw-fleet watch`)
 

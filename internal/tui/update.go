@@ -512,6 +512,9 @@ func (m Model) updateResult(v updateView) []string {
 			}
 		}
 		out = append(out, "", "   "+bold.Render("1")+" Fix with Claude"+muted.Render(" (from the report; asks before pushing)")+"     "+bold.Render("2")+" Do it myself"+muted.Render(" (the report, step by step)"))
+		if m.deps.Actions != nil && m.deps.Actions.Restores().Keep > 0 {
+			out = append(out, "   "+bold.Render("3")+" Put it back"+muted.Render(" (the restore point from just before: the database and the site's branch)"))
+		}
 	}
 	return out
 }
