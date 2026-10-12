@@ -31,6 +31,9 @@ const Repo = "Relmaur/taw-fleet"
 // Binary is the executable's name inside the archive.
 const Binary = "taw-fleet"
 
+// Companion is the other binary of the release: the `taw` theme command.
+const Companion = "taw"
+
 // maxDownload bounds an archive (the binary is ~10 MB).
 const maxDownload = 64 << 20
 
@@ -174,7 +177,17 @@ func (u *Updater) Apply(ctx context.Context, rel Release, target string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
-	return replace(target, bin)
+	if err := replace(target, bin); err != nil {
+		return err
+	}
+	// taw (the theme command) ships in the same archive since v1.17.0: it
+	// goes next to taw-fleet, where it's on the same PATH.
+	if taw, err := extract(archive, Companion); err == nil {
+		if err := replace(filepath.Join(filepath.Dir(target), Companion), taw); err != nil {
+			return fmt.Errorf("taw-fleet is updated, but taw isn't: %w", err)
+		}
+	}
+	return nil
 }
 
 func (u *Updater) download(ctx context.Context, url string, limit int64) ([]byte, error) {

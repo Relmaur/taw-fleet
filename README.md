@@ -19,10 +19,14 @@ On any Mac (Apple silicon or Intel):
 brew install Relmaur/tap/taw-fleet     # update with: brew upgrade taw-fleet
 ```
 
+It installs two commands: `taw-fleet`, and `taw`, which runs a theme's own `vendor/bin/taw` (see
+[The `taw` command](#the-taw-command)).
+
 Without Homebrew, download `taw-fleet_<version>_darwin_<arm64|amd64>.tar.gz` from the
 [releases](https://github.com/Relmaur/taw-fleet/releases), put `taw-fleet` on your `PATH`
-(e.g. `~/.local/bin`), and keep it current with `taw-fleet self-update`. With Go installed,
-`go install github.com/Relmaur/taw-fleet/cmd/taw-fleet@latest` works too.
+(e.g. `~/.local/bin`) with `taw` beside it, and keep both current with `taw-fleet self-update`. With
+Go installed, `go install github.com/Relmaur/taw-fleet/cmd/taw-fleet@latest` (and `…/cmd/taw@latest`)
+works too.
 
 Then run `taw-fleet`. There is nothing to set up: it finds the sites from Local's own files.
 
@@ -466,6 +470,37 @@ A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.j
 | `NO_COLOR` | No colors. Piped output and `--json` are never colored. |
 | `GITHUB_TOKEN` / `GH_TOKEN` | Token for the newest-version lookup (else `gh auth token`, else none) |
 | `BUGSMASH_API_KEY` | BugSmash API key, when none is in the Keychain (`taw-fleet comments key import`) |
+
+## The `taw` command
+
+`taw` runs a TAW theme's own `vendor/bin/taw`, the command line of the theme's taw/core: `taw list`,
+`taw make:block Hero`, `taw sync`, `taw update`, `taw wp option get home`. It never carries those
+commands itself, so every site keeps exactly its own taw/core version.
+
+```bash
+cd ~/Local\ Sites/ls-mxico/app/public/wp-content/themes/ls-mexico/Blocks
+taw list                  # in a theme, or any folder under it
+taw @ls-mexico list       # from anywhere: a theme folder or site name (taw-fleet's names)
+taw @taw/taw-theme list   # a site with two TAW themes: @<site>/<theme>
+taw                       # outside a theme: where it can run
+```
+
+- **Which theme:** the nearest folder up from where you are with `vendor/bin/taw`, or the one `@`
+  names. Your current folder is kept, so relative paths in the arguments work; `taw @…` runs in the
+  theme folder.
+- **Which PHP:** on a Local site, the site's own PHP with its MySQL socket (`-d
+  mysqli.default_socket`, `-d pdo_mysql.default_socket`, `MYSQL_UNIX_PORT`), so commands that start
+  WordPress reach that site's database, the way taw-fleet runs them. A theme linked into a site (the
+  umbrella's taw-theme in the taw site) counts as that site's. Anywhere else, the `php` on your PATH.
+- **A halted site:** one line says so (`taw-fleet start <site>`), then it runs anyway: most commands
+  don't need the database.
+- **Older themes** (taw/core before 1.90) run their `bin/taw`. No `vendor/` yet: it says to run
+  `composer install`.
+- Everything after the theme goes through untouched, and the theme's command takes over: its output,
+  its questions, its exit code. `taw` has no options of its own; `TAW_DEBUG=1 taw …` prints the command
+  it runs, ready to paste. Its version is taw-fleet's.
+
+CI keeps calling `vendor/bin/taw`: it's the same command, without the PHP and site lookup.
 
 ## Pull requests and deploys
 

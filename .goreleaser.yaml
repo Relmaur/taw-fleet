@@ -10,7 +10,8 @@ before:
     - go mod tidy -diff
 
 builds:
-  - main: ./cmd/taw-fleet
+  - id: taw-fleet
+    main: ./cmd/taw-fleet
     binary: taw-fleet
     env:
       - CGO_ENABLED=0
@@ -19,6 +20,18 @@ builds:
     flags: [-trimpath]
     ldflags:
       - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+  # taw: runs a theme's own vendor/bin/taw with its site's PHP (cmd/taw).
+  - id: taw
+    main: ./cmd/taw
+    binary: taw
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -55,7 +68,8 @@ homebrew_casks:
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
     directory: Casks
     homepage: https://github.com/Relmaur/taw-fleet
-    description: The TAW sites on this Mac (Local by Flywheel) in one terminal dashboard
+    description: The TAW sites on this Mac (Local by Flywheel) in one terminal dashboard, and the taw command
+    binaries: [taw-fleet, taw]
     commit_author:
       name: taw-fleet release
       email: noreply@github.com
@@ -66,4 +80,5 @@ homebrew_casks:
         install: |
           if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/taw-fleet"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/taw"]
           end

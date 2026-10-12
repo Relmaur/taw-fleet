@@ -17,15 +17,24 @@ import (
 	"testing"
 )
 
-func tarball(t *testing.T, name string, body []byte) []byte {
+// tarball is a release archive with README.md and name; more adds files as
+// name, body pairs.
+func tarball(t *testing.T, name string, body []byte, more ...string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	for _, f := range []struct {
+	files := []struct {
 		name string
 		body []byte
-	}{{"README.md", []byte("readme")}, {name, body}} {
+	}{{"README.md", []byte("readme")}, {name, body}}
+	for i := 0; i+1 < len(more); i += 2 {
+		files = append(files, struct {
+			name string
+			body []byte
+		}{more[i], []byte(more[i+1])})
+	}
+	for _, f := range files {
 		if err := tw.WriteHeader(&tar.Header{Name: f.name, Mode: 0o755, Size: int64(len(f.body)), Typeflag: tar.TypeReg}); err != nil {
 			t.Fatal(err)
 		}
@@ -182,5 +191,28 @@ func TestLatestRejectsGarbage(t *testing.T) {
 	u := updater(srv)
 	if _, err := u.Latest(context.Background()); err == nil || !strings.Contains(err.Error(), "Not Found") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestApplyInstallsTawBesideIt(t *testing.T) {
+	archive := tarball(t, "taw-fleet", []byte("NEW BINARY"), "taw", "NEW TAW")
+	srv := server(t, archive, sumOf(archive)+"  taw-fleet_0.7.1_darwin_arm64.tar.gz\n")
+	u := updater(srv)
+	rel, err := u.Latest(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, "taw-fleet")
+	if err := os.WriteFile(target, []byte("OLD"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := u.Apply(context.Background(), rel, target); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "taw"))
+	fi, err := os.Stat(filepath.Join(dir, "taw"))
+	if err != nil || string(got) != "NEW TAW" || fi.Mode().Perm() != 0o755 {
+		t.Errorf("taw beside taw-fleet: %q %v", got, err)
 	}
 }
