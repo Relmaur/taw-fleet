@@ -124,6 +124,9 @@ type Deps struct {
 	// ChatWrites are taw-fleet's MCP write tools: called without their
 	// token they only return the question, so the chat lets them through.
 	ChatWrites map[string]bool
+	// FleetSkills are the fleet folder's skills: the a picker lists them,
+	// and one runs in the fleet's chat.
+	FleetSkills []actions.Skill
 }
 
 type mode int

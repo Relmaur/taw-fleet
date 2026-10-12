@@ -6,17 +6,21 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/actions"
 )
 
-// openSkills shows the a picker: the selected theme's Claude Code skills.
+// openSkills shows the a picker: the selected theme's Claude Code skills,
+// then the fleet's.
 func (m Model) openSkills() (tea.Model, tea.Cmd) {
 	_, t, ok := m.selectedTheme()
-	if !ok {
-		return m, nil
-	}
 	if m.deps.Actions == nil {
 		m.setFlash("agent unavailable: "+errText(m.deps.ActionsErr), true)
 		return m, nil
 	}
-	m.skills = actions.Skills(t)
+	m.skills = nil
+	if ok {
+		m.skills = actions.Skills(t)
+	}
+	if m.deps.Chat != nil {
+		m.skills = append(m.skills, m.deps.FleetSkills...)
+	}
 	if len(m.skills) == 0 {
 		m.setFlash(t.Dir+" has no skills in .claude/skills/ yet: S syncs a classic theme's scaffold; a block theme: php bin/taw skills:sync --apply", true)
 		return m, nil
@@ -30,6 +34,19 @@ func (m Model) openSkills() (tea.Model, tea.Cmd) {
 // runSkill starts Claude Code in the theme folder on the skill, beside the
 // dashboard, with what taw-fleet knows about the site.
 func (m Model) runSkill(sk actions.Skill) (tea.Model, tea.Cmd) {
+	if sk.Owner == actions.FleetOwner {
+		// A fleet skill runs in the fleet's chat, in the fleet folder.
+		m.mode = modeTable
+		model, cmd := m.openChat()
+		m = model.(Model)
+		c := m.currentChat()
+		if c == nil || c.working {
+			return m, cmd
+		}
+		c.input.SetValue("Use the " + sk.Name + " skill.")
+		model, send := m.sendChat()
+		return model, tea.Batch(cmd, send)
+	}
 	s, t, ok := m.selectedTheme()
 	if !ok {
 		return m, nil

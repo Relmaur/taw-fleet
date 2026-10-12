@@ -14,6 +14,10 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
+// FleetOwner marks the fleet folder's skills (fleet.Owner): they run in the
+// fleet's chat, not in a theme.
+const FleetOwner = "taw-fleet"
+
 // Skill is one Claude Code skill in a theme's .claude/skills/: the
 // framework's (owner taw, from taw/core and the scaffold) or the site's own.
 type Skill struct {
