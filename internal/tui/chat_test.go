@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/agent"
 )
 
@@ -89,7 +90,12 @@ func chatModel(t *testing.T, h int) (Model, *fakeClaude, *[]agent.Scope) {
 func send(t *testing.T, m Model) Model {
 	t.Helper()
 	next, cmd := m.Update(keyMsg("enter"))
-	m = next.(Model)
+	return startFrom(t, next.(Model), cmd)
+}
+
+// startFrom runs cmd until claude has started.
+func startFrom(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
 	msgs := make(chan tea.Msg, 8)
 	var run func(tea.Cmd)
 	run = func(c tea.Cmd) {
@@ -261,5 +267,33 @@ func TestChatNeedsClaude(t *testing.T) {
 	m = press(t, m, ">")
 	if m.mode == modeChat || !strings.Contains(screen(m), "the chat needs Claude Code") {
 		t.Errorf("no claude:\n%s", screen(m))
+	}
+}
+
+func TestFleetSkillsRunInTheFleetChat(t *testing.T) {
+	m, f, scopes := chatModel(t, 26)
+	m.deps.FleetSkills = []actions.Skill{{Name: "fleet-check", Owner: actions.FleetOwner,
+		Description: "The morning check of the whole TAW fleet. Triggers on: \"check the fleet\"."}}
+	m = press(t, m, "a")
+	sc := screen(m)
+	if m.mode != modeSkills || !strings.Contains(sc, "FLEET SKILLS") || !strings.Contains(sc, "fleet-check") {
+		t.Fatalf("picker:\n%s", sc)
+	}
+	m = press(t, m, "f", "l", "e", "e", "t")
+	golden(t, "skills-fleet-100x26", screen(m))
+	next, cmd := m.Update(keyMsg("enter"))
+	m = next.(Model)
+	if m.mode != modeChat || m.chat != "fleet" {
+		t.Fatalf("not the fleet chat: %v %q", m.mode, m.chat)
+	}
+	m = startFrom(t, m, cmd)
+	if len(*scopes) != 1 || (*scopes)[0].Site != "" {
+		t.Errorf("scope %+v", *scopes)
+	}
+	if msg := f.last(t, "user", 1); msg["message"].(map[string]any)["content"] != "Use the fleet-check skill." {
+		t.Errorf("sent %v", msg)
+	}
+	if !strings.Contains(screen(m), "you  Use the fleet-check skill.") {
+		t.Errorf("chat:\n%s", screen(m))
 	}
 }

@@ -269,6 +269,10 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			deps.TTY = a.TTY(cmd.Context())
 			if claude, err := a.Claude(); err == nil {
 				deps.Chat, deps.ChatWrites = d.chatter(claude), chatWrites()
+				// The fleet folder stays current (after an upgrade, a settings change).
+				if f, _, err := d.writeFleet(info.Version); err == nil {
+					deps.FleetSkills = fleetSkills(f.Dir)
+				}
 			}
 		}
 		return tui.Run(cmd.Context(), deps)
@@ -284,7 +288,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d))
 	return root
 }
 

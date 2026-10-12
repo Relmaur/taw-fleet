@@ -68,7 +68,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
-| `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site |
+| `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site; or a fleet skill (fleet-check, update-fleet, onboard-mac), which runs in the fleet's chat (see [The fleet folder](#the-fleet-folder-taw-fleet)) |
 | `>` | chat with Claude: your own Claude Code with taw-fleet's tools, about the whole fleet (from the list) or this site (from its details); it asks before it changes anything (see [Chat with Claude](#chat-with-claude-)) |
 | `m` | the site's monthly report for its client: this month so far, or last month; made, saved and opened in the browser (see [Monthly reports](#monthly-reports)) |
 | `z` | put back a restore point: asks which (the site's newest first), then puts it back after asking again (see [Restore points](#restore-points)) |
@@ -533,6 +533,26 @@ deploy it", "move the hero image above the title", "resolve the client's comment
 - **It keeps going.** `esc` goes back to the dashboard and the bottom line says Claude is still
   working; `>` brings the conversation back. Each site keeps its own while the dashboard is open.
   `ctrl+c` stops Claude; the next message carries on the same conversation.
+
+## The fleet folder (`~/TAW Fleet`)
+
+Where Claude works on the whole fleet: the dashboard's fleet chat (`>` from the list) starts there,
+and so can `claude` in a terminal. `taw-fleet init` writes it, and the dashboard brings it up to
+date every time it opens (after an upgrade, a settings change):
+
+- **`CLAUDE.md`**, made from the settings: how to work (taw-fleet's tools, writes ask first, a
+  branch and a pull request for code, never a database or a key), the sites with a production copy
+  (URL, BugSmash project, report language, notes), the fleet skills, and where things are. Your
+  own notes go in `CLAUDE.local.md`, which taw-fleet never touches.
+- **`.mcp.json`** with taw-fleet's MCP server (other servers in it are kept).
+- **The fleet skills** in `.claude/skills/`, shipped inside taw-fleet: **fleet-check** (the morning
+  check, read-only: doctor, production, comments, pull requests and watch, most urgent first),
+  **update-fleet** (what `U` does, then the themes that stopped, and each merge and deploy one site
+  at a time, asking before each) and **onboard-mac** (tools, sites, keys and watch on a new Mac).
+  `a` lists them under **Fleet skills**; picking one runs it in the fleet's chat. Your own skills
+  there stay; a fleet skill taw-fleet stops shipping is removed.
+
+Monthly reports live there too (`reports/`).
 
 ## AI apps (MCP)
 

@@ -1,0 +1,26 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+                                                                                                    
+   ╭────────────────────────────────────────────────────────────────────────────────────────────╮   
+   │                                                                                            │   
+   │  Ask Claude  in acme (acme-shop) with one of its skills, or the fleet's                    │   
+   │                                                                                            │   
+   │  : fleet                                                                                   │   
+   │  ────────────────────────────────────────────────────────────────────────────────────────  │   
+   │  ▌ fleet-check             ‹fleet skill› │ fleet-check  ‹fleet skill›                      │   
+   │                                          │                                                 │   
+   │                                          │ The morning check of the whole TAW fleet.       │   
+   │                                          │                                                 │   
+   │                                          │ Ask for it with                                 │   
+   │                                          │ "check the fleet"                               │   
+   │                                          │                                                 │   
+   │                                          │ Runs in                                         │   
+   │                                          │ the fleet's chat (>), in ~/TAW Fleet, with      │   
+   │                                          │ taw-fleet's tools                               │   
+   │                                                                                            │   
+   ╰────────────────────────────────────────────────────────────────────────────────────────────╯   
+                                                                                                    
+                                                                                                    
+                                                                                                    
+
+ enter run • ↑/↓ tab choose • pgup/pgdn jump • type filter • esc close

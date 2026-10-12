@@ -185,6 +185,15 @@ func (m Model) skillItems() []paletteItem {
 		sk := &m.skills[i]
 		what, when := splitTriggers(sk.Description)
 		it := paletteItem{group: "This site's skills", title: sk.Name, badge: "skill", detail: what, skill: sk}
+		if sk.Owner == actions.FleetOwner {
+			it.group, it.badge = "Fleet skills", "fleet skill"
+			if when != "" {
+				it.extra = append(it.extra, "Ask for it with: "+when)
+			}
+			it.extra = append(it.extra, "Runs in: the fleet's chat (>), in ~/TAW Fleet, with taw-fleet's tools")
+			out = append(out, it)
+			continue
+		}
 		switch {
 		case sk.Owner == "site":
 			it.badge = "site skill"
@@ -352,6 +361,9 @@ func (m Model) paletteScreen(h int) string {
 		sub = "  on " + s.Slug + " · " + t.Dir
 		if m.mode == modeSkills {
 			sub = "  in " + t.Dir + " (" + s.Slug + "), with one of its skills"
+			if len(m.deps.FleetSkills) > 0 && m.deps.Chat != nil {
+				sub = "  in " + t.Dir + " (" + s.Slug + ") with one of its skills, or the fleet's"
+			}
 		}
 	}
 
@@ -464,6 +476,8 @@ func (m Model) badge(b string) string {
 		c = p.Accent
 	case "site skill":
 		c = p.Brand
+	case "fleet skill":
+		c = p.Info
 	}
 	return p.Fg(c).Render("‹" + b + "›")
 }
