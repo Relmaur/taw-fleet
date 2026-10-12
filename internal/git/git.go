@@ -92,6 +92,9 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 			info.Repo = repo
 		}
 	}
+	if info.Hook, err = hookState(g, dir); err != nil {
+		return nil, err
+	}
 	if info.Upstream != "" && info.Branch != "" {
 		r, ok, err := g.out("config", "--get", "branch."+info.Branch+".remote")
 		if err != nil {
@@ -112,6 +115,46 @@ func Info(ctx context.Context, r exec.Runner, dir string) (*site.GitInfo, error)
 		}
 	}
 	return info, nil
+}
+
+// HookDir is where taw/core 1.94+ keeps its pre-commit hook, relative to
+// the theme; core.hooksPath points there (prefixed with the theme's path
+// when the repository is larger than the theme).
+const HookDir = "vendor/taw/core/resources/git-hooks"
+
+// hookState is the theme's pre-commit check: "" when its taw/core has no
+// hook, "on" when core.hooksPath is taw/core's, "own" when the clone has
+// its own core.hooksPath or hooks of its own (the update leaves those
+// alone), else "off".
+func hookState(g gitRunner, dir string) (string, error) {
+	if _, err := os.Stat(filepath.Join(dir, HookDir, "pre-commit")); err != nil {
+		return "", nil
+	}
+	path, ok, err := g.out("config", "--get", "core.hooksPath")
+	if err != nil {
+		return "", err
+	}
+	path = strings.TrimRight(filepath.ToSlash(strings.TrimSpace(path)), "/")
+	switch {
+	case ok && strings.HasSuffix(path, HookDir):
+		return "on", nil
+	case ok && path != "":
+		return "own", nil
+	}
+	hooks, ok, err := g.out("rev-parse", "--git-path", "hooks")
+	if err != nil || !ok {
+		return "off", err
+	}
+	if !filepath.IsAbs(hooks) {
+		hooks = filepath.Join(dir, hooks)
+	}
+	entries, _ := os.ReadDir(hooks)
+	for _, e := range entries {
+		if !e.IsDir() && !strings.HasSuffix(e.Name(), ".sample") {
+			return "own", nil
+		}
+	}
+	return "off", nil
 }
 
 // DeliveryRemote is the git remote the theme's updates go to: taw.json's

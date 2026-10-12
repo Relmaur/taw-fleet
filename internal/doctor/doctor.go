@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Relmaur/taw-fleet/internal/git"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
@@ -296,6 +297,14 @@ func checkGit(s site.Site, t site.Theme) []site.Finding {
 	}
 	if !g.Detached && g.ForeignUpstream == "" && g.DefaultBranch != "" && g.Branch != g.DefaultBranch {
 		out = append(out, f(site.Info, "git.off-default", fmt.Sprintf("on %s, not %s", g.Branch, g.DefaultBranch), "D in the dashboard switches back, when that's what you want"))
+	}
+	switch g.Hook {
+	case "off":
+		out = append(out, f(site.Warn, "git.no-hook", "the pre-commit check (no dumps, .env or keys committed) isn't on",
+			"taw update (or u) turns it on; by hand: git config core.hooksPath "+git.HookDir))
+	case "own":
+		out = append(out, f(site.Info, "git.hook-own", "has its own git hooks, so the pre-commit check wasn't added",
+			"add the TAW check to its pre-commit (taw upgrade --explain 1.94.0/pre-commit-hook)"))
 	}
 	if g.RemoteURL == "" {
 		out = append(out, f(site.Warn, "git.no-remote", "no "+remoteName(g)+" remote", "git remote add "+remoteName(g)+" <url>"))

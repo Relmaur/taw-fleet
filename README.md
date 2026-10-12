@@ -424,6 +424,8 @@ Font" in the terminal's settings (Terminal: Settings → Profiles → Text → F
 | `core.behind` | warning | taw/core is older than the newest release |
 | `core.lock-mismatch` | warning | `vendor/` and `composer.lock` disagree |
 | `git.no-upstream`, `git.behind`, `git.detached`, `git.no-remote` | warning | branch not pushed, commits to pull, not on a branch, no `origin` |
+| `git.no-hook` | warning | taw/core's pre-commit check (no dumps, `.env` or keys committed; taw/core 1.94+) isn't on. `u` turns it on, or `git config core.hooksPath vendor/taw/core/resources/git-hooks` |
+| `git.hook-own` | note | the clone has its own git hooks, so the update didn't add the check: add it to its pre-commit (`taw upgrade --explain 1.94.0/pre-commit-hook`) |
 | `git.foreign-upstream` | warning | the checked-out branch tracks another repository (a local branch of the scaffold, say), so the versions and files shown are that branch's, not the site's; `≠` after the branch. `D` fixes it |
 | `git.dirty`, `git.ahead`, `git.off-default`, `git.none` | note | uncommitted changes, commits to push, not on the default branch, not a repo |
 | `theme.symlink-broken` | error | a symlinked theme points at a folder that's gone |

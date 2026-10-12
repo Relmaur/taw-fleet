@@ -62,6 +62,9 @@ func TestRules(t *testing.T) {
 		{"detached", func(th *site.Theme) { th.Git.Branch, th.Git.Detached = "", true }, []string{"git.detached"}},
 		{"no remote", func(th *site.Theme) { th.Git.RemoteURL, th.Git.Repo = "", nil }, []string{"git.no-remote"}},
 		{"not a repo", func(th *site.Theme) { th.Git = nil }, []string{"git.none"}},
+		{"pre-commit check off", func(th *site.Theme) { th.Git.Hook = "off" }, []string{"git.no-hook"}},
+		{"its own hooks", func(th *site.Theme) { th.Git.Hook = "own" }, []string{"git.hook-own"}},
+		{"pre-commit check on", func(th *site.Theme) { th.Git.Hook = "on" }, nil},
 		{"fork with an old inherited tag is fine", func(th *site.Theme) { th.Git.LastTag = "v1.2.5" }, nil},
 		{"scaffold drift from the last sync", func(th *site.Theme) {
 			th.Drift = &site.Drift{Tier1: []string{"bin/"}, Tier2: []string{"composer.json"}, At: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)}
