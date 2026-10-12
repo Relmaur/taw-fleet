@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Relmaur/taw-fleet/internal/handoff"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/taw"
 )
@@ -116,7 +117,11 @@ func (a *Actions) UpdateAllTask(plan FleetPlan) (Task, error) {
 					break
 				}
 				_, _ = fmt.Fprintln(out, BatchStart+j.item.Target)
-				rep, err := a.taw(j.e.Site).Update(ctx, j.e.Theme, out)
+				var rep taw.UpdateReport
+				err := a.checkpoint(ctx, j.e.Site, j.e.Theme, restore.BeforeUpdate, "before updating "+j.e.Theme.Dir, out)
+				if err == nil {
+					rep, err = a.taw(j.e.Site).Update(ctx, j.e.Theme, out)
+				}
 				it := UpdateItemOutcome{UpdateOutcome: UpdateOutcome{Site: j.e.Site, Theme: j.e.Theme, Report: rep}, Target: j.item.Target, Err: err}
 				res.Items = append(res.Items, it)
 				end := BatchEnd + j.item.Target + " " + rep.Status

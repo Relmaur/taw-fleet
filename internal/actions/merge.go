@@ -10,6 +10,7 @@ import (
 
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/github"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -73,6 +74,13 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 		Quiet:  true,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 			say := sayTo(out)
+			note := fmt.Sprintf("before merging #%d", pr.Number)
+			if st.Deploy != nil && st.Deploy.Deployed != "" {
+				note += " (production had " + short(st.Deploy.Deployed) + ")"
+			}
+			if err := a.checkpoint(ctx, s, t, restore.BeforeMerge, note, out); err != nil {
+				return Summary{}, err
+			}
 			m, err := a.Merger.Merge(ctx, st.Repo, pr)
 			if err != nil {
 				return Summary{}, err

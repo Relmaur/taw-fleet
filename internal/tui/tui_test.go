@@ -24,6 +24,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
+	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/taw"
@@ -230,6 +231,45 @@ func TestInlineInItsOwnWindow(t *testing.T) {
 	}
 }
 
+func TestRestorePoints(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 100, 30, &rep)
+	f := &fakeActions{}
+	m.deps.Actions = f
+	r, _ := m.selected()
+	s, th := m.rep.Sites[r.site], m.rep.Sites[r.site].Themes[r.theme]
+	m = press(t, m, "z")
+	if !strings.Contains(m.flash, "no restore points") {
+		t.Fatalf("flash = %q", m.flash)
+	}
+	m = step(t, m, restoresMsg{s.Slug: {
+		{ID: "20261008-150000-update", Site: s.Slug, Theme: th.Dir, Reason: restore.BeforeUpdate, Note: "before updating " + th.Dir,
+			Created: now.Add(-30 * time.Minute), Branch: "main", Commit: "abc1234def", Database: true, DBBytes: 12 << 20},
+		{ID: "20261007-120000-merge", Site: s.Slug, Theme: th.Dir, Reason: restore.BeforeMerge, Created: now.Add(-27 * time.Hour),
+			Branch: "taw/update-1", Commit: "fff0000aaa", NoDB: "a merge doesn't change the Local database"},
+	}})
+	m = press(t, m, "enter")
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"RESTORE", "z · put one back", "before updating " + th.Dir, "the database (12 MB), " + th.Dir + " on main at abc1234", "no database (a merge doesn't change the Local database)"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("detail lacks %q:\n%s", want, view)
+		}
+	}
+	m = press(t, m, "esc", "z")
+	if !strings.Contains(m.confirm, "Put back which restore point") || len(m.choices) != 2 {
+		t.Fatalf("confirm = %q", m.confirm)
+	}
+	m = press(t, m, "2")
+	if m.confirm != "Put back 20261007-120000-merge?" {
+		t.Fatalf("confirm = %q", m.confirm)
+	}
+	next, cmd := m.Update(keyMsg("y"))
+	m = drain(t, next.(Model), cmd)
+	if f.restored != "20261007-120000-merge" {
+		t.Errorf("restored %q", f.restored)
+	}
+}
+
 func TestOpensOnASite(t *testing.T) {
 	rep := fixtureReport()
 	m := newModel(t, 100, 24, nil)
@@ -426,6 +466,19 @@ type fakeActions struct {
 	refuse   error
 	created  create.Request
 	worked   string // "work acme" / "stop acme", and whether a SiteOp came along
+	restored string // the restore point RestoreTask was given
+}
+
+func (f *fakeActions) Restores() restore.Store {
+	return restore.Store{Paths: paths.ForHome("/nonexistent", nil)}
+}
+
+func (f *fakeActions) RestoreTask(_ context.Context, s site.Site, _ site.Theme, p restore.Point) (actions.Task, error) {
+	return actions.Task{Title: "Restore " + s.Slug, Writes: true, Ask: "Put back " + p.ID + "?",
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			f.restored = p.ID
+			return actions.Summary{Headline: "Restored " + s.Slug}, nil
+		}}, nil
 }
 
 func (f *fakeActions) Do(_ context.Context, k actions.Kind, _ site.Site, t site.Theme) (string, error) {

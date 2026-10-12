@@ -50,6 +50,35 @@ func PHPBinary(p paths.Paths, version string) (string, bool) {
 	return "", false
 }
 
+// MySQLBin finds the folder of Local's MySQL (or MariaDB) client tools for a
+// version such as "8.4.0": mysqldump and mysql, matching the site's server.
+// Folders are named "mysql-8.4.0+2"; the highest build wins.
+func MySQLBin(p paths.Paths, version string) (string, bool) {
+	if version == "" {
+		return "", false
+	}
+	for _, root := range lightningDirs(p) {
+		var matches []string
+		for _, kind := range []string{"mysql-", "mariadb-"} {
+			m, _ := filepath.Glob(filepath.Join(root, kind+version+"+*"))
+			matches = append(matches, m...)
+			if exact := filepath.Join(root, kind+version); isDir(exact) {
+				matches = append(matches, exact)
+			}
+		}
+		sort.Sort(sort.Reverse(sort.StringSlice(matches)))
+		for _, dir := range matches {
+			for _, plat := range platformDirs() {
+				bin := filepath.Join(dir, "bin", plat, "bin")
+				if isFile(filepath.Join(bin, "mysqldump")) {
+					return bin, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // ComposerPhar is the Composer that ships with Local.
 func ComposerPhar(p paths.Paths) (string, bool) {
 	f := filepath.Join(p.LocalApp, "Contents", "Resources", "extraResources", "bin", "composer", "composer.phar")

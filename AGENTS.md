@@ -36,6 +36,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/live` | Production checks: `Keychain` (the signing key, through `internal/keychain`), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
 | `internal/bugsmash` | Open BugSmash review comments per site (read-only REST, `X-API-Key`): `KeyStore` (Keychain, then `$BUGSMASH_API_KEY`), `Client` (`Project`, `Projects`, `OpenComments`), `Prober.Check`/`CheckAll` (5-min cache), `NoKey`, `Apply` → `Site.Feedback` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
+| `internal/restore` | Restore points: `Store.Save` (Guard first: outside the site, every theme and any git repository, else `ErrUnsafe`; `wp db export -` → 0600 gzip via the site's Local `mysqldump`; theme branch + commit; merge = git only; prune to `restore_keep`), `List`/`Find`, `Check`/`Restore` (saves a `before-restore` point, `git switch`, `wp db import -` from the gzip stream). Database copies live only in `DataDir/restore/` |
 | `internal/watch` | `taw-fleet watch`: `Check` (last `State` + the fleet → `Event`s, each told once; first sight only notes; failed checks keep the last state; uptime per day), `Load`/`Save` (`DataDir/watch/state.json`), `Notifier` (terminal-notifier with `-execute taw-fleet --site <slug>`, osascript fallback, `ErrNotAllowed`), `Agent` (launchd: `Install`/`Uninstall`/`Status`, `gui/<uid>`) |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
@@ -103,6 +104,10 @@ go run ./cmd/taw-fleet version
   `taw-resolve-comments` skill. The API key follows the signing key's rules (Keychain only; the
   `BUGSMASH_API_KEY` fallback is read, never written). A deleted project still answers `/comments`,
   so `Check` asks `/project/{id}` first: its 404 is how a re-created project shows up.
+- **A database copy never goes where git or a sync can reach it.** Only `internal/restore` makes
+  them, only under `DataDir/restore/`, after `Guard`; `wp db export` writes to stdout, never to a
+  file in a site. Tests never dump a real site's database (the owner's rule after the chcapital
+  `.sync/` leak); a live check uses the `taw` dev site, with the owner's OK.
 - **Read-only by default.** Anything that changes a site, a theme or a file asks first in the
   dashboard and needs `--yes` on the command line.
 - **Never use `style.css` `Version:` as a theme's version.** It is stale in every TAW theme. Use
