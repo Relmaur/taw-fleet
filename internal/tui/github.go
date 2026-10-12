@@ -126,13 +126,17 @@ func (m Model) checkFollowed() (tea.Model, tea.Cmd) {
 				took = r
 			}
 			m.setFlash(fmt.Sprintf("%s (%s after the merge)", msg, took.Round(time.Second)), false)
+			m.deployEnded(repo, f.res.SHA, "")
 			deployed = true
 		case d.Failed != nil && d.Failed.SHA == f.res.SHA:
 			m.setFlash(fmt.Sprintf("the deploy of #%d to %s failed: %s", f.res.Number, where, d.Failed.URL), true)
+			m.deployEnded(repo, f.res.SHA, "the deploy failed: "+d.Failed.URL)
 		case st.Head == f.res.SHA && st.HeadCI == site.ChecksFailing:
 			m.setFlash(fmt.Sprintf("CI failed on %s after merging #%d, so %s wasn't deployed", st.Default, f.res.Number, where), true)
+			m.deployEnded(repo, f.res.SHA, "CI failed on "+st.Default+", so it wasn't deployed")
 		case m.deps.Now().Sub(f.since) > followFor:
 			m.setFlash(fmt.Sprintf("#%d isn't on %s after %s; see %s", f.res.Number, where, followFor, d.URL), true)
+			m.deployEnded(repo, f.res.SHA, fmt.Sprintf("not on %s after %s: %s", where, followFor, d.URL))
 		default:
 			left[repo] = f
 		}
@@ -194,7 +198,9 @@ func (m Model) askMerge() (tea.Model, tea.Cmd) {
 				m.setFlash(t.Dir+": "+err.Error(), true)
 				return m, nil
 			}
-			return m.askTask(task, "")
+			m.confirm = task.Ask
+			m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startMerge(s, t, pr, task) }
+			return m, nil
 		}
 	}
 	prs := t.GitHub.PRs

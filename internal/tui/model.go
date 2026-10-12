@@ -188,7 +188,8 @@ type Model struct {
 	repos         map[string]site.RepoState // pull requests and deploys by owner/name
 	reposFetching bool
 	reposAt       time.Time
-	followed      map[string]following // merged pull requests whose deploy is watched, by repo
+	followed      map[string]following   // merged pull requests whose deploy is watched, by repo
+	merges        map[string]*mergeState // M, by "siteID/themeDir": running, or ended lately
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -541,8 +542,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case mergeLineMsg:
+		return m, listenMerge(msg.ch)
+
+	case mergeDoneMsg:
+		return m.onMergeDone(msg)
+
 	case spinner.TickMsg:
-		if !m.scanning && !m.liveFetching && !m.feedbackFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) {
+		if !m.scanning && !m.liveFetching && !m.feedbackFetching && !m.reposFetching && !m.full.active && len(m.busy) == 0 && (m.task == nil || !m.task.running) && len(m.runningMerges()) == 0 {
 			return m, nil
 		}
 		var cmd tea.Cmd

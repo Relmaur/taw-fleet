@@ -721,6 +721,12 @@ func (m Model) updateFor(target string) (v updateView, waiting, ok bool) {
 // rowIcon is the one-cell mark an update leaves on its theme's row: the
 // spinner while it runs, then how it ended. The detail pane says the rest.
 func (m Model) rowIcon(target string) (string, bool) {
+	if st, ok := m.mergeFor(target); ok {
+		// the newer of the two: a merge usually follows the update it delivers
+		if v, _, uok := m.updateFor(target); !uok || st.running() || (!v.running && st.started.After(v.finished)) {
+			return m.mergeIcon(st), true
+		}
+	}
 	v, waiting, ok := m.updateFor(target)
 	if !ok {
 		return "", false

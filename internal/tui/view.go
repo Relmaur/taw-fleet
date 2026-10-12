@@ -487,9 +487,14 @@ func (m Model) table(width int) string {
 			// An update of this theme: a mark under the status dot; the detail pane has the rest.
 			margin = "  " + icon + " "
 		}
+		doing := ""
+		if st, ok := m.mergeFor(s.ID + "/" + t.Dir); ok && st.running() {
+			// A merge in progress also says so in words, until production has it.
+			doing = ansi.Truncate(p.Fg(p.Accent).Render(st.short()), c.core, "…")
+		}
 		bottom := margin +
 			pad(m.subline(s, t, sel, c.host), c.card) + sep +
-			pad("", c.core) + sep +
+			pad(doing, c.core) + sep +
 			pad("", c.sync) + sep +
 			c.liveCol("") +
 			c.fbCol(fbAge) +
@@ -546,7 +551,7 @@ func (m Model) detailContent(width int) string {
 	if !ok {
 		return ""
 	}
-	return m.updateSection(s.ID+"/"+t.Dir, width) + render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width)
+	return m.mergeSection(s.ID+"/"+t.Dir, width) + m.updateSection(s.ID+"/"+t.Dir, width) + render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width)
 }
 
 // detailPane is the right-hand pane on wide terminals.
@@ -673,6 +678,8 @@ func (m Model) footer() string {
 		status = " " + m.spin.View() + " " + muted.Render("reading the BugSmash comments…")
 	case m.flash != "" && m.mode != modeOutput: // the output view shows the result itself
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
+	case m.mergeStatus() != "" && m.mode != modeOutput:
+		status = " " + m.spin.View() + " " + muted.Render(m.mergeStatus())
 	case m.filtering:
 		status = " " + m.filter.View()
 	case m.filter.Value() != "":
