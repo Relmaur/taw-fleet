@@ -776,11 +776,21 @@ func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
 				if c == nil {
 					continue
 				}
-				if ev, ok := c().(taskEventMsg); ok {
+				switch ev := c().(type) {
+				case taskEventMsg, mergeLineMsg, mergeDoneMsg:
 					next, nc := m.Update(ev)
 					m, cmd = next.(Model), nc
 				}
 			}
+			continue
+		}
+		if md, ok := msg.(mergeDoneMsg); ok {
+			next, _ := m.Update(md)
+			return next.(Model)
+		}
+		if ml, ok := msg.(mergeLineMsg); ok {
+			next, nc := m.Update(ml)
+			m, cmd = next.(Model), nc
 			continue
 		}
 		ev, ok := msg.(taskEventMsg)
@@ -1677,5 +1687,52 @@ func TestPaletteSaysWhyNot(t *testing.T) {
 	m = press(t, m, ":")
 	if items := m.paletteItems(); items[0].group != "Recent" || items[0].key != "f" {
 		t.Errorf("recent first: %+v", items[0])
+	}
+}
+
+func TestMergesRunSideBySide(t *testing.T) {
+	m := withActions(t, 24, &fakeActions{})
+	s1, s2 := m.rep.Sites[0], m.rep.Sites[1]
+	block := make(chan struct{})
+	defer close(block)
+	task := func(string) actions.Task {
+		return actions.Task{Title: "Merge", Writes: true, Quiet: true, Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			<-block
+			return actions.Summary{}, nil
+		}}
+	}
+	next, _ := m.startMerge(s1, s1.Themes[0], site.PullRequest{Number: 10, Title: "Update taw/core"}, task("a"))
+	m = next.(Model)
+	next, _ = m.startMerge(s2, s2.Themes[0], site.PullRequest{Number: 8, Title: "Update taw/core"}, task("b"))
+	m = next.(Model)
+	if n := len(m.runningMerges()); n != 2 {
+		t.Fatalf("two merges at once: %d", n)
+	}
+	t1, t2 := s1.ID+"/"+s1.Themes[0].Dir, s2.ID+"/"+s2.Themes[0].Dir
+	for _, target := range []string{t1, t2} {
+		if _, ok := m.rowIcon(target); !ok {
+			t.Errorf("%s: no mark on its row", target)
+		}
+	}
+	if sec := m.mergeSection(t1, 60); !strings.Contains(sec, "MERGE") || !strings.Contains(sec, "merging on GitHub") {
+		t.Errorf("MERGE section:\n%s", sec)
+	}
+	if !strings.Contains(m.mergeStatus(), s1.Slug) || !strings.Contains(m.mergeStatus(), s2.Slug) {
+		t.Errorf("footer: %q", m.mergeStatus())
+	}
+
+	// The first one merges and deploys; production has it.
+	next, _ = m.Update(mergeDoneMsg{target: t1, sum: actions.Summary{Headline: "Merged #10 into main; deploying acme.mx",
+		Report: actions.MergeResult{Repo: "Relmaur/client--theme", SHA: "m3rg3d0", Number: 10, Production: "https://acme.mx", Deploys: true}}})
+	m = next.(Model)
+	if st := m.merges[t1]; st.phase != "deploying" || !strings.Contains(m.mergeSection(t1, 70), "deploying to acme.mx") {
+		t.Errorf("deploying: %s\n%s", st.phase, m.mergeSection(t1, 70))
+	}
+	m.deployEnded("Relmaur/client--theme", "m3rg3d0", "")
+	if st := m.merges[t1]; st.phase != "deployed" || !strings.Contains(m.mergeSection(t1, 70), "on acme.mx") {
+		t.Errorf("deployed: %s", st.phase)
+	}
+	if n := len(m.runningMerges()); n != 1 {
+		t.Errorf("the other still runs: %d", n)
 	}
 }

@@ -64,7 +64,7 @@ var actionDocs = []actionDoc{
 	{"S", "Theme · Update", "Apply the scaffold (Tier 1)", "Write the framework-owned files that differ from the scaffold (bin/, workflows, framework skills…). Asks first; Tier 2 stays for review."},
 	{"g", "Theme · Git & GitHub", "Open the repository", "The theme's GitHub repository in your browser."},
 	{"G", "Theme · Git & GitHub", "Open pull requests", "The theme's open pull requests on GitHub."},
-	{"M", "Theme · Git & GitHub", "Merge a pull request", "Merge the theme's pull request (asks which when there are several, then asks again: merging a client theme deploys production), then follow the deploy."},
+	{"M", "Theme · Git & GitHub", "Merge a pull request", "Merge the theme's pull request (asks which when there are several, then asks again: merging a client theme deploys production), then follow the deploy. Several sites can merge at once: each shows on its row and in its MERGE section, from GitHub to production. Afterwards this Mac goes back to the site's branch."},
 	{"D", "Theme · Git & GitHub", "Back to the site's branch", "Switch the theme to its default branch (asks first). A branch that tracks another repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of its own; other branches are kept. Refused with uncommitted changes."},
 	{"r", "App", "Refresh", "Read Local again now (it also refreshes every minute)."},
 	{"ctrl+r", "App", "Refresh everything", "Everything for every site, past the caches: Local, the newest versions, pull requests and deploys, production, BugSmash, then the scaffold check of every theme."},

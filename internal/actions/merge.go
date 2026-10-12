@@ -110,19 +110,29 @@ func (a *Actions) pullDefault(ctx context.Context, t site.Theme, def, merged str
 	switch {
 	case g == nil:
 		return ""
-	case g.Dirty > 0:
-		return fmt.Sprintf("local theme left alone: %d uncommitted change(s); pull %s yourself", g.Dirty, def)
 	case g.Branch != def && g.Branch != merged:
 		return "local theme left alone: it's on " + g.Branch
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
+	var stdout string
 	git := func(args ...string) error {
 		res, err := a.Exec.Run(ctx, exec.Spec{Name: "git", Dir: t.RealPath, Args: args})
 		if err == nil && res.Code != 0 {
 			err = errors.New(strings.TrimSpace(string(res.Stderr)))
 		}
+		stdout = string(res.Stdout)
 		return err
+	}
+	// Only changes to tracked files block it: untracked ones (the update's
+	// .taw/ report, say) don't move with a switch or a pull.
+	if g.Dirty > 0 {
+		if err := git("status", "--porcelain", "--untracked-files=no"); err != nil {
+			return "local theme left alone: git status: " + err.Error()
+		}
+		if n := countNonEmpty(stdout); n > 0 {
+			return fmt.Sprintf("local theme left alone: %d uncommitted change(s); pull %s yourself", n, def)
+		}
 	}
 	if g.Branch != def {
 		if err := git("switch", def); err != nil {
@@ -167,4 +177,14 @@ func (a *Actions) updateCopy(git func(...string) error, def string, say func(str
 	}
 	say("Pushed %s to origin too (the copy)", def)
 	return ""
+}
+
+func countNonEmpty(s string) int {
+	n := 0
+	for _, l := range strings.Split(s, "\n") {
+		if strings.TrimSpace(l) != "" {
+			n++
+		}
+	}
+	return n
 }

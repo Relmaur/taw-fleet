@@ -96,15 +96,36 @@ func TestMergeTaskRefusesAndLeavesDirtyThemesAlone(t *testing.T) {
 		}
 	}
 
-	th.Git.Dirty = 2
+	th.Git.Dirty = 4
 	th.GitHub.Deploy = nil
+	f.Script = func(sp exec.Spec) (exec.Result, error) {
+		if sp.Args[0] == "status" {
+			return exec.Result{Stdout: []byte(" M a.txt\n M b.txt\n")}, nil
+		}
+		return exec.Result{}, nil
+	}
 	task, _ := a.MergeTask(s, th, pr)
 	if task.Ask != "Merge #12 “Update taw/core” into main? CI passed." {
 		t.Errorf("no deploy workflow: %q", task.Ask)
 	}
 	sum, _ := task.Run(context.Background(), io.Discard)
-	if len(f.Calls()) != 0 || !strings.Contains(strings.Join(sum.Lines, "\n"), "2 uncommitted change(s)") {
-		t.Errorf("a dirty theme is left alone: calls %d, lines %v", len(f.Calls()), sum.Lines)
+	if len(f.Calls()) != 1 || !strings.Contains(strings.Join(sum.Lines, "\n"), "2 uncommitted change(s)") {
+		t.Errorf("tracked changes leave it alone: calls %d, lines %v", len(f.Calls()), sum.Lines)
+	}
+
+	// Untracked files only (the update's .taw/ report): back on main anyway.
+	a2, f2 := setup(t, config.Config{})
+	a2.Merger = &fakeMerger{}
+	task, _ = a2.MergeTask(s, th, pr)
+	if _, err := task.Run(context.Background(), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	var git []string
+	for _, c := range f2.Calls() {
+		git = append(git, strings.Join(c.Args, " "))
+	}
+	if strings.Join(git, " | ") != "status --porcelain --untracked-files=no | switch main | pull --ff-only | branch -d chore/taw-core-1.78.1" {
+		t.Errorf("untracked only: %v", git)
 	}
 
 	a.Merger = &fakeMerger{err: errors.New("405 Base branch was modified")}
