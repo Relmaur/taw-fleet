@@ -245,3 +245,35 @@ func TestInfoForeignUpstream(t *testing.T) {
 		t.Errorf("origin's branch is the site's own: %+v", g)
 	}
 }
+
+func TestInfoPreCommitHook(t *testing.T) {
+	_, clone := setup(t)
+	if g := info(t, clone); g.Hook != "" {
+		t.Errorf("taw/core without the hook: %q", g.Hook)
+	}
+	hook := filepath.Join(clone, HookDir, "pre-commit")
+	if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if g := info(t, clone); g.Hook != "off" {
+		t.Errorf("not installed: %q", g.Hook)
+	}
+	gitCmd(t, clone, "config", "core.hooksPath", HookDir+"/")
+	if g := info(t, clone); g.Hook != "on" {
+		t.Errorf("installed: %q", g.Hook)
+	}
+	gitCmd(t, clone, "config", "core.hooksPath", ".githooks")
+	if g := info(t, clone); g.Hook != "own" {
+		t.Errorf("its own hooksPath: %q", g.Hook)
+	}
+	gitCmd(t, clone, "config", "--unset", "core.hooksPath")
+	if err := os.WriteFile(filepath.Join(clone, ".git", "hooks", "commit-msg"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if g := info(t, clone); g.Hook != "own" {
+		t.Errorf("a hook of its own in .git/hooks: %q", g.Hook)
+	}
+}

@@ -314,7 +314,7 @@ func printReport(cmd *cobra.Command, d Deps, r report.Data, html string) {
 	if r.Uptime != nil {
 		line("online", fmt.Sprintf("%.2f%% of %d checks", r.Uptime.Share*100, r.Uptime.Checks))
 	}
-	line("changes", fmt.Sprintf("%d updates, %d other changes, %d deploys", len(r.Updates), len(r.Changes), len(r.Deploys)))
+	line("changes", fmt.Sprintf("%d framework updates, %d maintenance, %d site changes, %d deploys", len(r.Updates), len(r.Maintenance), len(r.Changes), len(r.Deploys)))
 	if r.Comments != nil {
 		line("comments", fmt.Sprintf("%d received, %d resolved", r.Comments.Received, r.Comments.Resolved))
 	}

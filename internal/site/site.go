@@ -234,9 +234,13 @@ type GitInfo struct {
 	Describe        string    `json:"describe,omitempty"`
 	LastTag         string    `json:"last_tag,omitempty"`
 	LastCommit      time.Time `json:"last_commit,omitzero"`
-	Remote          string    `json:"remote,omitempty"` // taw.json's delivery remote, when it isn't origin
-	RemoteURL       string    `json:"remote_url,omitempty"`
-	Repo            *Repo     `json:"repo,omitempty"`
+	// Hook is taw/core's pre-commit check (taw/core 1.94+: no dumps, .env or
+	// keys committed): "on", "off", "own" (the clone has its own hooks, so
+	// the update left them alone); "" = its taw/core has no hook yet.
+	Hook      string `json:"pre_commit_hook,omitempty"`
+	Remote    string `json:"remote,omitempty"` // taw.json's delivery remote, when it isn't origin
+	RemoteURL string `json:"remote_url,omitempty"`
+	Repo      *Repo  `json:"repo,omitempty"`
 }
 
 // HasUpstream reports whether the branch tracks a remote branch.
