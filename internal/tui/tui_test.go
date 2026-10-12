@@ -270,6 +270,40 @@ func TestRestorePoints(t *testing.T) {
 	}
 }
 
+func TestMonthlyReports(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 100, 40, &rep)
+	m.deps.Actions = &fakeActions{}
+	var asked []string
+	m.deps.ReportTask = func(s site.Site, month string) actions.Task {
+		asked = append(asked, s.Slug+" "+month)
+		return actions.Task{Title: "Report", Quiet: true, Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: "report open"}, nil
+		}}
+	}
+	m.deps.ReportDir = "/Users/me/TAW Fleet/reports"
+	r, _ := m.selected()
+	slug := m.rep.Sites[r.site].Slug
+	m = step(t, m, reportsMsg{slug: {{Month: "2026-09", HTML: "/Users/me/TAW Fleet/reports/" + slug + "/2026-09.html"}}})
+	m = press(t, m, "enter")
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"REPORTS", "m · make one", "September 2026", "~/TAW Fleet/reports/" + slug + "/2026-09.html"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("detail lacks %q:\n%s", want, view)
+		}
+	}
+	m = press(t, m, "esc", "m")
+	this, last := now.Format("January"), now.AddDate(0, -1, 0).Format("January")
+	if !strings.Contains(m.confirm, "1 "+this+" so far · 2 "+last+" · 3 Open the folder") {
+		t.Fatalf("confirm = %q", m.confirm)
+	}
+	next, cmd := m.Update(keyMsg("2"))
+	m = drain(t, next.(Model), cmd)
+	if len(asked) != 1 || asked[0] != slug+" "+now.AddDate(0, -1, 0).Format("2006-01") {
+		t.Errorf("asked %v", asked)
+	}
+}
+
 func TestOpensOnASite(t *testing.T) {
 	rep := fixtureReport()
 	m := newModel(t, 100, 24, nil)

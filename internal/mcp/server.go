@@ -53,6 +53,8 @@ var Tools = []ToolDoc{
 		"Each production site through its TAW companion: reachable, verified, WordPress/PHP/taw-core versions, plugins, known vulnerabilities, recent errors."},
 	{"restore_points", "Restore points", "taw-fleet restore <site> --json", "RESTORE section, z",
 		"A site's restore points, newest first: what each holds (the Local database copy and its size, the theme's branch and commit), why it was made (before an update, a merge, a content import) and when. restore_site puts one back."},
+	{"monthly_report", "A site's monthly report", "taw-fleet report <site> [--month 2026-09] --print --json", "m",
+		"A site's month for its client, as data: availability (watch's checks), framework updates and maintenance, the site's own changes merged, deploys, BugSmash comments received and resolved, the live site's versions, plugins and vulnerabilities, and (speed: true, up to a minute) PageSpeed scores. Nothing is saved or sent: taw-fleet report saves it as Markdown and HTML."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
 		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands run at once: " +
 			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
@@ -105,6 +107,12 @@ type (
 	offlineIn struct {
 		Offline bool `json:"offline,omitempty" jsonschema:"don't ask the network; use the caches"`
 	}
+	reportIn struct {
+		Site     string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Month    string `json:"month,omitempty" jsonschema:"the month, like 2026-09; empty for this month so far"`
+		Language string `json:"language,omitempty" jsonschema:"en or es; empty for the site's setting"`
+		Speed    bool   `json:"speed,omitempty" jsonschema:"also measure PageSpeed (mobile and desktop; up to a minute)"`
+	}
 	tawIn struct {
 		Theme   string   `json:"theme" jsonschema:"the theme: its folder name (chcapital), a site, or site/theme for a site with two TAW themes"`
 		Args    []string `json:"args" jsonschema:"the command and its arguments, e.g. [\"inspect\"] or [\"sync\", \"--json\"]"`
@@ -141,6 +149,22 @@ func NewServer(d Deps) *sdk.Server {
 			return nil, nil, errors.New("site is required (list_sites shows them)")
 		}
 		return run(ctx, d, []string{"restore", in.Site, "--json"})
+	})
+	sdk.AddTool(s, tool("monthly_report"), func(ctx context.Context, _ *sdk.CallToolRequest, in reportIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Site) == "" {
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		}
+		args := []string{"report", in.Site, "--print", "--json"}
+		if in.Month != "" {
+			args = append(args, "--month", in.Month)
+		}
+		if in.Language != "" {
+			args = append(args, "--language", in.Language)
+		}
+		if !in.Speed {
+			args = append(args, "--no-speed")
+		}
+		return run(ctx, d, args)
 	})
 	sdk.AddTool(s, tool("production"), func(ctx context.Context, _ *sdk.CallToolRequest, in offlineIn) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, flags([]string{"live", "--json"}, in.Offline, "--offline"))

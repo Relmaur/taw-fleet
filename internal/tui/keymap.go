@@ -19,6 +19,7 @@ type keyMap struct {
 	StartStop, Restart, Work, Yes, No                                 key.Binding
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
 	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch, Restore    key.Binding
+	Report                                                            key.Binding
 	Comments, Resolve, Ask                                            key.Binding
 }
 
@@ -67,6 +68,7 @@ func newKeyMap() keyMap {
 		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge PR")),
 		SiteBranch:  key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "site's branch")),
 		Restore:     key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "restore point")),
+		Report:      key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "monthly report")),
 		Pull:        key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "pull content")),
 		Comments:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "comments")),
 		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
@@ -188,7 +190,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.Quit},
 		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Ask},
-		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments},
+		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report},
 		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve},
 	}
 }

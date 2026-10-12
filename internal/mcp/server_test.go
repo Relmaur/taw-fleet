@@ -132,6 +132,8 @@ func TestToolsRunTheCommands(t *testing.T) {
 		{"comments", map[string]any{"site": "fsspx-taw", "offline": true}, "comments fsspx-taw --json --offline"},
 		{"production", map[string]any{}, "live --json"},
 		{"restore_points", map[string]any{"site": "ls-mxico"}, "restore ls-mxico --json"},
+		{"monthly_report", map[string]any{"site": "ls-mxico", "month": "2026-09", "language": "es"}, "report ls-mxico --print --json --month 2026-09 --language es --no-speed"},
+		{"monthly_report", map[string]any{"site": "ls-mxico", "speed": true}, "report ls-mxico --print --json"},
 	} {
 		c.fleet = nil
 		r, out := call(t, cs, tc.tool, tc.args)

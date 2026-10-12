@@ -30,6 +30,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/paths"
+	"github.com/Relmaur/taw-fleet/internal/report"
 	"github.com/Relmaur/taw-fleet/internal/restore"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -90,6 +91,10 @@ type Deps struct {
 	// one, keeping its scrollback empty: for a window of its own, where
 	// scrolling up should find nothing behind the dashboard.
 	Inline bool
+	// ReportTask makes a site's monthly report ("2026-10") and opens it;
+	// ReportDir is where reports are saved. nil = no m.
+	ReportTask func(s site.Site, month string) actions.Task
+	ReportDir  string
 	// Select is the site to open the dashboard on, its details showing: a
 	// folder, name or domain ("" = the first).
 	Select string
@@ -198,6 +203,7 @@ type Model struct {
 	merges        map[string]*mergeState // M, by "siteID/themeDir": running, or ended lately
 
 	restores map[string][]restore.Point // restore points by site slug, newest first
+	reports  map[string][]report.Saved  // saved monthly reports by site slug, newest first
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -455,11 +461,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		cmds = append(cmds, m.loadRestores())
+		cmds = append(cmds, m.loadRestores(), m.loadReports())
 		return m, tea.Batch(cmds...)
 
 	case restoresMsg:
 		m.restores = msg
+		return m, nil
+
+	case reportsMsg:
+		m.reports = msg
 		return m, nil
 
 	case reposDoneMsg:
@@ -804,6 +814,8 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, k.Merge):
 		model, cmd := m.askMerge()
 		return model, cmd, true
+	case key.Matches(msg, k.Report):
+		return m.askReport(), nil, true
 	case key.Matches(msg, k.Restore):
 		model, cmd := m.askRestore()
 		return model, cmd, true

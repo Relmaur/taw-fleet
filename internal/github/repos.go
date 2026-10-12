@@ -219,7 +219,9 @@ type workflowRun struct {
 
 // deploy finds the repository's deploy workflow (a workflow file named
 // deploy*) and reads its newest runs. nil, nil = no deploy workflow.
-func (c *Client) deploy(ctx context.Context, repo, head string) (*site.Deploy, error) {
+// deployWorkflow finds the repository's deploy workflow (an active one whose
+// file is named deploy*): its id, or 0 and a nil Deploy when there's none.
+func (c *Client) deployWorkflow(ctx context.Context, repo string) (int64, *site.Deploy, error) {
 	var wf struct {
 		Workflows []struct {
 			ID    int64  `json:"id"`
@@ -230,18 +232,20 @@ func (c *Client) deploy(ctx context.Context, repo, head string) (*site.Deploy, e
 		} `json:"workflows"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/actions/workflows?per_page=100", nil, &wf); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
-	d := (*site.Deploy)(nil)
-	var id int64
 	for _, w := range wf.Workflows {
 		if w.State == "active" && strings.HasPrefix(path.Base(w.Path), "deploy") {
-			d, id = &site.Deploy{Workflow: w.Name, URL: w.URL}, w.ID
-			break
+			return w.ID, &site.Deploy{Workflow: w.Name, URL: w.URL}, nil
 		}
 	}
-	if d == nil {
-		return nil, nil
+	return 0, nil, nil
+}
+
+func (c *Client) deploy(ctx context.Context, repo, head string) (*site.Deploy, error) {
+	id, d, err := c.deployWorkflow(ctx, repo)
+	if err != nil || d == nil {
+		return nil, err
 	}
 	var runs struct {
 		Runs []workflowRun `json:"workflow_runs"`

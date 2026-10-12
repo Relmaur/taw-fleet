@@ -23,10 +23,14 @@ type Config struct {
 	Icons    string `toml:"icons"`    // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
 	// RestoreKeep is how many restore points taw-fleet keeps per site; nil
 	// = 5, 0 = none are made.
-	RestoreKeep *int            `toml:"restore_keep"`
-	Umbrella    string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
-	Create      Create          `toml:"create"`   // defaults for taw-fleet create
-	Sites       map[string]Site `toml:"sites"`    // keyed by site folder name
+	RestoreKeep *int `toml:"restore_keep"`
+	// ReportFrom is who the monthly reports say prepared them ("" = no
+	// name); ReportLanguage is their language ("en", "es"; "" = en).
+	ReportFrom     string          `toml:"report_from"`
+	ReportLanguage string          `toml:"report_language"`
+	Umbrella       string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
+	Create         Create          `toml:"create"`   // defaults for taw-fleet create
+	Sites          map[string]Site `toml:"sites"`    // keyed by site folder name
 
 	// GitHubOwners are the owner's GitHub accounts and organizations: a
 	// theme whose repository belongs to another one is marked @owner.
@@ -47,6 +51,10 @@ type Site struct {
 	ProductionURL string `toml:"production_url"`
 	Notes         string `toml:"notes"`
 	GitHubAccount string `toml:"github_account"` // the GitHub account the site's theme belongs to, when it isn't the owner's (before it has a remote)
+
+	// ReportLanguage is the monthly report's language for this site ("en",
+	// "es"; "" = the top-level report_language).
+	ReportLanguage string `toml:"report_language"`
 
 	// BugSmashProject is the id of the site's project in BugSmash, where
 	// reviewers leave comments on the live site (FB column, doctor).
@@ -85,6 +93,11 @@ func Load(p paths.Paths) (Config, error) {
 	if c.RestoreKeep != nil && (*c.RestoreKeep < 0 || *c.RestoreKeep > 50) {
 		return c, fmt.Errorf("%s: restore_keep must be 0 (none) to 50", File(p))
 	}
+	for _, l := range []string{c.ReportLanguage} {
+		if l != "" && l != "en" && l != "es" {
+			return c, fmt.Errorf("%s: report_language must be \"en\" or \"es\"", File(p))
+		}
+	}
 	switch c.Create.Kind {
 	case "", "classic", "block":
 	default:
@@ -93,6 +106,9 @@ func Load(p paths.Paths) (Config, error) {
 	for slug, s := range c.Sites {
 		if s.ProductionURL != "" && !strings.HasPrefix(s.ProductionURL, "https://") && !strings.HasPrefix(s.ProductionURL, "http://") {
 			return c, fmt.Errorf("%s: sites.%s.production_url must start with https:// (or http://)", File(p), slug)
+		}
+		if s.ReportLanguage != "" && s.ReportLanguage != "en" && s.ReportLanguage != "es" {
+			return c, fmt.Errorf("%s: sites.%s.report_language must be \"en\" or \"es\"", File(p), slug)
 		}
 		if s.BugSmashProject != "" && !uuid.MatchString(s.BugSmashProject) {
 			return c, fmt.Errorf("%s: sites.%s.bugsmash_project must be the project's id (a UUID like a15552c8-a3d9-4bce-9a06-7859fbb7f27c)", File(p), slug)
@@ -117,6 +133,17 @@ func (c Config) Restores() int {
 
 // OpensWindow reports whether the dashboard opens in its own window.
 func (c Config) OpensWindow() bool { return c.Window == nil || *c.Window }
+
+// ReportLang is a site's report language: its own, the top-level one, or en.
+func (c Config) ReportLang(slug string) string {
+	if l := c.Sites[slug].ReportLanguage; l != "" {
+		return l
+	}
+	if c.ReportLanguage != "" {
+		return c.ReportLanguage
+	}
+	return "en"
+}
 
 // Site returns the settings for a site folder (zero value when none).
 func (c Config) Site(slug string) Site { return c.Sites[slug] }
@@ -150,6 +177,11 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # repository). It keeps this many per site; 0 makes none.
 # restore_keep = 5
 
+# Monthly reports (taw-fleet report, m in the dashboard): who prepared them,
+# and their language, "en" or "es" (also per site, under [sites.<folder>]).
+# report_from = "EmeLambda"
+# report_language = "es"
+
 # Your GitHub accounts and organizations: a theme whose repository belongs to
 # another account is marked @account in the dashboard (/other filters them).
 # github_owners = ["Relmaur", "EmeLambda"]
@@ -172,6 +204,8 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # "taw-fleet comments projects"): open review comments show in the FB column
 # and in doctor. The API key goes in the Keychain: taw-fleet comments key import
 # bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"
+# The monthly report's language for this site ("en" or "es"):
+# report_language = "es"
 # The GitHub account the theme belongs to, while it has no origin remote yet
 # (for the @account mark):
 # github_account = "EmeLambda"

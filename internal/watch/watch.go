@@ -28,6 +28,7 @@ const (
 	ProductionUp         = "production.up"
 	ProductionUnverified = "production.unverified"
 	CommentsNew          = "comments.new"
+	ReportReady          = "report.ready" // last month's report was made (taw-fleet's cli makes it)
 )
 
 // DownAfter is how many checks in a row a production site must fail before
@@ -289,6 +290,21 @@ func commentsEvent(s site.Site, f *site.Feedback, fresh []site.Comment) Event {
 		body += fmt.Sprintf(" (and %d more)", len(fresh)-1)
 	}
 	return Event{Kind: CommentsNew, Title: title, Body: siteName(s) + ": " + body, URL: f.URL}
+}
+
+// UptimeSince is UptimeBetween and the first day in it with checks.
+func (st State) UptimeSince(slug string, from, to time.Time) (share float64, checks int, since time.Time) {
+	share, checks = st.UptimeBetween(slug, from, to)
+	for day := range st.Uptime[slug] {
+		t, err := time.ParseInLocation(time.DateOnly, day, from.Location())
+		if err != nil || t.Before(from) || !t.Before(to) {
+			continue
+		}
+		if since.IsZero() || t.Before(since) {
+			since = t
+		}
+	}
+	return share, checks, since
 }
 
 // UptimeBetween is a site's share of checks that found production answering, over
