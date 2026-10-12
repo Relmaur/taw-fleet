@@ -502,6 +502,35 @@ taw                       # outside a theme: where it can run
 
 CI keeps calling `vendor/bin/taw`: it's the same command, without the PHP and site lookup.
 
+## AI apps (MCP)
+
+`taw-fleet mcp` serves taw-fleet over the [Model Context Protocol](https://modelcontextprotocol.io), so
+Claude Code, Claude Desktop, Cursor and other AI apps can read the fleet with typed tools instead of
+running commands. Add it once:
+
+```bash
+claude mcp add taw-fleet -- taw-fleet mcp
+```
+
+In other apps' MCP settings: `{"command": "taw-fleet", "args": ["mcp"]}`.
+
+Each tool is a command you can run yourself, and answers with that command's `--json`
+(`taw-fleet mcp tools` lists them):
+
+| Tool | Same as |
+|---|---|
+| `list_sites` | `taw-fleet list --json` |
+| `show_site` | `taw-fleet show <site> --json` |
+| `doctor` | `taw-fleet doctor [site] --json` |
+| `pull_requests` | `taw-fleet prs --json` |
+| `comments` | `taw-fleet comments [site] --json` |
+| `production` | `taw-fleet live --json` |
+| `taw` | `taw @<theme> <command…>`, read-only commands only (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) |
+
+The prompt `update_theme` is the update prompt `h` shows (`taw-fleet handoff <site>`). Every tool
+only reads for now. Writes (update, merge, back to the site's branch, start/stop) come next: they'll
+ask first, as the dashboard does (ADR-0002).
+
 ## Pull requests and deploys
 
 With a GitHub token (`gh auth login`), the dashboard has two more columns:
