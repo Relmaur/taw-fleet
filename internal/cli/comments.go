@@ -106,7 +106,8 @@ func feedbackSummary(p style.Palette, res map[string]site.Feedback) string {
 }
 
 func newCommentsCmd(d Deps, g *globals) *cobra.Command {
-	var asJSON bool
+	var asJSON, prompt bool
+	var theme string
 	cmd := &cobra.Command{
 		Use:   "comments [site]",
 		Short: "Open review comments in each site's BugSmash project",
@@ -137,6 +138,12 @@ func newCommentsCmd(d Deps, g *globals) *cobra.Command {
 				return err
 			}
 			res := pr.CheckAll(cmd.Context(), targets, !g.offline)
+			if prompt {
+				if len(args) != 1 {
+					return errors.New("--prompt needs a site: taw-fleet comments <site> --prompt")
+				}
+				return printResolvePrompt(cmd, d, g, args[0], theme, res)
+			}
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), res)
 			}
@@ -144,6 +151,8 @@ func newCommentsCmd(d Deps, g *globals) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	cmd.Flags().BoolVar(&prompt, "prompt", false, "print the prompt X hands Claude Code to resolve the site's open comments")
+	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several (with --prompt)")
 	cmd.AddCommand(newCommentsKeyCmd(d), newCommentsProjectsCmd(d))
 	return cmd
 }
@@ -298,4 +307,22 @@ func newCommentsProjectsCmd(d Deps) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return cmd
+}
+
+// printResolvePrompt prints what X hands Claude Code: the resolve-comments
+// prompt for one site, with its comments as BugSmash has them now.
+func printResolvePrompt(cmd *cobra.Command, d Deps, g *globals, q, theme string, res map[string]site.Feedback) error {
+	s, t, a, err := resolveForTask(cmd, d, g, q, theme)
+	if err != nil {
+		return err
+	}
+	if f, ok := res[s.Slug]; ok {
+		s.Feedback = &f
+	}
+	p, err := a.ResolvePrompt(*s, t)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(cmd.OutOrStdout(), p.Text)
+	return err
 }

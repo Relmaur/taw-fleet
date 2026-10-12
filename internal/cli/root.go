@@ -52,6 +52,10 @@ type Deps struct {
 	Feedback   func(context.Context) (*bugsmash.Prober, error) // BugSmash comments; nil = the Keychain's API key
 	WPHTTP     *http.Client                                    // wp-remote's HTTP client; nil = the real one
 
+	// Confirm answers the y/N questions instead of the terminal, when set:
+	// the MCP server captures the question and declines it.
+	Confirm func(question string) (bool, error)
+
 	// Interactive is true when stdin and stdout are a terminal: only then
 	// does `taw-fleet` alone open the dashboard, and only then are y/N
 	// questions asked.
@@ -251,7 +255,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newMCPCmd(info, d))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d))
 	return root
 }
 

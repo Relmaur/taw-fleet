@@ -113,7 +113,8 @@ taw-fleet pull <site>     # production content into the Local site (preview, the
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below); sync --all checks every theme
 taw-fleet refresh         # everything again, past the caches (the dashboard's ctrl+r)
-taw-fleet comments        # open BugSmash review comments per site (see below)
+taw-fleet comments        # open BugSmash review comments per site (see below); <site> --prompt: what X hands Claude
+taw-fleet branch <site>   # back to the site's branch (D)
 taw-fleet version
 ```
 
@@ -525,11 +526,27 @@ Each tool is a command you can run yourself, and answers with that command's `--
 | `pull_requests` | `taw-fleet prs --json` |
 | `comments` | `taw-fleet comments [site] --json` |
 | `production` | `taw-fleet live --json` |
-| `taw` | `taw @<theme> <command…>`, read-only commands only (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) |
+| `taw` | `taw @<theme> <command…>`: read-only ones (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) at once |
 
-The prompt `update_theme` is the update prompt `h` shows (`taw-fleet handoff <site>`). Every tool
-only reads for now. Writes (update, merge, back to the site's branch, start/stop) come next: they'll
-ask first, as the dashboard does (ADR-0002).
+**Tools that change something ask first**, as the dashboard does. The first call runs the command
+up to its question, says no, and returns the question with a one-time token. The AI app asks you;
+only a second call with the same arguments and that token runs it (good for 10 minutes, once):
+
+| Tool | Same as |
+|---|---|
+| `update_site` | `taw-fleet update <site>` (`u`) |
+| `update_all` | `taw-fleet update --all` (`U`) |
+| `merge_pr` | `taw-fleet merge <site> [--pr N]` (`M`) |
+| `site_branch` | `taw-fleet branch <site>` (`D`) |
+| `start_site`, `stop_site` | `taw-fleet start|stop <site>` (`s`) |
+| `sync_apply` | `taw-fleet sync <site> --apply` (`S`) |
+| `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
+
+The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones
+(an update) send their progress lines as MCP progress notifications.
+
+Prompts: `update_theme` is the update prompt `h` shows (`taw-fleet handoff <site>`), and
+`resolve_comments` the one `X` hands Claude (`taw-fleet comments <site> --prompt`).
 
 ## Pull requests and deploys
 
