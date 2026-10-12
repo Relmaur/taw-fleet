@@ -210,6 +210,9 @@ func joinInts(ns []int) string {
 // confirm asks a y/N question on a terminal. Without one it refuses, so a
 // script never changes a site by accident.
 func (d Deps) confirm(w io.Writer, question string) (bool, error) {
+	if d.Confirm != nil {
+		return d.Confirm(question)
+	}
 	if !d.Interactive || d.In == nil {
 		return false, errors.New("not a terminal: add --yes to confirm")
 	}

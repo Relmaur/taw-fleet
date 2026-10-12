@@ -322,3 +322,39 @@ func runSyncAll(cmd *cobra.Command, d Deps, g *globals, apply bool) error {
 	}
 	return printSummary(cmd, d, sum)
 }
+
+// newBranchCmd is D in the dashboard: the theme back on its default branch.
+func newBranchCmd(d Deps, g *globals) *cobra.Command {
+	var theme string
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "branch <site>",
+		Short: "Back to the site's branch: switch the theme to its default branch (D in the dashboard)",
+		Long: "Switches the theme to its default branch, after asking. A branch that tracks another\n" +
+			"repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of\n" +
+			"its own; other branches are kept. Refused with uncommitted changes.",
+		Example: "  taw-fleet branch chcapital\n  taw-fleet branch taw --theme taw-theme --yes",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, t, a, err := resolveForTask(cmd, d, g, args[0], theme)
+			if err != nil {
+				return err
+			}
+			task, err := a.SiteBranchTask(*s, t)
+			if err != nil {
+				return err
+			}
+			sum, err := runTask(cmd, d, task, yes, task.Ask)
+			if errors.Is(err, errCancelled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return printSummary(cmd, d, sum)
+		},
+	}
+	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
+	return cmd
+}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,9 +20,16 @@ type Deps struct {
 	Version string
 	// Fleet runs a taw-fleet command in-process and returns its stdout.
 	Fleet func(ctx context.Context, args []string) (string, error)
+	// Ask runs a write command up to its y/N question and declines it:
+	// the question ("" when it had none) and what it printed first.
+	Ask func(ctx context.Context, args []string) (question, out string, err error)
+	// Do runs a write command (with --yes), its progress lines to progress.
+	Do func(ctx context.Context, args []string, progress func(string)) (string, error)
 	// Taw runs a theme's own command (`taw @<theme> <args…>`) and returns
 	// its output.
 	Taw func(ctx context.Context, theme string, args []string) (string, error)
+	// Now is the clock for confirm tokens; nil = time.Now.
+	Now func() time.Time
 }
 
 // ToolDoc is a tool as people see it: `taw-fleet mcp tools` prints these.
@@ -44,12 +52,13 @@ var Tools = []ToolDoc{
 	{"production", "Production sites", "taw-fleet live --json", "LIVE column, L",
 		"Each production site through its TAW companion: reachable, verified, WordPress/PHP/taw-core versions, plugins, known vulnerabilities, recent errors."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
-		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands only for now: " +
-			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply)."},
+		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands run at once: " +
+			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
+			"called without confirm it returns the question and a token; ask the user, then call again with the same arguments and confirm."},
 }
 
-// readOnlyTaw are the theme commands the taw tool runs: they report, never
-// write. Writes wait for the confirm flow (ADR-0002, decision 5).
+// readOnlyTaw are the theme commands the taw tool runs at once: they report,
+// never write. Any other asks first (ADR-0002, decision 5).
 var readOnlyTaw = []string{"list", "help", "inspect", "policy", "sync", "upgrade", "content:diff", "--version"}
 
 func doc(name string) ToolDoc {
@@ -64,11 +73,16 @@ func doc(name string) ToolDoc {
 func tool(name string) *sdk.Tool {
 	d := doc(name)
 	no := false
+	a := &sdk.ToolAnnotations{Title: d.Title, ReadOnlyHint: true, DestructiveHint: &no, IdempotentHint: true}
+	if name == "taw" { // read-only commands at once, others after asking
+		yes := true
+		a = &sdk.ToolAnnotations{Title: d.Title, DestructiveHint: &yes}
+	}
 	return &sdk.Tool{
 		Name:        d.Name,
 		Title:       d.Title,
 		Description: d.Description + " Same as `" + d.Command + "` (dashboard: " + d.Key + ").",
-		Annotations: &sdk.ToolAnnotations{Title: d.Title, ReadOnlyHint: true, DestructiveHint: &no, IdempotentHint: true},
+		Annotations: a,
 	}
 }
 
@@ -90,8 +104,9 @@ type (
 		Offline bool `json:"offline,omitempty" jsonschema:"don't ask the network; use the caches"`
 	}
 	tawIn struct {
-		Theme string   `json:"theme" jsonschema:"the theme: its folder name (chcapital), a site, or site/theme for a site with two TAW themes"`
-		Args  []string `json:"args" jsonschema:"the command and its arguments, e.g. [\"inspect\"] or [\"sync\", \"--json\"]"`
+		Theme   string   `json:"theme" jsonschema:"the theme: its folder name (chcapital), a site, or site/theme for a site with two TAW themes"`
+		Args    []string `json:"args" jsonschema:"the command and its arguments, e.g. [\"inspect\"] or [\"sync\", \"--json\"]"`
+		Confirm string   `json:"confirm,omitempty" jsonschema:"for a command that may write: the token from the first call, after the user said yes"`
 	}
 )
 
@@ -122,13 +137,29 @@ func NewServer(d Deps) *sdk.Server {
 	sdk.AddTool(s, tool("production"), func(ctx context.Context, _ *sdk.CallToolRequest, in offlineIn) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, flags([]string{"live", "--json"}, in.Offline, "--offline"))
 	})
+	tk := newTokens(d.Now)
 	sdk.AddTool(s, tool("taw"), func(ctx context.Context, _ *sdk.CallToolRequest, in tawIn) (*sdk.CallToolResult, any, error) {
-		if err := readOnly(in.Args); err != nil {
-			return nil, nil, err
+		if strings.TrimSpace(in.Theme) == "" {
+			return nil, nil, errors.New("theme is required (list_sites shows them)")
+		}
+		if readOnly(in.Args) == nil {
+			out, err := d.Taw(ctx, in.Theme, in.Args)
+			return result(out, err)
+		}
+		key := "taw\x00" + in.Theme + "\x00" + strings.Join(in.Args, "\x00")
+		line := "taw @" + strings.TrimPrefix(in.Theme, "@") + " " + strings.Join(in.Args, " ")
+		if in.Confirm == "" {
+			tok := tk.issue(key)
+			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "Question: Run `" + line + "`? It's the theme's own command, and it may change the theme's files or its site's database.\n\n" +
+				"Nothing has changed yet. Ask the user this question. If they say yes, call taw again with the same arguments and confirm: \"" + tok + "\" (good for " + ttlWords + ", once)."}}}, nil, nil
+		}
+		if !tk.take(in.Confirm, key) {
+			return nil, nil, errors.New("that confirm token isn't valid for these arguments, was used already, or expired: call taw without confirm to get the question again")
 		}
 		out, err := d.Taw(ctx, in.Theme, in.Args)
 		return result(out, err)
 	})
+	addWrites(s, d, tk)
 
 	s.AddPrompt(&sdk.Prompt{
 		Name:        "update_theme",
@@ -146,6 +177,25 @@ func NewServer(d Deps) *sdk.Server {
 		}
 		return &sdk.GetPromptResult{
 			Description: "Update " + site + " (taw-fleet handoff " + site + ")",
+			Messages:    []*sdk.PromptMessage{{Role: "user", Content: &sdk.TextContent{Text: out}}},
+		}, nil
+	})
+	s.AddPrompt(&sdk.Prompt{
+		Name:        "resolve_comments",
+		Title:       "Resolve a site's client comments",
+		Description: "The prompt X hands Claude Code for one site (taw-fleet comments <site> --prompt): its open BugSmash comments, to resolve with the theme's resolve-comments skill.",
+		Arguments:   []*sdk.PromptArgument{{Name: "site", Description: "the site or theme folder", Required: true}},
+	}, func(ctx context.Context, req *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+		site := req.Params.Arguments["site"]
+		if site == "" {
+			return nil, errors.New("site is required")
+		}
+		out, err := d.Fleet(ctx, []string{"comments", site, "--prompt"})
+		if err != nil {
+			return nil, err
+		}
+		return &sdk.GetPromptResult{
+			Description: "Resolve the open comments on " + site + " (taw-fleet comments " + site + " --prompt)",
 			Messages:    []*sdk.PromptMessage{{Role: "user", Content: &sdk.TextContent{Text: out}}},
 		}, nil
 	})
@@ -190,7 +240,7 @@ func result(out string, err error) (*sdk.CallToolResult, any, error) {
 	return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: out}}}, nil, nil
 }
 
-// readOnly refuses theme commands that could write.
+// readOnly is nil for the theme commands that only report.
 func readOnly(args []string) error {
 	if len(args) == 0 {
 		return nil // the command list
@@ -202,12 +252,11 @@ func readOnly(args []string) error {
 		}
 	}
 	if !ok {
-		return fmt.Errorf("the taw tool runs read-only commands only for now (%s); run %q yourself: taw @<theme> %s",
-			strings.Join(readOnlyTaw, ", "), args[0], strings.Join(args, " "))
+		return fmt.Errorf("%s isn't one of the read-only commands (%s)", args[0], strings.Join(readOnlyTaw, ", "))
 	}
 	for _, a := range args[1:] {
 		if a == "--apply" || strings.HasPrefix(a, "--apply=") || a == "-a" {
-			return fmt.Errorf("%s --apply writes: run it yourself (taw @<theme> %s), or with u/S in the dashboard", args[0], strings.Join(args, " "))
+			return fmt.Errorf("%s --apply writes", args[0])
 		}
 	}
 	return nil
