@@ -125,7 +125,7 @@ func (m Model) checkFollowed() (tea.Model, tea.Cmd) {
 			if r := m.deps.Now().Sub(f.since); took <= 0 || took > r {
 				took = r
 			}
-			m.setFlash(fmt.Sprintf("%s (%s after the merge)", msg, took.Round(time.Second)), false)
+			m.setFlash(fmt.Sprintf("%s (%s after the merge); clear its page cache now", msg, took.Round(time.Second)), false)
 			m.deployEnded(repo, f.res.SHA, "")
 			deployed = true
 		case d.Failed != nil && d.Failed.SHA == f.res.SHA:

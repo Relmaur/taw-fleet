@@ -227,9 +227,11 @@ func (m Model) mergeSection(target string, width int) string {
 	}
 	switch st.phase {
 	case "deploying":
-		lines = append(lines, "  "+m.spin.View()+" deploying to "+to+muted.Render("  "+clock(now.Sub(st.merged))+" · CI, then Deploy"))
+		lines = append(lines, "  "+m.spin.View()+" deploying to "+to+muted.Render("  "+clock(now.Sub(st.merged))+" · CI, then Deploy"),
+			"    "+muted.Render("clear the page cache once it's on "+to+", not before"))
 	case "deployed":
-		lines = append(lines, "  "+ok1+" on "+to+muted.Render("  "+clock(st.ended.Sub(st.merged))+" after the merge"))
+		lines = append(lines, "  "+ok1+" on "+to+muted.Render("  "+clock(st.ended.Sub(st.merged))+" after the merge"),
+			"  "+p.Fg(p.Warn).Render("▲")+" clear the page cache now"+muted.Render(": Hummingbird, WP Rocket, the host's"))
 	case "merged":
 		lines = append(lines, "  "+muted.Render("no deploy workflow: nothing reaches production on its own"))
 	case "failed":

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -73,6 +74,9 @@ func TestMergeTask(t *testing.T) {
 	res, _ := sum.Report.(MergeResult)
 	if sum.Headline != "Merged #12 into main; deploying lsmexico.mx" || res.SHA != "abcdef123" || !res.Deploys || res.Repo != "Relmaur/ls-mexico--theme" {
 		t.Errorf("summary = %q, %+v", sum.Headline, res)
+	}
+	if !slices.Contains(sum.Lines, CacheAfterDeploy) {
+		t.Errorf("no page-cache reminder: %q", sum.Lines)
 	}
 }
 

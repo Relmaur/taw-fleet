@@ -1425,7 +1425,7 @@ func TestMergeAndFollowTheDeploy(t *testing.T) {
 	done.Deploy = &site.Deploy{Workflow: "Deploy", Deployed: "m3rg3d0", DeployedAt: now.Add(90 * time.Second)}
 	m.deps.Now = func() time.Time { return now.Add(2 * time.Minute) }
 	m = step(t, m, reposDoneMsg{states: map[string]site.RepoState{"Relmaur/client--theme": done}})
-	if len(m.followed) != 0 || !strings.Contains(screen(m), "acme.mx has #12: deployed") {
+	if len(m.followed) != 0 || !strings.Contains(screen(m), "acme.mx has #12: deployed") || !strings.Contains(m.flash, "clear its page cache now") {
 		t.Errorf("deployed:\n%s", screen(m))
 	}
 }
@@ -1829,11 +1829,13 @@ func TestMergesRunSideBySide(t *testing.T) {
 	next, _ = m.Update(mergeDoneMsg{target: t1, sum: actions.Summary{Headline: "Merged #10 into main; deploying acme.mx",
 		Report: actions.MergeResult{Repo: "Relmaur/client--theme", SHA: "m3rg3d0", Number: 10, Production: "https://acme.mx", Deploys: true}}})
 	m = next.(Model)
-	if st := m.merges[t1]; st.phase != "deploying" || !strings.Contains(m.mergeSection(t1, 70), "deploying to acme.mx") {
+	if st := m.merges[t1]; st.phase != "deploying" || !strings.Contains(m.mergeSection(t1, 70), "deploying to acme.mx") ||
+		!strings.Contains(m.mergeSection(t1, 70), "clear the page cache once it's on acme.mx, not before") {
 		t.Errorf("deploying: %s\n%s", st.phase, m.mergeSection(t1, 70))
 	}
 	m.deployEnded("Relmaur/client--theme", "m3rg3d0", "")
-	if st := m.merges[t1]; st.phase != "deployed" || !strings.Contains(m.mergeSection(t1, 70), "on acme.mx") {
+	if st := m.merges[t1]; st.phase != "deployed" || !strings.Contains(m.mergeSection(t1, 70), "on acme.mx") ||
+		!strings.Contains(m.mergeSection(t1, 70), "clear the page cache now") {
 		t.Errorf("deployed: %s", st.phase)
 	}
 	if n := len(m.runningMerges()); n != 1 {

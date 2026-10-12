@@ -568,6 +568,7 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Merges** with the repository's default merge method for you, and only if the branch hasn't changed since taw-fleet read it.
 - **Cleans up:** it deletes the branch. If the local theme is clean and on that branch or the default one, it switches to the default branch and pulls.
 - **Follows the deploy:** the dashboard checks GitHub every 15 seconds and says when production has the merge, or that CI or the deploy failed. Then it re-checks the live site.
+- **Reminds you about the page cache:** while it deploys, the MERGE section says to clear the page cache once production has the merge, not before; then it says to clear it now (Hummingbird, WP Rocket, the host's). A cache cleared during the deploy is rebuilt from the old code. `taw-fleet merge` (which doesn't wait) ends with taw/core's same sentence.
 
 ## Pull production content
 
