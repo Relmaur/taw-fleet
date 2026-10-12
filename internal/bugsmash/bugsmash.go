@@ -105,6 +105,9 @@ func (e *APIError) Error() string {
 type page struct {
 	Current int `json:"current_page"`
 	Last    int `json:"last_page"`
+	Meta    struct {
+		NextCursor string `json:"nextCursor"`
+	} `json:"meta"`
 }
 
 func (c *Client) get(ctx context.Context, path string, q url.Values, into any) error {
@@ -258,6 +261,50 @@ func (c *Client) OpenComments(ctx context.Context, projectID string) ([]site.Com
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out, nil
+}
+
+// MonthComments counts a project's comments created in [from, to): how
+// many, and how many of them are resolved now (BugSmash doesn't say when a
+// comment was resolved).
+func (c *Client) MonthComments(ctx context.Context, projectID string, from, to time.Time) (received, resolved int, err error) {
+	for _, status := range []string{"active", "resolved"} {
+		cursor, pageNo := "", 0
+		for range 50 { // pages; a project with thousands of comments stops here
+			q := url.Values{"projectId": {projectID}, "status": {status}, "plainText": {"true"}}
+			if cursor != "" {
+				q.Set("cursor", cursor)
+			}
+			if pageNo > 0 {
+				q.Set("page", fmt.Sprint(pageNo))
+			}
+			var raw []apiComment
+			pg, err := c.getPage(ctx, "/comments", q, &raw)
+			if err != nil {
+				return 0, 0, err
+			}
+			for _, r := range raw {
+				created, _ := time.Parse(time.RFC3339Nano, r.CreatedAt)
+				if created.Before(from) || !created.Before(to) || !strings.EqualFold(r.Status, status) {
+					continue
+				}
+				received++
+				if status == "resolved" {
+					resolved++
+				}
+			}
+			switch {
+			case len(raw) == 0:
+			case pg.Meta.NextCursor != "" && pg.Meta.NextCursor != cursor: // cursor pages
+				cursor = pg.Meta.NextCursor
+				continue
+			case pg.Last > pg.Current && pg.Current > 0: // numbered pages
+				pageNo = pg.Current + 1
+				continue
+			}
+			break
+		}
+	}
+	return received, resolved, nil
 }
 
 // --- prober -------------------------------------------------------------------

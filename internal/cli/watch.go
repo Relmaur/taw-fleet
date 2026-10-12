@@ -11,6 +11,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/config"
+	"github.com/Relmaur/taw-fleet/internal/report"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/watch"
@@ -101,7 +103,12 @@ func (d Deps) check(cmd *cobra.Command, g *globals, notify bool) ([]watch.Event,
 	if err != nil {
 		return nil, false, problems, false, err
 	}
-	next, events := watch.Check(prev, sites, time.Now())
+	now := time.Now()
+	next, events := watch.Check(prev, sites, now)
+	made, failed := d.monthlyReports(cmd, g, next, sites, now)
+	events = append(events, made...)
+	next.Recent = append(slices.Clone(made), next.Recent...)
+	problems = append(problems, failed...)
 	next.Problems = problems
 	same := slices.Equal(prev.Problems, problems)
 	if err := watch.Save(d.Paths, next); err != nil {
@@ -121,6 +128,48 @@ func (d Deps) check(cmd *cobra.Command, g *globals, notify bool) ([]watch.Event,
 	return events, prev.Checked.IsZero(), problems, same, nil
 }
 
+// reportDays are the first days of a month in which watch makes last
+// month's reports (a Mac asleep on the 1st still gets them).
+const reportDays = 3
+
+// monthlyReports makes last month's report for every production site that
+// watch was checking during that month and that has no report yet, in the
+// first days of a month. Each made report is an event to tell.
+func (d Deps) monthlyReports(cmd *cobra.Command, g *globals, st watch.State, sites []site.Site, now time.Time) ([]watch.Event, []string) {
+	if now.Day() > reportDays {
+		return nil, nil
+	}
+	cfg, err := config.Load(d.Paths)
+	if err != nil {
+		return nil, nil
+	}
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).AddDate(0, -1, 0)
+	month := from.Format("2006-01")
+	var events []watch.Event
+	var problems []string
+	for _, s := range sites {
+		if cfg.Site(s.Slug).ProductionURL == "" {
+			continue
+		}
+		if _, checks := st.UptimeBetween(s.Slug, from, from.AddDate(0, 1, 0)); checks == 0 {
+			continue // watch wasn't running that month
+		}
+		if _, err := os.Stat(report.File(d.reportDir(), s.Slug, month, "html")); err == nil {
+			continue // made already (by watch or by hand)
+		}
+		data, html, err := d.makeReport(cmd.Context(), g, cfg, s, month, "", true, false, now)
+		if err != nil {
+			problems = append(problems, s.Slug+" report: "+err.Error())
+			continue
+		}
+		events = append(events, watch.Event{At: now, Kind: watch.ReportReady, Site: s.Slug, Name: data.Name,
+			Title: monthTitle(from) + " report ready", Body: data.Name + "'s report is ready to read and send: " + html, URL: "file://" + html})
+	}
+	return events, problems
+}
+
+func monthTitle(t time.Time) string { return t.Format("January") }
+
 func newWatchCmd(d Deps, g *globals) *cobra.Command {
 	var once, quiet, asJSON bool
 	var every time.Duration
@@ -132,7 +181,9 @@ func newWatchCmd(d Deps, g *globals) *cobra.Command {
 			"  - a production site stopped answering (two checks in a row), or came back;\n" +
 			"  - a production site answered without its pinned key's signature;\n" +
 			"  - new client comments in BugSmash;\n" +
-			"  - an update's pull request passed its checks and is ready to merge.\n" +
+			"  - an update's pull request passed its checks and is ready to merge;\n" +
+			"  - on the 1st (to the 3rd), last month's report for each production site is ready\n" +
+			"    (taw-fleet report: made then, in ~/TAW Fleet/reports/).\n" +
 			"Each is a macOS notification; clicking it opens the dashboard on that site\n" +
 			"(with terminal-notifier, which the Homebrew cask installs). The first check only notes\n" +
 			"what it sees.\n\n" +

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/bugsmash"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
@@ -21,6 +22,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/pagespeed"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/selfupdate"
@@ -51,6 +53,8 @@ type Deps struct {
 	Live       func(context.Context) (*live.Prober, error)     // production checks; nil = Keychain key + pinned keys
 	Feedback   func(context.Context) (*bugsmash.Prober, error) // BugSmash comments; nil = the Keychain's API key
 	WPHTTP     *http.Client                                    // wp-remote's HTTP client; nil = the real one
+	// PageSpeed measures a page for the monthly report; nil = Google's API.
+	PageSpeed func(ctx context.Context, url, strategy string) (pagespeed.Result, error)
 
 	// Confirm answers the y/N questions instead of the terminal, when set:
 	// the MCP server captures the question and declines it.
@@ -251,6 +255,10 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 				return d.checkFeedback(ctx, feedbackTargets(cfg), fresh)
 			}
 		}
+		deps.ReportDir = d.reportDir()
+		deps.ReportTask = func(s site.Site, month string) actions.Task {
+			return d.reportTask(g, s, month)
+		}
 		// A broken config only disables the shortcuts; the dashboard still opens.
 		if a, err := d.actions(); err != nil {
 			deps.ActionsErr = err
@@ -273,7 +281,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g))
 	return root
 }
 

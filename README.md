@@ -69,6 +69,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
 | `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site |
+| `m` | the site's monthly report for its client: this month so far, or last month; made, saved and opened in the browser (see [Monthly reports](#monthly-reports)) |
 | `z` | put back a restore point: asks which (the site's newest first), then puts it back after asking again (see [Restore points](#restore-points)) |
 | `M` | merge the theme's pull request (asks which when there are several, then asks again: a client theme's merge deploys production); the dashboard then follows the deploy. Several sites can merge at once: each site's card shows the spinner, then `✓` or `✗`, and its details a **MERGE** section (merged, this Mac back on the site's branch, deploying, on production). Untracked files (the update's `.taw/` report) don't keep the checkout on the update branch. When `taw.json` delivers to another remote, `origin` (the copy) is fast-forwarded to the merge too |
 | `D` | back to the site's branch: switch the theme to its default branch (asks first; refused with uncommitted changes). A branch that tracks another repository (a local copy of the scaffold's) is deleted afterwards when it has nothing of its own; other branches are kept |
@@ -574,6 +575,40 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Preview first:** taw/core's `content:import` dry run lists what would be created or changed, and writes nothing.
 - **Then the import, after you confirm:** production wins, media is downloaded, and taw/core saves a rollback snapshot to `wp-content/uploads/taw-private/` first.
 - A stopped Local site is started first (it asks). Snapshots are kept in `~/Library/Caches/taw-fleet/content/`.
+
+## Monthly reports
+
+`m` in the dashboard, or `taw-fleet report <site>`, makes a site's monthly report for its client.
+It's for you to read and send; nothing is sent from taw-fleet.
+
+| Section | From |
+|---|---|
+| **Availability** | `taw-fleet watch`'s checks every 5 minutes (the share that found the site answering) |
+| **Updates and changes** | the theme's pull requests merged that month: framework and maintenance work counted in one line ("12 updates; the site now runs TAW core 1.93.1"), the site's own changes listed; how often the live site was published (the deploy workflow) |
+| **Review comments** | BugSmash: received that month, how many are resolved, how many still open |
+| **Speed** | Google PageSpeed Insights, mobile and desktop, measured as the report is made; real visitors' Core Web Vitals when Google has enough traffic |
+| **Security and maintenance** | the live site through its companion: WordPress, PHP and taw/core versions, plugin updates waiting, known vulnerabilities |
+
+A section that couldn't be measured says "Not available for this month" in the report; the
+terminal (and `--json`) says why. Reports are saved as Markdown (to paste into an email) and HTML
+(one self-contained page, to attach or print) in `~/TAW Fleet/reports/<site>/<month>.{md,html}`;
+the site's details list them in a **REPORTS** section. On the 1st of each month (to the 3rd, for a
+Mac that was asleep), `taw-fleet watch` makes last month's report for every production site it was
+watching, and a notification says so.
+
+- **Language:** `report_language = "es"` (or `"en"`, the default) in the settings, or per site under
+  `[sites.<folder>]`; `--language` for one report. `report_from = "EmeLambda"` adds "Prepared by".
+- **PageSpeed key:** without one, PageSpeed shares a small quota with everyone and often refuses.
+  A free Google API key (Google Cloud console → enable the PageSpeed Insights API → Credentials →
+  API key): `pbpaste | taw-fleet report key import` (kept in the Keychain).
+
+```bash
+taw-fleet report ls-mxico                      # this month so far: saved, and a summary here
+taw-fleet report ls-mxico --month 2026-09 --open
+taw-fleet report --all --month 2026-09         # every production site
+taw-fleet report ls-mxico --print              # the Markdown, nothing saved
+taw-fleet report list
+```
 
 ## Restore points
 
