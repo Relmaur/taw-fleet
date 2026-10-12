@@ -417,7 +417,8 @@ func TestDashboardOpensInItsOwnWindow(t *testing.T) {
 		}
 		g.window, _ = root.Flags().GetBool("window")
 		g.offline, _ = root.Flags().GetBool("offline")
-		opened := d.openWindow(root, g)
+		g.site, _ = root.Flags().GetString("site")
+		opened := d.openWindow(root, g, g.site != "")
 		return out.String(), r, opened
 	}
 
@@ -439,6 +440,13 @@ func TestDashboardOpensInItsOwnWindow(t *testing.T) {
 	}
 	if _, _, opened := open("--window"); !opened {
 		t.Error("--window wins over the config")
+	}
+	// A notification's click has no terminal: a window opens whatever the
+	// config says, on the site.
+	if _, r, opened := open("--site", "acme"); !opened {
+		t.Error("--site (a click) must open a window")
+	} else if script, _ := os.ReadFile(r.Calls()[0].Args[2]); !strings.Contains(string(script), "'--site' 'acme'") {
+		t.Errorf("script:\n%s", script)
 	}
 
 	write(t, filepath.Join(p.ConfigDir, "config.toml"), "")

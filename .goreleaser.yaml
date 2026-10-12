@@ -70,6 +70,9 @@ homebrew_casks:
     homepage: https://github.com/Relmaur/taw-fleet
     description: The TAW sites on this Mac (Local by Flywheel) in one terminal dashboard, and the taw command
     binaries: [taw-fleet, taw]
+    # taw-fleet watch's notifications open the dashboard when clicked through it.
+    dependencies:
+      - formula: terminal-notifier
     commit_author:
       name: taw-fleet release
       email: noreply@github.com

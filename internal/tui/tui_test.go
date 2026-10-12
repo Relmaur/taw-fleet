@@ -230,6 +230,23 @@ func TestInlineInItsOwnWindow(t *testing.T) {
 	}
 }
 
+func TestOpensOnASite(t *testing.T) {
+	rep := fixtureReport()
+	m := newModel(t, 100, 24, nil)
+	m.selectAfterScan, m.detailAfterScan = "BISTRO", true // Deps.Select, as New sets it
+	m = step(t, m, scanDoneMsg{rep, nil})
+	r, ok := m.selected()
+	if !ok || m.rep.Sites[r.site].Slug != "bistro" || m.mode != modeDetail {
+		t.Fatalf("selected %v mode %v", r, m.mode)
+	}
+	// The next scan leaves the cursor and the screen alone.
+	m.mode = modeTable
+	m = step(t, m, scanDoneMsg{rep, nil})
+	if m.mode != modeTable {
+		t.Error("a later scan opened the details again")
+	}
+}
+
 func TestLiveSitesFirst(t *testing.T) {
 	rep := fixtureReport()
 	m := newModel(t, 100, 24, nil)
