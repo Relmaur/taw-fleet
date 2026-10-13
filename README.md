@@ -110,12 +110,12 @@ plain Unicode symbols by default, or Nerd Font icons with `taw-fleet config icon
 
 ```bash
 taw-fleet list            # every TAW site: status, themes, taw/core, git
-taw-fleet show chcapital  # one site in detail (folder, name, domain, Local id or theme)
+taw-fleet show john-seed  # one site in detail (folder, name, domain, Local id or theme)
 taw-fleet doctor          # what needs attention, most serious first, with the fix
-taw-fleet doctor ls-mxico # the same for one site
+taw-fleet doctor awesome-company # the same for one site
 taw-fleet list --all      # also sites and themes that aren't TAW
 taw-fleet list --tag retainer   # only the sites with that tag (repeatable; client: = any client tag)
-taw-fleet tag ls-mxico retainer es client:ls   # set a site's tags (--add, --remove, --clear; asks first)
+taw-fleet tag awesome-company retainer es client:awesome   # set a site's tags (--add, --remove, --clear; asks first)
 taw-fleet open <site>     # theme in your editor (see Shortcuts)
 taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet work <site>     # site, editor, Vite and browser in one go; --stop undoes it
@@ -139,14 +139,14 @@ GitHub; use the cached newest versions).
 
     SITE · THEME                       TAW/CORE         SYNC  LIVE  FB   PR   DEPLOY  GIT
 ────────────────────────────────────────────────────────────────────────────────────────────────
-▌ ● ch-capital---taw                   1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       master
-    chcapital  classic  chcapital.mx                                                  3h ago
+▌ ● john-seed-taw                      1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       master
+    john-seed  classic  johnseed.com                                                  3h ago
 
-  ● fsspx-taw                          1.87.1 ▲ 1.87.2  ▲2    ●     1    —    ✓       feat/chat…
-    fsspx--theme  classic  fsspx.tempurl.host                  2h                     1h ago
+  ● jane-doe-taw                       1.87.1 ▲ 1.87.2  ▲2    ●     1    —    ✓       feat/chat…
+    jane-doe--theme  classic  janedoe.tempurl.host             2h                     1h ago
 
-  ● ls-mxico                           1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       main
-    ls-mexico  classic  lsmexico.mx                                                   3h ago
+  ● awesome-company                    1.87.0 ▲ 1.87.2  ▲1    ●     0    —    ✓       main
+    awesome-company  classic  awesomecompany.com                                      3h ago
 
  TAW ECOSYSTEM ─────────────────────────────────────── the scaffolds every TAW site is made from
   ● taw                                1.87.2                                         main
@@ -159,10 +159,10 @@ GitHub; use the cached newest versions).
 ### Start, stop and wp-cli
 
 ```bash
-taw-fleet start ls-mxico          # asks first; --yes in scripts
-taw-fleet stop fsspx              # also: restart
-taw-fleet unstick parallelstaff   # end Local's leftover processes in the site's way (asks first)
-taw-fleet wp chcapital option get stylesheet
+taw-fleet start awesome-company   # asks first; --yes in scripts
+taw-fleet stop jane-doe           # also: restart
+taw-fleet unstick acme-studio     # end Local's leftover processes in the site's way (asks first)
+taw-fleet wp john-seed option get stylesheet
 taw-fleet wp taw plugin list --format=json
 ```
 
@@ -211,8 +211,8 @@ Local's window.
 
 ```bash
 taw-fleet live                      # every site with a production_url
-taw-fleet live chcapital --logs 20  # one site, with its plugin updates and vulnerabilities
-taw-fleet live trust chcapital      # pin the key the site signs its answers with
+taw-fleet live john-seed --logs 20  # one site, with its plugin updates and vulnerabilities
+taw-fleet live trust john-seed      # pin the key the site signs its answers with
 taw-fleet live key new              # first time: create taw-fleet's signing key (Keychain)
 ```
 
@@ -232,7 +232,7 @@ public key (`taw-fleet live key show`); the companion ships with each TAW theme 
 
 ```bash
 taw-fleet comments                   # open review comments on every site with a BugSmash project
-taw-fleet comments chcapital --json  # one site, every open comment, for scripts and Claude
+taw-fleet comments john-seed --json  # one site, every open comment, for scripts and Claude
 taw-fleet comments projects          # your BugSmash projects and their ids (for the settings)
 taw-fleet comments key import        # first time: store the BugSmash API key (Keychain)
 taw-fleet comments key show          # where the key comes from, and whether BugSmash accepts it
@@ -270,11 +270,11 @@ Every TAW theme carries Claude Code skills in `.claude/skills/`: the scaffold's 
 the theme folder, beside the dashboard. `X` is the shortcut for `resolve-comments`.
 
 ```bash
-printf 'claude-bot:xxxx xxxx xxxx xxxx' | taw-fleet wp-remote key import ls-mxico   # once per site and Mac
-taw-fleet wp-remote key show ls-mxico                        # the bot and its role, never the password
-taw-fleet wp-remote ls-mxico GET '/wp/v2/pages?slug=nosotros&context=edit'
-taw-fleet wp-remote ls-mxico POST /wp/v2/pages/12 --data @meta.json   # or --data - (stdin), or inline JSON
-taw-fleet wp-remote ls-mxico POST /wp/v2/media --file hero.webp
+printf 'claude-bot:xxxx xxxx xxxx xxxx' | taw-fleet wp-remote key import awesome-company   # once per site and Mac
+taw-fleet wp-remote key show awesome-company                 # the bot and its role, never the password
+taw-fleet wp-remote awesome-company GET '/wp/v2/pages?slug=nosotros&context=edit'
+taw-fleet wp-remote awesome-company POST /wp/v2/pages/12 --data @meta.json   # or --data - (stdin), or inline JSON
+taw-fleet wp-remote awesome-company POST /wp/v2/media --file hero.webp
 ```
 
 `wp-remote` calls the production site's WordPress REST API as the site's bot user: an Editor
@@ -287,10 +287,10 @@ never deletes on production.
 ### Sync, update, inspect
 
 ```bash
-taw-fleet sync chcapital          # read-only: Tier 1 / Tier 2 differences from taw-theme, taw/core status
-taw-fleet sync ls-mxico --apply   # write Tier 1 (asks first); Tier 2 is never written
-taw-fleet update ls-mxico         # update this site: the whole update as taw.json says (asks first), a pull request at the end
-taw-fleet inspect chcapital       # blocks, fields and forms of a running site (bin/taw inspect)
+taw-fleet sync john-seed          # read-only: Tier 1 / Tier 2 differences from taw-theme, taw/core status
+taw-fleet sync awesome-company --apply   # write Tier 1 (asks first); Tier 2 is never written
+taw-fleet update awesome-company  # update this site: the whole update as taw.json says (asks first), a pull request at the end
+taw-fleet inspect john-seed       # blocks, fields and forms of a running site (bin/taw inspect)
 ```
 
 These run the theme's own tools (`bin/taw`, from taw/core) with the site's PHP and Local's
@@ -304,8 +304,8 @@ UPGRADING checks, commit), hand it to an agent instead: `taw-fleet handoff <site
 ### Shortcuts
 
 ```bash
-taw-fleet open chcapital              # the theme in your editor
-taw-fleet open ls-mxico --github      # also --finder --terminal --browser --admin --prs --production
+taw-fleet open john-seed              # the theme in your editor
+taw-fleet open awesome-company --github      # also --finder --terminal --browser --admin --prs --production
 taw-fleet open taw --theme taw-gutenberg --terminal
 ```
 
@@ -347,9 +347,9 @@ When Claude exits (`/exit`), its window closes and the dashboard rescans, so a n
 version shows at once. From the command line:
 
 ```bash
-taw-fleet handoff ls-mxico            # print the prompt
-taw-fleet handoff ls-mxico --copy     # put it on the clipboard
-taw-fleet handoff ls-mxico --launch   # a new terminal running Claude Code in the theme, with the prompt
+taw-fleet handoff awesome-company     # print the prompt
+taw-fleet handoff awesome-company --copy     # put it on the clipboard
+taw-fleet handoff awesome-company --launch   # a new terminal running Claude Code in the theme, with the prompt
 taw-fleet handoff --all               # which themes an update-all would take, and which it leaves out
 taw-fleet handoff --all --launch      # update them all in one Claude Code session
 ```
@@ -411,11 +411,11 @@ admin_email = "me@example.com"
 php = "8.2.30"           # empty: Local's preferred
 web_server = "nginx"
 
-[sites.ls-mxico]         # keyed by the site's folder in ~/Local Sites
-production_url = "https://lsmexico.mx"
+[sites.awesome-company]         # keyed by the site's folder in ~/Local Sites
+production_url = "https://awesomecompany.com"
 notes = "Deploys from main."   # included in the handoff prompt
-bugsmash_project = "a2f16102-91d0-4968-a010-fca3146f4596"   # its BugSmash project (taw-fleet comments projects)
-tags = ["retainer", "es", "client:ls"]   # # in the dashboard, taw-fleet tag; see Tags and groups
+bugsmash_project = "00000000-0000-4000-8000-000000000000"   # its BugSmash project (taw-fleet comments projects)
+tags = ["retainer", "es", "client:awesome"]   # # in the dashboard, taw-fleet tag; see Tags and groups
 ```
 
 `group_by = "tag"` (top level; also `"kind"`, `"production"`, `"prefix:client"`, `"none"`) is how the
@@ -424,7 +424,7 @@ dashboard groups the list; `=` changes it and saves it here.
 #### Tags and groups
 
 Tags organise a bigger fleet: lower case letters, digits, `:`, `_` and `-` (`retainer`, `es`,
-`client:parallel`), up to 12 per site. They show as `#tag` on the site's card, the filter finds them
+`client:acme`), up to 12 per site. They show as `#tag` on the site's card, the filter finds them
 (`#retainer`, `tag:client:` for any client), and `=` groups the list by them. A site with several tags
 shows under each; untagged sites come last, and the TAW ecosystem is always its own last group. A
 `prefix:` grouping (`client:` → by client) appears in `=`'s cycle once a tag uses that prefix. Set
@@ -508,9 +508,9 @@ A theme named `taw/gutenberg`, or a block theme (`wordpress-theme` with `theme.j
 commands itself, so every site keeps exactly its own taw/core version.
 
 ```bash
-cd ~/Local\ Sites/ls-mxico/app/public/wp-content/themes/ls-mexico/Blocks
+cd ~/Local\ Sites/awesome-company/app/public/wp-content/themes/awesome-company/Blocks
 taw list                  # in a theme, or any folder under it
-taw @ls-mexico list       # from anywhere: a theme folder or site name (taw-fleet's names)
+taw @awesome-company list # from anywhere: a theme folder or site name (taw-fleet's names)
 taw @taw/taw-theme list   # a site with two TAW themes: @<site>/<theme>
 taw                       # outside a theme: where it can run
 ```
@@ -850,16 +850,16 @@ Mac that was asleep), `taw-fleet watch` makes last month's report for every prod
 watching, and a notification says so.
 
 - **Language:** `report_language = "es"` (or `"en"`, the default) in the settings, or per site under
-  `[sites.<folder>]`; `--language` for one report. `report_from = "EmeLambda"` adds "Prepared by".
+  `[sites.<folder>]`; `--language` for one report. `report_from = "Awesome Agency"` adds "Prepared by".
 - **PageSpeed key:** without one, PageSpeed shares a small quota with everyone and often refuses.
   A free Google API key (Google Cloud console → enable the PageSpeed Insights API → Credentials →
   API key): `pbpaste | taw-fleet report key import` (kept in the Keychain).
 
 ```bash
-taw-fleet report ls-mxico                      # this month so far: saved, and a summary here
-taw-fleet report ls-mxico --month 2026-09 --open
+taw-fleet report awesome-company               # this month so far: saved, and a summary here
+taw-fleet report awesome-company --month 2026-09 --open
 taw-fleet report --all --month 2026-09         # every production site
-taw-fleet report ls-mxico --print              # the Markdown, nothing saved
+taw-fleet report awesome-company --print              # the Markdown, nothing saved
 taw-fleet report list
 ```
 
@@ -888,10 +888,10 @@ taw-fleet keeps the newest 5 per site (`restore_keep` in the settings; 0 makes n
 - **Undo:** a restore first saves how things are now as a point, so it can be put back too.
 
 ```bash
-taw-fleet restore ls-mxico                  # the points, newest first
-taw-fleet restore ls-mxico latest           # put the newest back (asks first)
-taw-fleet restore ls-mxico 20261012-183000-update --yes
-taw-fleet restore ls-mxico --save           # one now
+taw-fleet restore awesome-company           # the points, newest first
+taw-fleet restore awesome-company latest           # put the newest back (asks first)
+taw-fleet restore awesome-company 20261012-183000-update --yes
+taw-fleet restore awesome-company --save           # one now
 ```
 
 ## Notifications (`taw-fleet watch`)
@@ -922,7 +922,7 @@ the monthly report's uptime.
 ```bash
 taw-fleet watch install            # every 5 minutes, in the background (--every 10m)
 taw-fleet watch status             # on or off, the last check, what it told lately
-taw-fleet watch test ls-mxico      # a notification now, to see it arrive and where a click goes
+taw-fleet watch test awesome-company      # a notification now, to see it arrive and where a click goes
 taw-fleet watch --once             # one check here (--json, --no-notify)
 taw-fleet watch                    # check every 5 minutes in this terminal, until ctrl+c
 taw-fleet watch uninstall          # stop
@@ -933,15 +933,15 @@ The agent's output (only news and problems) goes to `~/Library/Application Suppo
 ## Other GitHub accounts
 
 A theme whose repository belongs to another GitHub account shows `@account` in the GIT column and the detail pane, and `/other` filters to those themes. taw-fleet spots it when:
-- the remote uses an SSH host alias such as `github.com-parallel`, the usual way to use a second account;
+- the remote uses an SSH host alias such as `github.com-acme`, the usual way to use a second account;
 - or the owner isn't in `github_owners`;
 - or the site sets `github_account`, for a theme that sits inside a larger repository:
 
 ```toml
-github_owners = ["Relmaur", "EmeLambda"]   # your accounts and organizations
+github_owners = ["Relmaur", "awesome-agency"]   # your accounts and organizations
 
-[sites.parallelstaff]
-github_account = "parallelstaff"
+[sites.acme-studio]
+github_account = "acme-studio"
 ```
 
 ## Develop

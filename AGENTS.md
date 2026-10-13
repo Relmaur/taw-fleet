@@ -120,7 +120,7 @@ go run ./cmd/taw-fleet version
   so `Check` asks `/project/{id}` first: its 404 is how a re-created project shows up.
 - **A database copy never goes where git or a sync can reach it.** Only `internal/restore` makes
   them, only under `DataDir/restore/`, after `Guard`; `wp db export` writes to stdout, never to a
-  file in a site. Tests never dump a real site's database (the owner's rule after the chcapital
+  file in a site. Tests never dump a real site's database (the owner's rule after a client theme's
   `.sync/` leak); a live check uses the `taw` dev site, with the owner's OK.
 - **Read-only by default.** Anything that changes a site, a theme or a file asks first in the
   dashboard and needs `--yes` on the command line.

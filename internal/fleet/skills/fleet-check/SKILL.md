@@ -46,16 +46,16 @@ Skip what's fine. One line per item: the site, what's wrong, and the next action
 Fleet check, <date>
 
 Needs you now
-- fsspx: production didn't answer at 06:10 and 06:15 (watch). → `L` to check again; then the host.
+- jane-doe: production didn't answer at 06:10 and 06:15 (watch). → `L` to check again; then the host.
 
 Clients waiting
-- chcapital: 3 open comments, the oldest 4 days. → `X` resolves them with Claude.
+- john-seed: 3 open comments, the oldest 4 days. → `X` resolves them with Claude.
 
 Ready to ship
-- ls-mexico #14 (taw/core 1.95.1) passed CI. → `M` merges and deploys; clear the page cache after.
+- awesome-company #14 (taw/core 1.95.1) passed CI. → `M` merges and deploys; clear the page cache after.
 
 Behind
-- emelambda, mlizardo on taw/core 1.93.x. → `U` updates every theme that's behind.
+- bright-bakery, acme-studio on taw/core 1.93.x. → `U` updates every theme that's behind.
 
 All fine: <the sites with nothing to report>
 ```

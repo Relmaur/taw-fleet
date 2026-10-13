@@ -13,7 +13,7 @@ Claude sessions already run the fleet: they call `taw-fleet … --json` and the 
 1. **Untyped and parsed.** Each session learns the command lines and the JSON shapes from docs.
 2. **Writes are raw shell.** A merge is `gh pr merge`, a force-push is `git push --force-with-lease`.
    Permission layers can only see a shell line: on 2026-10-10 the auto-mode classifier blocked every
-   merge and the emelambda mirror realign until the owner approved each by hand. Asking first, which
+   merge and a client theme's mirror realign until the owner approved each by hand. Asking first, which
    the dashboard does for every write, isn't carried over.
 3. **No shell, no fleet.** Claude Desktop, Cursor and claude.ai can't run commands on this Mac.
 
