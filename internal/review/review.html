@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publish {{.Name}}</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --ink: #1c2128; --muted: #626b77; --faint: #8b949e; --line: #e2e5ea; --soft: #f6f7f9;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --good: #1a7f37; --good-bg: #e6f4ea; --bad: #b42318; --bad-bg: #fde8e7;
+  --warn: #9a5b00; --warn-bg: #fff4dc; --warn-line: #f0c36d; --ins: #dbf3e1; --ins-strong: #a6e2b5; --del: #fde2e1; --del-strong: #f5b3ae;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 1px rgba(15, 23, 42, .04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --card: #171b21; --ink: #e6e9ee; --muted: #9aa4b2; --faint: #6e7681; --line: #2b313a; --soft: #1d2229;
+    --accent: #7aa2ff; --accent-ink: #0f1216; --good: #4cc38a; --good-bg: #13291d; --bad: #f2786c; --bad-bg: #3a1a17;
+    --warn: #f1a33c; --warn-bg: #2f2410; --warn-line: #7a5617; --ins: #163522; --ins-strong: #1f5a35; --del: #3d1c1a; --del-strong: #6b2b26;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 140px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; cursor: pointer; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .wrap { padding-top: 16px; padding-bottom: 12px; }
+.title { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 14px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 11px; font-size: 13px; color: var(--muted); }
+.chip b { color: var(--ink); font-weight: 650; }
+.chip.decide { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn); }
+.chip.decide b { color: var(--warn); }
+.tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.seg button { border: 0; background: transparent; padding: 5px 11px; color: var(--muted); font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--soft); color: var(--ink); font-weight: 600; }
+input[type="search"] { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 13px; width: 200px; }
+main { padding: 18px 0 140px; }
+.banner { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; box-shadow: var(--shadow); }
+.banner.warn { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn); }
+.banner.good { border-color: color-mix(in srgb, var(--good) 40%, transparent); background: var(--good-bg); }
+.banner.bad { border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: var(--bad-bg); }
+.banner p { margin: 0; }
+.banner .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.banner details summary { cursor: pointer; }
+.banner ul { margin: 6px 0 0; padding-left: 20px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 26px 0 10px; font-weight: 650; }
+h2 .n { color: var(--faint); font-weight: 500; }
+article.rec { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 0 0 12px; box-shadow: var(--shadow); overflow: hidden; }
+article.rec.off { opacity: .55; }
+article.rec.off .changes { display: none; }
+article.rec > header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+article.rec.folded > header { border-bottom: 0; }
+article.rec.folded .changes { display: none; }
+.inc input { width: 17px; height: 17px; accent-color: var(--accent); }
+.rt { flex: 1; min-width: 0; }
+.rt strong { font-size: 16px; }
+.rt .what { color: var(--faint); font-size: 13px; margin-left: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.badge { font-size: 12px; border-radius: 6px; padding: 2px 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.badge.new { border-color: color-mix(in srgb, var(--good) 45%, transparent); color: var(--good); }
+.badge.delete { border-color: color-mix(in srgb, var(--bad) 45%, transparent); color: var(--bad); }
+.badge.decide { border-color: var(--warn-line); color: var(--warn); background: var(--warn-bg); }
+.fold { border: 0; background: transparent; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+.fold:hover { background: var(--soft); }
+.chg { padding: 14px 16px; border-top: 1px solid var(--line); }
+.chg:first-child { border-top: 0; }
+.chg.conflict { background: color-mix(in srgb, var(--warn-bg) 60%, transparent); }
+.chg.unresolved { box-shadow: inset 3px 0 0 var(--warn); }
+.lbl { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+.lbl strong { font-weight: 650; }
+.lbl .ctx { color: var(--muted); font-size: 13px; }
+.lbl .ctx::before { content: "in "; }
+.pill { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); border-radius: 5px; padding: 0 5px; }
+.why { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; color: var(--warn); font-size: 14px; }
+.why q { color: var(--ink); }
+.pick { display: inline-flex; border: 1px solid var(--warn-line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.pick label { padding: 5px 12px; font-size: 13px; color: var(--ink); cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.pick label + label { border-left: 1px solid var(--warn-line); }
+.pick input { accent-color: var(--accent); margin: 0; }
+.pick label:has(input:checked) { background: var(--soft); font-weight: 600; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.side { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: var(--soft); min-width: 0; }
+.side .cap { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin-bottom: 4px; }
+.side.chosen { outline: 2px solid var(--accent); outline-offset: -1px; }
+.val { white-space: pre-wrap; word-break: break-word; }
+.val.empty { color: var(--faint); font-style: italic; }
+del { background: var(--del-strong); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--bad) 60%, transparent); border-radius: 3px; }
+ins { background: var(--ins-strong); text-decoration: none; border-radius: 3px; }
+table.lines { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+table.lines th { text-align: left; font: 11px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); padding: 6px 10px; background: var(--soft); border-bottom: 1px solid var(--line); }
+table.lines td { padding: 1px 10px; vertical-align: top; white-space: pre-wrap; word-break: break-all; border-left: 1px solid var(--line); }
+table.lines td:first-child { border-left: 0; }
+tr.del td:first-child, tr.change td:first-child { background: var(--del); }
+tr.ins td:last-child, tr.change td:last-child { background: var(--ins); }
+tr.skip td { color: var(--faint); text-align: center; font-style: italic; background: var(--soft); padding: 3px; }
+.media { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+.media figure { margin: 0; width: 180px; }
+.media img { width: 180px; height: 120px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--card); display: block; }
+.media .file { width: 180px; height: 60px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 13px; }
+.media figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; word-break: break-all; }
+.media .up { color: var(--good); }
+.files { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.files figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+.files img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; display: block; }
+.files .file { height: 100px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.files figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+footer.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(15, 23, 42, .06); }
+footer.bar .wrap { display: flex; gap: 14px; align-items: center; padding-top: 12px; padding-bottom: 12px; }
+#summary { flex: 1; color: var(--muted); }
+#summary b { color: var(--ink); }
+#summary .todo { color: var(--warn); font-weight: 600; }
+.btn { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 8px 16px; }
+.btn:hover { background: var(--soft); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+dialog { border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; background: var(--card); color: var(--ink); max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(10, 14, 20, .45); }
+dialog h3 { margin: 0 0 8px; font-size: 18px; }
+dialog p { margin: 0 0 10px; color: var(--muted); }
+dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.progress ol { list-style: none; padding: 0; margin: 10px 0 0; }
+.progress li { padding: 4px 0; color: var(--faint); }
+.progress li.on { color: var(--ink); font-weight: 600; }
+.progress li.done { color: var(--good); }
+.progress li.done::before { content: "✓ "; }
+.progress li.on::before { content: "● "; color: var(--accent); }
+.progress .after { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.6; overflow-wrap: break-word; }
+.progress .after code { white-space: nowrap; }
+.progress .after code.path { white-space: normal; }
+.bar-track { height: 6px; border-radius: 99px; background: var(--soft); overflow: hidden; margin-top: 10px; }
+.bar-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.hidden { display: none !important; }
+.locked .inc input, .locked .pick input { pointer-events: none; }
+@media (max-width: 760px) {
+  .sides { grid-template-columns: 1fr; }
+  .tools { margin-left: 0; width: 100%; }
+  input[type="search"] { flex: 1; width: auto; }
+  article.rec > header { flex-wrap: wrap; }
+  .rt .what { display: block; margin-left: 0; }
+}
+</style>
+</head>
+<body class="{{if ne .State "review"}}locked{{end}}">
+<header class="top">
+  <div class="wrap">
+    <div class="title">
+      <h1>{{if eq .State "published"}}Published{{else if eq .State "cancelled"}}Not published{{else}}Publish{{end}} {{.Name}}</h1>
+      <span class="sub">to <a href="{{.Production}}" target="_blank" rel="noopener">{{host .Production}}</a> · from Local · planned {{.Made}}</span>
+    </div>
+    <div class="chips">
+      <span class="chip"><b>{{.Records}}</b> {{plural .Records "record" "records"}}</span>
+      <span class="chip"><b>{{.Values}}</b> {{plural .Values "value" "values"}}</span>
+      {{if .Files}}<span class="chip"><b>{{len .Files}}</b> {{plural (len .Files) "file" "files"}}{{if eq .State "review"}} to upload{{end}}</span>{{end}}
+      {{if and .Conflicts (eq .State "review")}}<span class="chip decide" id="chip-decide"><b>{{.Conflicts}}</b> to decide</span>{{end}}
+      {{if eq .State "review"}}<div class="tools">
+        <div class="seg" role="group" aria-label="Show">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="decide" aria-pressed="false">To decide</button>
+        </div>
+        <input type="search" id="find" placeholder="Find a page or field" aria-label="Find a page or field">
+      </div>{{end}}
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  {{with .Result}}
+    {{if .Error}}
+      <div class="banner bad"><p><b>The publish stopped:</b> {{.Error}}</p></div>
+    {{else}}
+      <div class="banner good"><p><b>Published.</b> {{.Created}} created, {{.Updated}} updated{{if .Deleted}}, {{.Deleted}} deleted{{end}}{{if .Files}}, {{.Files}} {{plural .Files "file" "files"}} uploaded{{end}}{{if .Failed}}, <b>{{.Failed}} failed</b>{{end}}.
+        To undo it: <code>x</code> on the site in taw-fleet, or <code>taw-fleet publish undo {{$.Site}}</code>. Values edited on production since are kept.</p>
+        {{if .Warnings}}<details><summary>{{len .Warnings}} {{plural (len .Warnings) "note" "notes"}}</summary><ul>{{range .Warnings}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+      </div>
+    {{end}}
+  {{end}}
+  {{if eq .State "cancelled"}}<div class="banner"><p>Cancelled: nothing was published.</p></div>{{end}}
+
+  {{if and (eq .State "review") (not .Base)}}
+    <div class="banner warn"><p><b>No base to compare with.</b> taw-fleet hasn't seen production's content before, so it can't tell which side changed what: each value below is production's now beside Local's, and publishing replaces production's. To start from production's content, pull it first (<code>C</code>), then publish.</p></div>
+  {{else if .Base}}
+    <p class="sub" style="margin:0 0 12px">Compared with production's content as of {{.Base}}: a value production changed since then is marked, and you choose which side wins.</p>
+  {{end}}
+  {{if and (eq .State "review") .Conflicts}}
+    <div class="banner warn" id="decide-banner">
+      <p id="decide-text"><b>{{.Conflicts}}</b> {{plural .Conflicts "value was" "values were"}} changed on production too. Pick which side wins for each; nothing is published until you have.</p>
+      <div class="row"><button type="button" class="btn small" data-all="keep">Keep production's for all</button><button type="button" class="btn small" data-all="take">Use Local's for all</button></div>
+    </div>
+  {{end}}
+  {{if .Warnings}}
+    <div class="banner"><details><summary>{{len .Warnings}} {{plural (len .Warnings) "note" "notes"}} from production</summary><ul>{{range .Warnings}}<li>{{.}}</li>{{end}}</ul></details></div>
+  {{end}}
+
+  {{/* The two sides' captions: before a publish, and in the copy kept after it. */}}
+  {{$old := "Production now"}}{{$new := "Local · publishing"}}
+  {{if ne .State "review"}}{{$old = "Production before"}}{{$new = "Local"}}{{end}}
+  {{range .Groups}}
+  <h2>{{.Title}} <span class="n">{{len .Records}}</span></h2>
+  {{range .Records}}
+  <article class="rec{{if not (included $.Decisions .)}} off{{end}}" data-key="{{.Key}}" data-hash="{{.Hash}}" data-op="{{.Op}}" data-search="{{lower .Title}} {{lower .What}}{{range .Changes}} {{lower .Label}}{{end}}">
+    <header>
+      <label class="inc" title="Publish this"><input type="checkbox" {{if included $.Decisions .}}checked{{end}}{{if ne $.State "review"}} disabled{{end}} aria-label="Publish {{.Title}}"></label>
+      <div class="rt"><strong>{{.Title}}</strong><span class="what">{{.What}}</span></div>
+      {{if eq .Op "new"}}<span class="badge new">New on production</span>{{else if eq .Op "delete"}}<span class="badge delete">Deletes it from production</span>{{else}}<span class="badge">{{len .Changes}} {{plural (len .Changes) "change" "changes"}}</span>{{end}}
+      {{if .Conflicts}}{{if eq $.State "review"}}<span class="badge decide" data-decide-badge>{{.Conflicts}} to decide</span>{{else}}<span class="badge">decided</span>{{end}}{{end}}
+      {{if .EditURL}}<a href="{{.EditURL}}" target="_blank" rel="noopener" class="sub">Open on production ↗</a>{{end}}
+      {{if eq $.State "review"}}<button type="button" class="fold" aria-label="Fold" aria-expanded="true">▾</button>{{end}}
+    </header>
+    <div class="changes">
+      {{$rec := .}}
+      {{range .Changes}}
+      <div class="chg{{if .Conflict}} conflict{{end}}" data-change="{{.Key}}" data-conflict="{{.Conflict}}">
+        <div class="lbl"><strong>{{.Label}}</strong>{{if .Context}}<span class="ctx">{{.Context}}</span>{{end}}{{if eq .Status "new"}}<span class="pill">new</span>{{end}}</div>
+        {{if .Conflict}}
+        <div class="why">
+          <span>{{if eq .Conflict "yes"}}{{if .LocalChanged}}Changed on production too since your last pull{{else}}Only production changed this since your last pull{{end}}{{if .Base}} (it was <q>{{clip .Base 80}}</q>){{end}}.{{else}}Production has its own value here, and there's no telling which is newer.{{end}}</span>
+          <span class="pick" role="radiogroup" aria-label="Which side wins">
+            <label><input type="radio" name="pick:{{$rec.Key}}:{{.Key}}" value="keep" {{if eq (side $.Decisions $rec .) "keep"}}checked{{end}}{{if ne $.State "review"}} disabled{{end}}> Keep production's</label>
+            <label><input type="radio" name="pick:{{$rec.Key}}:{{.Key}}" value="take" {{if eq (side $.Decisions $rec .) "take"}}checked{{end}}{{if ne $.State "review"}} disabled{{end}}> Use Local's</label>
+          </span>
+        </div>
+        {{end}}
+        {{if eq .Kind "short"}}
+        <div class="sides">
+          <div class="side old{{if and .Conflict (eq (side $.Decisions $rec .) "keep")}} chosen{{end}}" data-side="keep"><div class="cap">{{$old}}</div>{{if .Old}}<div class="val">{{range .Spans}}{{if eq .Op "eq"}}{{.Text}}{{else if eq .Op "del"}}<del>{{.Text}}</del>{{end}}{{end}}</div>{{else}}<div class="val empty">empty</div>{{end}}</div>
+          <div class="side new{{if and .Conflict (eq (side $.Decisions $rec .) "take")}} chosen{{end}}" data-side="take"><div class="cap">{{$new}}</div>{{if .New}}<div class="val">{{range .Spans}}{{if eq .Op "eq"}}{{.Text}}{{else if eq .Op "ins"}}<ins>{{.Text}}</ins>{{end}}{{end}}</div>{{else}}<div class="val empty">empty</div>{{end}}</div>
+        </div>
+        {{else if eq .Kind "long"}}
+        <table class="lines">
+          <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+          <tr><th>{{$old}}</th><th>{{$new}}</th></tr>
+          {{range .Rows}}
+            {{if eq .Op "skip"}}<tr class="skip"><td colspan="2">… {{.Count}} unchanged {{plural .Count "line" "lines"}}</td></tr>
+            {{else if eq .Op "change"}}<tr class="change"><td>{{range .Spans}}{{if eq .Op "eq"}}{{.Text}}{{else if eq .Op "del"}}<del>{{.Text}}</del>{{end}}{{end}}</td><td>{{range .Spans}}{{if eq .Op "eq"}}{{.Text}}{{else if eq .Op "ins"}}<ins>{{.Text}}</ins>{{end}}{{end}}</td></tr>
+            {{else if eq .Op "del"}}<tr class="del"><td>{{.Old}}</td><td></td></tr>
+            {{else if eq .Op "ins"}}<tr class="ins"><td></td><td>{{.New}}</td></tr>
+            {{else}}<tr class="eq"><td>{{.Old}}</td><td>{{.New}}</td></tr>{{end}}
+          {{end}}
+        </table>
+        {{else if eq .Kind "media"}}
+        <div class="sides">
+          <div class="side old{{if and .Conflict (eq (side $.Decisions $rec .) "keep")}} chosen{{end}}" data-side="keep"><div class="cap">{{$old}}</div>{{if .OldMedia}}<div class="media">{{range .OldMedia}}<figure>{{if .Image}}<img src="{{src $ .}}" alt="" loading="lazy">{{else}}<div class="file">{{.Name}}</div>{{end}}<figcaption>{{.Name}}</figcaption></figure>{{end}}</div>{{else}}<div class="val empty">none</div>{{end}}</div>
+          <div class="side new{{if and .Conflict (eq (side $.Decisions $rec .) "take")}} chosen{{end}}" data-side="take"><div class="cap">{{$new}}</div>{{if .NewMedia}}<div class="media">{{range .NewMedia}}<figure>{{if .Image}}<img src="{{src $ .}}" alt="" loading="lazy">{{else}}<div class="file">{{.Name}}</div>{{end}}<figcaption>{{.Name}}{{if .Incoming}} · <span class="up">uploaded with this</span>{{end}}</figcaption></figure>{{end}}</div>{{else}}<div class="val empty">none</div>{{end}}</div>
+        </div>
+        {{else}}
+        <div class="sides"><div class="side old"><div class="cap">{{$old}}</div><div class="val empty">empty</div></div><div class="side new"><div class="cap">{{$new}}</div><div class="val empty">empty</div></div></div>
+        {{end}}
+      </div>
+      {{end}}
+      {{if eq .Op "delete"}}<div class="chg"><p class="sub" style="margin:0">This page isn't in Local any more. Publishing it deletes it from production (to the trash; undo brings it back). Tick it only if that's what you want.</p></div>{{end}}
+    </div>
+  </article>
+  {{end}}
+  {{end}}
+
+  {{if .Files}}
+  <h2>Files uploaded with this <span class="n">{{len .Files}}</span></h2>
+  <div class="files">{{range .Files}}<figure>{{if .Image}}<img src="{{local $ .Path}}" alt="" loading="lazy">{{else}}<div class="file">{{.Name}}</div>{{end}}<figcaption>{{.Path}} · {{.Size}}</figcaption></figure>{{end}}</div>
+  {{end}}
+  {{if not .Groups}}<div class="banner"><p>Nothing to publish: production already has what Local has.</p></div>{{end}}
+</main>
+
+{{if eq .State "review"}}
+<footer class="bar">
+  <div class="wrap">
+    <div id="summary"></div>
+    <button type="button" class="btn" id="cancel">Cancel</button>
+    <button type="button" class="btn primary" id="publish" disabled>Publish to production</button>
+  </div>
+</footer>
+
+<dialog id="confirm">
+  <h3>Publish to {{host .Production}}?</h3>
+  <p id="confirm-what"></p>
+  <p>Production keeps a rollback copy first, and an undo puts back what this changes (values edited since are kept).</p>
+  <div class="row"><button type="button" class="btn" value="no" id="confirm-no">Not yet</button><button type="button" class="btn primary" id="confirm-yes">Publish</button></div>
+</dialog>
+
+<dialog id="progress" class="progress" data-site="{{.Site}}">
+  <h3 id="progress-title">Publishing…</h3>
+  <p id="progress-msg">Starting.</p>
+  <div class="bar-track"><div class="bar-fill" id="progress-bar"></div></div>
+  <ol>
+    <li data-step="upload">Uploading the files</li>
+    <li data-step="apply">Publishing on production</li>
+    <li data-step="base">Saving production's new content as the base</li>
+  </ol>
+  <p class="after hidden" id="progress-after"></p>
+  <div class="row hidden" id="progress-done"><button type="button" class="btn primary" id="progress-close">Close</button></div>
+</dialog>
+
+<script>
+(() => {
+  const recs = [...document.querySelectorAll('article.rec')];
+  const summary = document.getElementById('summary');
+  const publish = document.getElementById('publish');
+
+  const state = () => {
+    let records = 0, values = 0, todo = 0;
+    for (const rec of recs) {
+      const on = rec.querySelector('.inc input').checked;
+      rec.classList.toggle('off', !on);
+      let recTodo = 0;
+      for (const chg of rec.querySelectorAll('.chg[data-conflict]:not([data-conflict=""])')) {
+        const picked = chg.querySelector('.pick input:checked');
+        chg.classList.toggle('unresolved', on && !picked);
+        chg.querySelectorAll('.side').forEach((s) => s.classList.toggle('chosen', !!picked && s.dataset.side === picked.value));
+        if (on && !picked) recTodo++;
+      }
+      const badge = rec.querySelector('[data-decide-badge]');
+      if (badge) { badge.textContent = recTodo ? `${recTodo} to decide` : 'decided'; badge.classList.toggle('decide', recTodo > 0); }
+      rec.dataset.todo = recTodo;
+      if (on) { records++; values += rec.querySelectorAll('.chg[data-change]').length; todo += recTodo; }
+    }
+    return { records, values, todo };
+  };
+
+  const update = () => {
+    const s = state();
+    const chip = document.getElementById('chip-decide');
+    if (chip) {
+      chip.innerHTML = s.todo ? `<b>${s.todo}</b> to decide` : '<b>✓</b> all decided';
+      chip.classList.toggle('decide', s.todo > 0);
+    }
+    const banner = document.getElementById('decide-banner');
+    if (banner) {
+      banner.classList.toggle('warn', s.todo > 0);
+      document.getElementById('decide-text').innerHTML = s.todo
+        ? `<b>${s.todo}</b> ${s.todo === 1 ? 'value was' : 'values were'} changed on production too. Pick which side wins for each; nothing is published until you have.`
+        : '<b>✓</b> Every value changed on production too has a side picked. You can still change them below.';
+    }
+    let text = `Publishing <b>${s.records}</b> ${s.records === 1 ? 'record' : 'records'}, <b>${s.values}</b> ${s.values === 1 ? 'value' : 'values'}`;
+    if (s.todo) text += ` · <span class="todo">${s.todo} to decide first</span>`;
+    if (!s.records) text = 'Nothing ticked to publish.';
+    summary.innerHTML = text;
+    publish.disabled = s.todo > 0 || s.records === 0;
+    return s;
+  };
+
+  document.addEventListener('change', (e) => { if (e.target.matches('.inc input, .pick input')) update(); });
+  document.querySelectorAll('.fold').forEach((b) => b.addEventListener('click', () => {
+    const rec = b.closest('article.rec');
+    const folded = rec.classList.toggle('folded');
+    b.textContent = folded ? '▸' : '▾';
+    b.setAttribute('aria-expanded', String(!folded));
+  }));
+  document.querySelectorAll('[data-all]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll(`.pick input[value="${b.dataset.all}"]`).forEach((r) => { r.checked = true; });
+    update();
+  }));
+
+  // Show: all, or only the values production changed too (decided or not); find by title or field.
+  let filter = 'all';
+  const find = document.getElementById('find');
+  const apply = () => {
+    const q = find.value.trim().toLowerCase();
+    for (const rec of recs) {
+      const hide = (filter === 'decide' && !rec.querySelector('.chg[data-conflict]:not([data-conflict=""])')) || (q && !rec.dataset.search.includes(q));
+      rec.classList.toggle('hidden', hide);
+      // To decide: only the values both sides changed (they stay once picked).
+      rec.querySelectorAll('.chg[data-change]').forEach((c) => c.classList.toggle('hidden', filter === 'decide' && !c.dataset.conflict));
+    }
+    document.querySelectorAll('main h2').forEach((h) => {
+      let el = h.nextElementSibling, any = false;
+      if (el && el.classList.contains('files')) { // the files: shown with everything only
+        h.classList.toggle('hidden', filter !== 'all' || q !== '');
+        el.classList.toggle('hidden', filter !== 'all' || q !== '');
+        return;
+      }
+      while (el && el.tagName === 'ARTICLE') { if (!el.classList.contains('hidden')) any = true; el = el.nextElementSibling; }
+      h.classList.toggle('hidden', !any && (filter !== 'all' || q !== ''));
+    });
+  };
+  document.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => {
+    filter = b.dataset.filter;
+    document.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    update();
+    apply();
+  }));
+  find.addEventListener('input', apply);
+
+  const decisions = () => {
+    const include = [], sides = {};
+    for (const rec of recs) {
+      if (!rec.querySelector('.inc input').checked) continue;
+      include.push(rec.dataset.key);
+      for (const r of rec.querySelectorAll('.pick input:checked')) {
+        const chg = r.closest('.chg').dataset.change;
+        (sides[rec.dataset.key] ||= {})[chg] = r.value;
+      }
+    }
+    return { include, sides };
+  };
+
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+
+  const confirmDlg = document.getElementById('confirm');
+  publish.addEventListener('click', () => {
+    const s = update();
+    const files = {{len .Files}};
+    document.getElementById('confirm-what').textContent =
+      `${s.records} ${s.records === 1 ? 'record' : 'records'} and ${s.values} ${s.values === 1 ? 'value' : 'values'}` + (files ? `, with ${files} ${files === 1 ? 'file' : 'files'}.` : '.');
+    confirmDlg.showModal();
+  });
+  document.getElementById('confirm-no').addEventListener('click', () => confirmDlg.close());
+
+  const progress = document.getElementById('progress');
+  const show = (st) => {
+    const order = ['upload', 'apply', 'base'];
+    const at = order.indexOf(st.step);
+    progress.querySelectorAll('li').forEach((li, i) => {
+      li.classList.toggle('done', st.state === 'published' || (at >= 0 && i < at));
+      li.classList.toggle('on', st.state === 'publishing' && i === at);
+    });
+    document.getElementById('progress-msg').textContent = st.message || '';
+    const pct = st.total ? Math.round(100 * st.done / st.total) : (st.state === 'published' ? 100 : 0);
+    document.getElementById('progress-bar').style.width = (st.state === 'published' ? 100 : pct) + '%';
+    if (st.state !== 'publishing') {
+      document.getElementById('progress-title').textContent = st.state === 'published' ? 'Published' : 'The publish stopped';
+      document.getElementById('progress-done').classList.remove('hidden');
+      // What next, built from text nodes (values come from production).
+      const after = document.getElementById('progress-after');
+      const code = (t) => { const c = document.createElement('code'); c.textContent = t; return c; };
+      after.replaceChildren();
+      if (st.result) {
+        after.append('Undo: ', code('x'), ' on the site in taw-fleet, or ', code('taw-fleet publish undo ' + progress.dataset.site), '. Values edited on production since are kept.');
+      } else {
+        after.append('Nothing was published. Press ', code('p'), ' in taw-fleet to review again.');
+      }
+      if (st.kept) { const k = code(st.kept); k.className = 'path'; after.append(document.createElement('br'), 'This review is kept at ', k, '.'); }
+      after.classList.remove('hidden');
+    }
+  };
+  const poll = async () => {
+    try {
+      const st = await (await fetch('status', { cache: 'no-store' })).json();
+      show(st);
+      if (st.state === 'publishing') { setTimeout(poll, 600); return; }
+      // The review has ended: lock the page (taw-fleet stops serving it soon).
+      document.getElementById('progress-close').onclick = () => {
+        progress.close();
+        document.body.classList.add('locked');
+        summary.textContent = (st.state === 'published' ? 'Published: ' : 'The publish stopped: ') + (st.message || '').replace(/\.$/, '') + '. You can close this tab.';
+        document.querySelectorAll('footer button').forEach((x) => x.classList.add('hidden'));
+      };
+    } catch { setTimeout(poll, 1500); }
+  };
+  document.getElementById('confirm-yes').addEventListener('click', async () => {
+    confirmDlg.close();
+    const res = await post('publish', decisions());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.message || 'The review refused that: reload the page.');
+      return;
+    }
+    document.querySelectorAll('.inc input, .pick input, footer button').forEach((x) => { x.disabled = true; });
+    progress.showModal();
+    poll();
+  });
+  document.getElementById('cancel').addEventListener('click', async () => {
+    await post('cancel');
+    document.body.classList.add('locked');
+    summary.innerHTML = 'Cancelled: nothing was published. You can close this tab.';
+    document.querySelectorAll('footer button').forEach((x) => x.classList.add('hidden'));
+  });
+
+  update();
+})();
+</script>
+{{end}}
+</body>
+</html>

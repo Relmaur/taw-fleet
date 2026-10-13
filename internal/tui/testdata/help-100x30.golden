@@ -12,8 +12,9 @@
    │  o   last output      R      restart             P production        U update all         │    
    │  n   new site         M      merge PR            g GitHub            h hand off           │    
    │  z   restore point    D      site's branch       G PRs               c copy prompt        │    
-   │  I   set up next      C      pull content        F comments          X resolve comments   │    
-   │  q   quit             a      ask Claude…         m monthly report    > chat with Claude   │    
+   │  x   undo publish     C      pull content        F comments          X resolve comments   │    
+   │  I   set up next      p      publish             m monthly report    > chat with Claude   │    
+   │  q   quit             a      ask Claude…                                                  │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
@@ -25,6 +26,5 @@
    │  — ✓ ▲2 ✗  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed        │    
    │  ● ◐ ✗ —  live: verified, answering but unverified, refused or down, no production URL    │    
    │  3 2 0 ?  FB: open BugSmash comments, one waiting over 2 days, none open, check failed    │    
-   │  2✓ 2✗  open PRs: CI passed, failed   ✓ ↑2 ⟳ ✗  deploy: current, behind, running, failed  │    
 
  enter details • > chat • t terminal • U update all • : all actions • / filter • ? help • q quit

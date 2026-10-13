@@ -1,0 +1,743 @@
+{
+ "publish_id": "00d634d8159a662e",
+ "token": "00000000000000000000000000000000",
+ "expires_at": "2026-10-13T15:56:09+00:00",
+ "plan": {
+  "registry_drift": [],
+  "records": [
+   {
+    "kind": "media",
+    "key": "2025/03/photo.jpg",
+    "local": 0,
+    "file": "2025/03/photo.jpg",
+    "sha256": "fbc0748b4179a89fccbf118811a86f9818f4d9bb71d4a375a9551c3deeaca22b",
+    "bytes": 4529,
+    "mime": "image/jpeg",
+    "op": "create",
+    "changes": {
+     "file": {
+      "status": "new",
+      "new": "http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg",
+      "label": "File",
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "record_key": "media:2025/03/photo.jpg",
+    "hash": "6c759da58917dc04d0e08004a2c9674b94b1349de82d3892490c1a51dd322de1",
+    "title": "2025/03/photo.jpg",
+    "conflict": false
+   },
+   {
+    "kind": "media",
+    "key": "2026/09/fresh.jpg",
+    "local": 0,
+    "file": "2026/09/fresh.jpg",
+    "sha256": "6b4382c3daeaaa7dd2637f2da9f952dd82d7c241ace05fa2f99177d0116f54d8",
+    "bytes": 2190,
+    "mime": "image/jpeg",
+    "op": "create",
+    "changes": {
+     "file": {
+      "status": "new",
+      "new": "http://127.0.0.1:8881/wp-content/uploads/2026/09/fresh.jpg",
+      "label": "File",
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "record_key": "media:2026/09/fresh.jpg",
+    "hash": "6206a1128f91f51a7ea42f4f21d5a11481a5d2cc05d72c20dab41562f4f4ba64",
+    "title": "2026/09/fresh.jpg",
+    "conflict": false
+   },
+   {
+    "kind": "post",
+    "type": "page",
+    "slug": "home",
+    "match_key": "",
+    "path": "home",
+    "op": "update",
+    "title": "Home",
+    "changes": {
+     "content": {
+      "status": "changed",
+      "old": "<!-- wp:navigation {\"ref\":5049} /-->\n\n<!-- wp:cover {\"url\":\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\",\"id\":5035} -->\n<div class=\"wp-block-cover\"><img class=\"wp-block-cover__image-background wp-image-5035\" src=\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\"/><div class=\"wp-block-cover__inner-container\"></div></div>\n<!-- /wp:cover -->\n\n<!-- wp:media-text {\"mediaId\":5003,\"mediaType\":\"image\"} -->\n<div class=\"wp-block-media-text\"><figure class=\"wp-block-media-text__media\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" class=\"wp-image-5003 size-full\"/></figure><div class=\"wp-block-media-text__content\"></div></div>\n<!-- /wp:media-text -->",
+      "new": "<!-- wp:navigation {\"ref\":5049} /-->\n\n<!-- wp:cover {\"url\":\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\",\"id\":5035} -->\n<div class=\"wp-block-cover\"><img class=\"wp-block-cover__image-background wp-image-5035\" src=\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\"/><div class=\"wp-block-cover__inner-container\"></div></div>\n<!-- /wp:cover -->\n\n<!-- wp:media-text {\"mediaId\":10,\"mediaType\":\"image\"} -->\n<div class=\"wp-block-media-text\"><figure class=\"wp-block-media-text__media\"><img src=\"http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg\" class=\"wp-image-10 size-full\"/></figure><div class=\"wp-block-media-text__content\"></div></div>\n<!-- /wp:media-text -->",
+      "label": "Content",
+      "base": "<!-- wp:navigation {\"ref\":5049} /-->\n\n<!-- wp:cover {\"url\":\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\",\"id\":5035} -->\n<div class=\"wp-block-cover\"><img class=\"wp-block-cover__image-background wp-image-5035\" src=\"http://127.0.0.1:8882/wp-content/uploads/2025/01/hero.jpg\"/><div class=\"wp-block-cover__inner-container\"></div></div>\n<!-- /wp:cover -->\n\n<!-- wp:media-text {\"mediaId\":5003,\"mediaType\":\"image\"} -->\n<div class=\"wp-block-media-text\"><figure class=\"wp-block-media-text__media\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" class=\"wp-image-5003 size-full\"/></figure><div class=\"wp-block-media-text__content\"></div></div>\n<!-- /wp:media-text -->",
+      "conflict": false,
+      "local_changed": true
+     },
+     "fields.f_files": {
+      "status": "changed",
+      "old": [
+       5036,
+       5003
+      ],
+      "new": [
+       5036,
+       10
+      ],
+      "label": "Files",
+      "type": "files",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "media": {
+       "old": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 5003,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg"
+        }
+       ],
+       "new": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 10,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg",
+         "sha256": "fbc0748b4179a89fccbf118811a86f9818f4d9bb71d4a375a9551c3deeaca22b",
+         "incoming": true
+        }
+       ]
+      },
+      "base": [
+       5036,
+       5003
+      ],
+      "conflict": false,
+      "local_changed": true
+     },
+     "fields.f_rows": {
+      "status": "changed",
+      "old": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "new": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           10
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           10
+          ]
+         }
+        ]
+       }
+      ],
+      "label": "Rows",
+      "type": "repeater",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5000&action=edit",
+    "record_key": "post:page:home",
+    "hash": "f26e85af95f5e5a9d5b01151b87a79d7dd1f8e582b9a175017c07f7144110660",
+    "conflict": false
+   },
+   {
+    "kind": "post",
+    "type": "page",
+    "slug": "about",
+    "match_key": "",
+    "path": "about",
+    "op": "update",
+    "title": "About",
+    "changes": {
+     "fields.f_text": {
+      "status": "changed",
+      "old": "Text",
+      "new": "Text, edited in Local",
+      "label": "Text",
+      "type": "text",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": "Text",
+      "conflict": false,
+      "local_changed": true
+     },
+     "fields.f_url": {
+      "status": "changed",
+      "old": "https://client.example/",
+      "new": "https://acme.example/",
+      "label": "URL",
+      "type": "url",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": "https://acme.example/",
+      "conflict": true,
+      "local_changed": false
+     },
+     "fields.f_textarea": {
+      "status": "changed",
+      "old": "Textarea, edited by the client",
+      "new": "Textarea, edited in Local",
+      "label": "Textarea",
+      "type": "textarea",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": "Textarea",
+      "conflict": true,
+      "local_changed": true
+     },
+     "fields.f_image": {
+      "status": "changed",
+      "old": 0,
+      "new": 30,
+      "label": "Image",
+      "type": "image",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "media": {
+       "old": [],
+       "new": [
+        {
+         "id": 30,
+         "file": "2026/09/fresh.jpg",
+         "url": "http://127.0.0.1:8881/wp-content/uploads/2026/09/fresh.jpg",
+         "sha256": "6b4382c3daeaaa7dd2637f2da9f952dd82d7c241ace05fa2f99177d0116f54d8",
+         "incoming": true
+        }
+       ]
+      },
+      "base": 0,
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5001&action=edit",
+    "record_key": "post:page:about",
+    "hash": "79764234de2ea04076db0224283f1e8a01814509cd1534ef9e646a27fd716750",
+    "conflict": true
+   },
+   {
+    "kind": "post",
+    "type": "wp_block",
+    "slug": "call-to-action",
+    "match_key": "",
+    "op": "update",
+    "title": "Call to action",
+    "changes": {
+     "content": {
+      "status": "changed",
+      "old": "<!-- wp:paragraph -->\n<p>Write to us.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:image {\"id\":5003,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-5003\"/></figure>\n<!-- /wp:image -->",
+      "new": "<!-- wp:paragraph -->\n<p>Write to us.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:image {\"id\":10,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-10\"/></figure>\n<!-- /wp:image -->",
+      "label": "Content",
+      "base": "<!-- wp:paragraph -->\n<p>Write to us.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:image {\"id\":5003,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-5003\"/></figure>\n<!-- /wp:image -->",
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5048&action=edit",
+    "record_key": "post:wp_block:call-to-action",
+    "hash": "28aab930627ce505c9255fe45873b1e60b7ac952256450fe73fae78d8c8fc9d0",
+    "conflict": false
+   },
+   {
+    "kind": "post",
+    "type": "fid_book",
+    "slug": "the-long-night",
+    "match_key": "",
+    "op": "update",
+    "title": "The Long Night",
+    "changes": {
+     "fields.f_files": {
+      "status": "changed",
+      "old": [
+       5036,
+       5003
+      ],
+      "new": [
+       5036,
+       10
+      ],
+      "label": "Files",
+      "type": "files",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "media": {
+       "old": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 5003,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg"
+        }
+       ],
+       "new": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 10,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg",
+         "sha256": "fbc0748b4179a89fccbf118811a86f9818f4d9bb71d4a375a9551c3deeaca22b",
+         "incoming": true
+        }
+       ]
+      },
+      "base": [
+       5036,
+       5003
+      ],
+      "conflict": false,
+      "local_changed": true
+     },
+     "fields.f_rows": {
+      "status": "changed",
+      "old": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "new": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           10
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           10
+          ]
+         }
+        ]
+       }
+      ],
+      "label": "Rows",
+      "type": "repeater",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5050&action=edit",
+    "record_key": "post:fid_book:the-long-night",
+    "hash": "6552849c579b36f1dcbadbd2ee6637bc6abb707b84478594403f2b19d51b1ad3",
+    "conflict": false
+   },
+   {
+    "kind": "post",
+    "type": "post",
+    "slug": "a-story",
+    "match_key": "",
+    "op": "update",
+    "title": "A story",
+    "changes": {
+     "fields.f_files": {
+      "status": "changed",
+      "old": [
+       5036,
+       5003
+      ],
+      "new": [
+       5036,
+       10
+      ],
+      "label": "Files",
+      "type": "files",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "media": {
+       "old": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 5003,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg"
+        }
+       ],
+       "new": [
+        {
+         "id": 5036,
+         "file": "2025/03/guide.pdf",
+         "url": "http://127.0.0.1:8882/wp-content/uploads/2025/03/guide.pdf"
+        },
+        {
+         "id": 10,
+         "file": "2025/03/photo.jpg",
+         "url": "http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg",
+         "sha256": "fbc0748b4179a89fccbf118811a86f9818f4d9bb71d4a375a9551c3deeaca22b",
+         "incoming": true
+        }
+       ]
+      },
+      "base": [
+       5036,
+       5003
+      ],
+      "conflict": false,
+      "local_changed": true
+     },
+     "fields.f_rows": {
+      "status": "changed",
+      "old": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "new": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           10
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           10
+          ]
+         }
+        ]
+       }
+      ],
+      "label": "Rows",
+      "type": "repeater",
+      "metabox_id": "fid_fields",
+      "metabox_title": "Every field type",
+      "base": [
+       {
+        "label": "First",
+        "image": 5037,
+        "target": 5055,
+        "items": [
+         {
+          "name": "Guide",
+          "file": [
+           5036
+          ]
+         }
+        ]
+       },
+       {
+        "label": "Second",
+        "image": 5038,
+        "target": 5050,
+        "items": [
+         {
+          "name": "Photo",
+          "file": [
+           5003
+          ]
+         },
+         {
+          "name": "Both",
+          "file": [
+           5036,
+           5003
+          ]
+         }
+        ]
+       }
+      ],
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5051&action=edit",
+    "record_key": "post:post:a-story",
+    "hash": "6552849c579b36f1dcbadbd2ee6637bc6abb707b84478594403f2b19d51b1ad3",
+    "conflict": false
+   },
+   {
+    "kind": "post",
+    "type": "post",
+    "slug": "a-draft-without-a-slug",
+    "match_key": "",
+    "op": "update",
+    "title": "A draft without a slug",
+    "changes": {
+     "content": {
+      "status": "changed",
+      "old": "<!-- wp:image {\"id\":5003,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-5003\"/></figure>\n<!-- /wp:image -->",
+      "new": "<!-- wp:image {\"id\":10,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8881/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-10\"/></figure>\n<!-- /wp:image -->",
+      "label": "Content",
+      "base": "<!-- wp:image {\"id\":5003,\"sizeSlug\":\"large\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"http://127.0.0.1:8882/wp-content/uploads/2025/03/photo.jpg\" alt=\"\" class=\"wp-image-5003\"/></figure>\n<!-- /wp:image -->",
+      "conflict": false,
+      "local_changed": true
+     }
+    },
+    "edit_url": "http://127.0.0.1:8882/wp-admin/post.php?post=5053&action=edit",
+    "record_key": "post:post:a-draft-without-a-slug",
+    "hash": "81dd3353e295104332444a5ff35276a63431e1c330e8886224b8a0d3b9fcd53c",
+    "conflict": false
+   }
+  ],
+  "warnings": [
+   "Users are never published: they were left out."
+  ]
+ },
+ "media": {
+  "needed": [
+   {
+    "file": "2025/03/photo.jpg",
+    "sha256": "fbc0748b4179a89fccbf118811a86f9818f4d9bb71d4a375a9551c3deeaca22b",
+    "bytes": 4529,
+    "mime": "image/jpeg"
+   },
+   {
+    "file": "2026/09/fresh.jpg",
+    "sha256": "6b4382c3daeaaa7dd2637f2da9f952dd82d7c241ace05fa2f99177d0116f54d8",
+    "bytes": 2190,
+    "mime": "image/jpeg"
+   }
+  ]
+ },
+ "limits": {
+  "max_file_bytes": 33554432,
+  "max_total_bytes": 536870912,
+  "max_files": 500,
+  "ttl": 3600
+ }
+}

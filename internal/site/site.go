@@ -131,6 +131,9 @@ type Production struct {
 	PHP       string `json:"php_version,omitempty"`
 	TawCore   string `json:"taw_core_version,omitempty"`
 	Companion string `json:"companion_version,omitempty"`
+	// Publishing (companion 0.5+): the theme allows it, and taw/core can do it.
+	PublishEnabled   bool `json:"publish_enabled"`
+	PublishAvailable bool `json:"publish_available"`
 
 	HasInventory  bool     `json:"has_inventory"` // /inventory answered (companion ≥ 0.2)
 	HasVulns      bool     `json:"has_vulnerabilities"`

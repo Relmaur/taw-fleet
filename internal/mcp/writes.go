@@ -103,6 +103,10 @@ var WriteTools = []WriteDoc{
 		"Asks the live site's companion for the key it signs its answers with, checks the answer is signed by it, and pins it, so taw-fleet verifies the site from then on (trust on first use: the question shows the key's id for the person to confirm). For a site just deployed; a pinned key that changes is replaced only after asking.", true, false},
 	{"link_bugsmash", "Link a BugSmash project", "taw-fleet comments link <site> <project>", "the BugSmash step",
 		"Checks the project with BugSmash (bugsmash_projects lists them) and sets bugsmash_project for the site in the settings, so its comments show in the dashboard, watch and the reports. The project itself is made in BugSmash.", false, false},
+	{"publish_content", "Publish content to production", "taw-fleet publish <site> --no-review [--decisions F]", "p",
+		"Compares the Local site's content with production's as Local last had it (the base), asks production what publishing it would change, and returns the review: each record (page, post, option, menu) with its changes by field label, production's value and Local's, and those production changed too ([changed on production too]). The question publishes every record but deletes, a value only production changed staying production's. A value both sides changed must be decided: pass decisions {include: [record keys], sides: {record key: {change key: keep|take}}} (keep = production's, take = Local's); the review's JSON (taw-fleet publish <site> --no-review --json) has the keys. Files go up by their bytes; production keeps a rollback copy (undo: taw-fleet publish undo). Needs taw/core 1.98+, companion 0.5+ and publishing enabled in the theme. Tell the person what changes in words, and ask about each conflict, before confirming.", true, false},
+	{"publish_undo", "Undo the last publish", "taw-fleet publish undo <site>", "x",
+		"Says what undoing production's last publish would put back (values still as the publish wrote them; edits made since are kept), then undoes it.", true, false},
 	{"restore_site", "Put back a restore point", "taw-fleet restore <site> <point>", "z",
 		"Puts a restore point back (restore_points lists them; point defaults to the latest): the theme onto the point's branch (commits since stay) and the Local database from its copy, replacing the current one. How things are just before is saved as a new point first, so it can be undone.", false, true},
 }
@@ -155,6 +159,12 @@ type (
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
 		Project string `json:"project" jsonschema:"the BugSmash project's id (bugsmash_projects lists them)"`
 		Confirm string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
+	}
+	publishIn struct {
+		Site      string     `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Theme     string     `json:"theme,omitempty" jsonschema:"which TAW theme, when the site has several"`
+		Decisions *Decisions `json:"decisions,omitempty" jsonschema:"what to publish and which side wins each conflict; without it: every record but deletes, a value only production changed stays production's"`
+		Confirm   string     `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
 	}
 	mergeIn struct {
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -304,6 +314,28 @@ func addWrites(s *sdk.Server, d Deps, tk *tokens) {
 			return nil, nil, errors.New("project is required (bugsmash_projects lists them)")
 		}
 		return ask(ctx, req, d, tk, "link_bugsmash", append(args, strings.TrimSpace(in.Project)), in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("publish_content"), func(ctx context.Context, req *sdk.CallToolRequest, in publishIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"publish"}, in.Site, in.Theme)
+		if err != nil {
+			return nil, nil, err
+		}
+		args = append(args, "--no-review")
+		if in.Decisions != nil {
+			file, err := in.Decisions.file()
+			if err != nil {
+				return nil, nil, err
+			}
+			args = append(args, "--decisions", file)
+		}
+		return ask(ctx, req, d, tk, "publish_content", args, in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("publish_undo"), func(ctx context.Context, req *sdk.CallToolRequest, in siteWriteIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"publish", "undo"}, in.Site, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		return ask(ctx, req, d, tk, "publish_undo", args, in.Confirm)
 	})
 	sdk.AddTool(s, writeTool("merge_pr"), func(ctx context.Context, req *sdk.CallToolRequest, in mergeIn) (*sdk.CallToolResult, any, error) {
 		args, err := siteArgs([]string{"merge"}, in.Site, in.Theme)

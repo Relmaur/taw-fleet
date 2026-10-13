@@ -28,7 +28,10 @@ type Task struct {
 	Info   []string    // lines under the title (what the task is about)
 	Target string      // the site ID and theme dir it works on ("id/dir"), for the table's row
 	Batch  []BatchItem // an update-all: its themes, in order (their progress follows BatchStart lines)
-	Run    func(ctx context.Context, out io.Writer) (Summary, error)
+	// Stoppable: the task waits on the person (a review in the browser); the
+	// dashboard offers to stop waiting, which cancels its context.
+	Stoppable bool
+	Run       func(ctx context.Context, out io.Writer) (Summary, error)
 }
 
 // Summary is what a task found or did, for people.

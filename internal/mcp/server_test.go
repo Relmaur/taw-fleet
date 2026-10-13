@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,7 @@ func TestToolsRunTheCommands(t *testing.T) {
 		{"launch_report", map[string]any{"site": "acme-bakery"}, "launch-report acme-bakery --json"},
 		{"launch_report", map[string]any{"site": "acme-bakery", "theme": "acme", "no_speed": true}, "launch-report acme-bakery --json --theme acme --no-speed"},
 		{"bugsmash_projects", map[string]any{}, "comments projects --json"},
+		{"publish_history", map[string]any{"site": "acme-bakery"}, "publish history acme-bakery --json"},
 	} {
 		c.fleet = nil
 		r, out := call(t, cs, tc.tool, tc.args)
@@ -249,6 +251,8 @@ func TestWritesAskFirst(t *testing.T) {
 		{"create_site", map[string]any{"name": "Acme Bakery", "kind": "block", "domain": "bakery.local", "admin_email": "a@b.co"}, "create Acme Bakery --block --domain bakery.local --admin-email a@b.co --no-password"},
 		{"restore_site", map[string]any{"site": "ls-mxico", "point": "20261012-180000-update"}, "restore ls-mxico 20261012-180000-update"},
 		{"trust_production", map[string]any{"site": "acme-bakery"}, "live trust acme-bakery"},
+		{"publish_content", map[string]any{"site": "acme-bakery"}, "publish acme-bakery --no-review"},
+		{"publish_undo", map[string]any{"site": "acme-bakery"}, "publish undo acme-bakery"},
 		{"link_bugsmash", map[string]any{"site": "acme-bakery", "project": " a15552c8-a3d9-4bce-9a06-7859fbb7f27c "}, "comments link acme-bakery a15552c8-a3d9-4bce-9a06-7859fbb7f27c"},
 	} {
 		c.ask = nil
@@ -323,5 +327,28 @@ func TestAConfirmedWriteSendsItsProgress(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Error("no progress notification")
+	}
+}
+
+func TestPublishDecisionsBindTheToken(t *testing.T) {
+	c := &calls{}
+	cs := connect(t, fake(c))
+	decisions := map[string]any{"include": []string{"post:page:about"}, "sides": map[string]any{"post:page:about": map[string]any{"fields.hero": "take"}}}
+	c.ask = nil
+	r, out := call(t, cs, "publish_content", map[string]any{"site": "acme-bakery", "decisions": decisions})
+	if r.IsError || len(c.ask) != 1 {
+		t.Fatalf("first call: %v %s", c.ask, out)
+	}
+	args := strings.Join(c.ask[0], " ")
+	if !strings.HasPrefix(args, "publish acme-bakery --no-review --decisions ") {
+		t.Fatalf("args %q", args)
+	}
+	file := c.ask[0][len(c.ask[0])-1]
+	data, err := os.ReadFile(file)
+	if err != nil || !strings.Contains(string(data), `"fields.hero":"take"`) {
+		t.Fatalf("decisions file %s: %v %s", file, err, data)
+	}
+	if _, out := call(t, cs, "publish_content", map[string]any{"site": "acme-bakery", "decisions": map[string]any{"include": []string{"post:page:about"}, "sides": map[string]any{"post:page:about": map[string]any{"fields.hero": "maybe"}}}}); !strings.Contains(out, "keep") {
+		t.Errorf("a side that isn't keep or take: %s", out)
 	}
 }

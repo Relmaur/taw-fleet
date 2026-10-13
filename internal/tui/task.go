@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ type taskState struct {
 	info     []string     // lines under the title
 	showLog  bool         // l: the full log instead of the checklist
 	target   string       // "siteID/themeDir": the table row that shows its progress
+	stop     func()       // a Stoppable task: stops it waiting (nil otherwise)
 }
 
 type taskEvent struct {
@@ -68,6 +70,11 @@ func (m Model) startTask(task actions.Task) (tea.Model, tea.Cmd) {
 		m.mode = modeOutput
 	}
 	ctx := m.ctx
+	if task.Stoppable {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		m.task.stop = cancel
+	}
 	go func() {
 		w := taw.NewLineWriter(func(l string) { ch <- taskEvent{line: l} })
 		sum, err := task.Run(ctx, w)
@@ -92,6 +99,10 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 		return m, listen(t.ch)
 	}
 	t.running, t.summary, t.err, t.finished = false, ev.sum, ev.err, m.deps.Now()
+	if t.stop != nil {
+		t.stop() // releases the task's context
+		t.stop = nil
+	}
 	t.finishSteps(t.finished)
 	if m.full.active && t.title == m.full.syncTitle {
 		m.full.syncResult = ev.sum.Headline
@@ -105,6 +116,17 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 		m.setFlash(ev.sum.Headline, ev.sum.Failed)
 	}
 	var cmds []tea.Cmd
+	if pr, ok := ev.sum.Report.(actions.PublishReview); ok && ev.err == nil && pr.Browser.Run != nil {
+		// The review opens in the browser; pressing Publish there is the yes.
+		model, cmd := m.startTask(pr.Browser)
+		m = model.(Model)
+		cmds = append(cmds, cmd)
+	}
+	if up, ok := ev.sum.Report.(actions.UndoPreview); ok && ev.err == nil && up.Apply.Run != nil {
+		apply := up.Apply
+		m.confirm = apply.Ask
+		m.onYes = func(m Model) (tea.Model, tea.Cmd) { return m.startTask(apply) }
+	}
 	if pv, ok := ev.sum.Report.(actions.PullPreview); ok && ev.err == nil && pv.Apply.Run != nil {
 		apply := pv.Apply
 		m.confirm = apply.Ask
@@ -370,6 +392,9 @@ func (m Model) onOutputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return "Copied the password. Save it in your password manager.", nil
 		})
+	case msg.String() == "x" && t.running && t.stop != nil:
+		t.stop()
+		t.stop = nil
 	case msg.String() == "ctrl+c":
 		return m, tea.Quit
 	}
@@ -502,6 +527,48 @@ func (m Model) askPull() (tea.Model, tea.Cmd) {
 	task, err := m.deps.Actions.PullTask(s, t, op)
 	if err != nil {
 		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, "")
+}
+
+// askPublish compares the Local site's content with production's and opens
+// the review in the browser (p); nothing is published until the person
+// presses Publish there.
+func (m Model) askPublish() (tea.Model, tea.Cmd) {
+	s, t, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	if _, busy := m.busy[s.ID]; busy {
+		m.setFlash(s.Slug+" is busy; wait for it to finish", true)
+		return m, nil
+	}
+	task, err := m.deps.Actions.PublishTask(s, t, m.deps.SiteOp)
+	if err != nil {
+		m.setFlash(t.Dir+": "+err.Error(), true)
+		return m, nil
+	}
+	return m.askTask(task, "")
+}
+
+// askPublishUndo previews undoing the last publish on production (x).
+func (m Model) askPublishUndo() (tea.Model, tea.Cmd) {
+	s, _, ok := m.selectedTheme()
+	if !ok {
+		return m, nil
+	}
+	if m.deps.Actions == nil {
+		m.setFlash("unavailable: "+errText(m.deps.ActionsErr), true)
+		return m, nil
+	}
+	task, err := m.deps.Actions.PublishUndoTask(s, "")
+	if err != nil {
+		m.setFlash(s.Slug+": "+err.Error(), true)
 		return m, nil
 	}
 	return m.askTask(task, "")
