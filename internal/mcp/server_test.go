@@ -134,6 +134,9 @@ func TestToolsRunTheCommands(t *testing.T) {
 		{"restore_points", map[string]any{"site": "ls-mxico"}, "restore ls-mxico --json"},
 		{"monthly_report", map[string]any{"site": "ls-mxico", "month": "2026-09", "language": "es"}, "report ls-mxico --print --json --month 2026-09 --language es --no-speed"},
 		{"monthly_report", map[string]any{"site": "ls-mxico", "speed": true}, "report ls-mxico --print --json"},
+		{"launch_report", map[string]any{"site": "acme-bakery"}, "launch-report acme-bakery --json"},
+		{"launch_report", map[string]any{"site": "acme-bakery", "theme": "acme", "no_speed": true}, "launch-report acme-bakery --json --theme acme --no-speed"},
+		{"bugsmash_projects", map[string]any{}, "comments projects --json"},
 	} {
 		c.fleet = nil
 		r, out := call(t, cs, tc.tool, tc.args)
@@ -245,6 +248,8 @@ func TestWritesAskFirst(t *testing.T) {
 		{"create_repo", map[string]any{"site": "acme-bakery", "owner": "EmeLambda", "name": "bakery--theme"}, "repo acme-bakery --owner EmeLambda --name bakery--theme"},
 		{"create_site", map[string]any{"name": "Acme Bakery", "kind": "block", "domain": "bakery.local", "admin_email": "a@b.co"}, "create Acme Bakery --block --domain bakery.local --admin-email a@b.co --no-password"},
 		{"restore_site", map[string]any{"site": "ls-mxico", "point": "20261012-180000-update"}, "restore ls-mxico 20261012-180000-update"},
+		{"trust_production", map[string]any{"site": "acme-bakery"}, "live trust acme-bakery"},
+		{"link_bugsmash", map[string]any{"site": "acme-bakery", "project": " a15552c8-a3d9-4bce-9a06-7859fbb7f27c "}, "comments link acme-bakery a15552c8-a3d9-4bce-9a06-7859fbb7f27c"},
 	} {
 		c.ask = nil
 		call(t, cs, tc.tool, tc.args)

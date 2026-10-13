@@ -120,7 +120,7 @@ func Steps(in Input) []Step {
 	case c.ProductionURL == "":
 		fb.Later, fb.State = true, "after production"
 	default:
-		fb.State, fb.Fix = "no project", "bugsmash_project under [sites."+s.Slug+"] (taw-fleet comments projects lists them)"
+		fb.State, fb.Fix = "no project", "a BugSmash project for production, then taw-fleet comments link "+s.Slug+" <project id> (comments projects lists them)"
 	}
 	out = append(out, fb)
 

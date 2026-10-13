@@ -62,10 +62,16 @@ func (m Model) setupSection(s site.Site, t site.Theme, width int) string {
 	done, all := setup.Count(steps)
 	note := "I · set up the next one"
 	if done == all {
-		return "\n" + render.Section(p, p.I.App+" SETUP", p.Accent, "all set", width) +
-			" " + p.Fg(p.OK).Render(p.I.Done) + muted.Render(" repository, secrets check, deploy, production, companion, bot, BugSmash, skills") + "\n"
+		note = "all set"
 	}
 	next, _ := setup.Next(steps)
+	if m.deps.LaunchTask != nil && stepDone(steps, "Production") && next.Key == "" {
+		note = "I · launch report"
+	}
+	if done == all {
+		return "\n" + render.Section(p, p.I.App+" SETUP", p.Accent, note, width) +
+			" " + p.Fg(p.OK).Render(p.I.Done) + muted.Render(" repository, secrets check, deploy, production, companion, bot, BugSmash, skills") + "\n"
+	}
 	var lines []string
 	for _, st := range steps {
 		mark, name := p.Fg(p.OK).Render(p.I.Done), st.Name
@@ -101,19 +107,24 @@ func (m Model) setupNext() (tea.Model, tea.Cmd) {
 	}
 	steps := m.setupSteps(s, t)
 	next, ok := setup.Next(steps)
+	live := m.deps.LaunchTask != nil && m.deps.Settings != nil && m.deps.Settings(s.Slug).ProductionURL != ""
 	switch {
 	case steps == nil:
 		m.setFlash(t.Dir+" is the TAW ecosystem's own theme, not a client site", false)
-		return m, nil
-	case !ok:
-		m.setFlash(s.Slug+" is all set up (what's left waits on production)", false)
 		return m, nil
 	case next.Key == "I" && next.Name == "Deploy":
 		return m.deploySetup(s, t)
 	case next.Key == "I":
 		return m.askRepo(s, t)
-	case next.Key != "":
+	case next.Key != "" && ok:
 		return m.onKey(pressOf(next.Key))
+	case live:
+		// Live, and what's left is done by hand: the launch report checks
+		// production and lists it, with how.
+		return m.startTask(m.deps.LaunchTask(s, t.Dir))
+	case !ok:
+		m.setFlash(s.Slug+" is all set up (what's left waits on production)", false)
+		return m, nil
 	}
 	m.setFlash(next.Name+": "+next.Fix, false)
 	return m, nil
@@ -166,4 +177,14 @@ func (m Model) askRepo(s site.Site, t site.Theme) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.askTask(task, "")
+}
+
+// stepDone reports whether the step by that name is done.
+func stepDone(steps []setup.Step, name string) bool {
+	for _, st := range steps {
+		if st.Name == name {
+			return st.Done
+		}
+	}
+	return false
 }

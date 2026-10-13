@@ -40,3 +40,23 @@ func TestRun(t *testing.T) {
 		t.Errorf("429: %v", err)
 	}
 }
+
+func TestScreenshot(t *testing.T) {
+	for name, body := range map[string]string{
+		"full page": `{"lighthouseResult":{"fullPageScreenshot":{"screenshot":{"data":"data:image/webp;base64,d2VicA=="}},"audits":{"final-screenshot":{"details":{"data":"data:image/jpeg;base64,anBn"}}}}}`,
+		"old audit": `{"lighthouseResult":{"audits":{"full-page-screenshot":{"details":{"screenshot":{"data":"data:image/webp;base64,d2VicA=="}}}}}}`,
+		"final":     `{"lighthouseResult":{"audits":{"final-screenshot":{"details":{"data":"data:image/jpeg;base64,anBn"}}}}}`,
+		"none":      `{"lighthouseResult":{"audits":{"final-screenshot":{"details":{"data":"data:text/html;base64,anBn"}}}}}`,
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+		r, err := Client{Endpoint: srv.URL, HTTP: srv.Client()}.Run(context.Background(), "https://lsmexico.mx", "mobile")
+		srv.Close()
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		want := map[string]string{"full page": "jpeg:jpg", "old audit": "webp:webp", "final": "jpeg:jpg", "none": ":"}[name]
+		if got := r.ScreenshotType + ":" + string(r.Screenshot); got != want {
+			t.Errorf("%s: %q", name, got)
+		}
+	}
+}

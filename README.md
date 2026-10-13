@@ -573,6 +573,23 @@ taw-fleet ready acme-bakery --json
 taw-fleet repo acme-bakery      # asks first
 ```
 
+**The launch report** (`I` once the site is live and what's left is done by hand, or
+`taw-fleet launch-report <site>`): production checked as it is now, only read. HTTPS, `http://` moving
+to `https://` for good, the certificate; search engines let in (no `noindex`: WordPress's "Discourage
+search engines" left on, `X-Robots-Tag`, a `robots.txt` that shuts everyone out); the last deploy; the
+companion (verified, the same taw/core as the theme, plugin updates, known vulnerabilities); PageSpeed
+mobile and desktop; watch; BugSmash; and the rest of the SETUP checklist. Saved as
+`~/TAW Fleet/sites/<site>/launch.html` (and `.md`), with **what's left for you** first, each with how,
+and PageSpeed's picture of production's first screen beside the Local build's from `build/` (the
+new-site flow's; a browser's full-page picture in `production/` by the same name is used instead).
+
+```bash
+taw-fleet launch-report acme-bakery --open
+taw-fleet launch-report acme-bakery --json --no-speed
+taw-fleet comments link acme-bakery <project id>   # the BugSmash step (asks; ids: comments projects)
+taw-fleet live trust acme-bakery                    # the Companion step (shows the key, asks)
+```
+
 ## The fleet folder (`~/TAW Fleet`)
 
 Where Claude works on the whole fleet: the dashboard's fleet chat (`>` from the list) starts there,
@@ -596,7 +613,7 @@ Monthly reports live there too (`reports/`).
 
 **A new site from a link (`new-site`).** In the fleet chat: "make me a site for a bakery", or "make
 me this site: <link>" (a Claude design or artifact, a Figma file, an existing website, or a brief in
-words). Three checkpoints, each waiting for you:
+words). Six checkpoints, each waiting for you, all the way to a reviewed production site:
 
 1. **The brief:** the link read into `sites/<slug>/brief.md` (pages and their sections, header and
    footer, colours and fonts, content and images, forms, classic or block, questions), with the
@@ -606,8 +623,17 @@ words). Three checkpoints, each waiting for you:
 3. **Reference beside build:** screenshots of the Local site at the same sizes, side by side in
    `sites/<slug>/review.html`, opened in the browser; your corrections go back to build-site.
 
-Nothing about the project goes in the theme, and it stops at the Local site: GitHub, hosting and
-production come later, by hand for now.
+4. **GitHub:** `create_repo` (it asks), then the default branch's CI.
+5. **Production:** the `add-production` skill: the host you pick, its deploy key, the test, the
+   deploy pull request. You get the host ready (WordPress on the domain, the content moved with
+   WordPress's export and import or the host's tool, DNS): taw-fleet doesn't install WordPress or
+   copy a database. Then `merge_pr` (it asks again) is the first deploy.
+6. **Live:** `trust_production` and `link_bugsmash` (each asks), screenshots of production into
+   `sites/<slug>/production/`, then `launch_report` and `launch.html`: what it did, the scores, and
+   what's left for you.
+
+You can stop after any stage ("just build it in Local") and pick up later. Nothing about the project
+goes in the theme.
 
 ## AI apps (MCP)
 
@@ -633,6 +659,8 @@ Each tool is a command you can run yourself, and answers with that command's `--
 | `comments` | `taw-fleet comments [site] --json` |
 | `production` | `taw-fleet live --json` |
 | `site_setup` | `taw-fleet ready [site] --json`: the SETUP checklist |
+| `launch_report` | `taw-fleet launch-report <site> --json`: production checked, `launch.html` saved |
+| `bugsmash_projects` | `taw-fleet comments projects --json` |
 | `taw` | `taw @<theme> <command…>`: read-only ones (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) at once |
 
 **Tools that change something ask first**, as the dashboard does. The first call runs the command
@@ -650,6 +678,8 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
 | `create_repo` | `taw-fleet repo <site>` (`I`): a new site's theme on GitHub |
 | `deploy_key`, `deploy_apply` | `taw-fleet deploy key`, `deploy apply <site> …` (`I` on Deploy): the deploy to any host; `deploy_profiles` and `deploy_test` read |
+| `trust_production` | `taw-fleet live trust <site>`: pins the live site's key (the question shows it) |
+| `link_bugsmash` | `taw-fleet comments link <site> <project>` |
 | `create_site` | `taw-fleet create <name> --classic\|--block` (`n`); the admin password isn't shown to the agent (it says how to set one) |
 
 The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones

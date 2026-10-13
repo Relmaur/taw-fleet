@@ -99,6 +99,10 @@ var WriteTools = []WriteDoc{
 		"Makes the site's ed25519 deploy key (kept in the Keychain until deploy_apply stores it in GitHub) and returns only its public half, for the person to add at the host (deploy_profiles says where). Called again, it returns the same public key.", false, false},
 	{"deploy_apply", "Set up the deploy", "taw-fleet deploy apply <site> …", "I on the Deploy step",
 		"For a theme on GitHub with no deploy yet: tests the connection again (pinning the server's host key), stores the settings as repository variables and the key as the secret DEPLOY_SSH_KEY, opens a pull request adding taw/core's shared deploy workflow (merging it deploys), and adds production_url to the settings. The person adds the public key at the host first.", false, false},
+	{"trust_production", "Trust a production site's key", "taw-fleet live trust <site>", "the Companion step",
+		"Asks the live site's companion for the key it signs its answers with, checks the answer is signed by it, and pins it, so taw-fleet verifies the site from then on (trust on first use: the question shows the key's id for the person to confirm). For a site just deployed; a pinned key that changes is replaced only after asking.", true, false},
+	{"link_bugsmash", "Link a BugSmash project", "taw-fleet comments link <site> <project>", "the BugSmash step",
+		"Checks the project with BugSmash (bugsmash_projects lists them) and sets bugsmash_project for the site in the settings, so its comments show in the dashboard, watch and the reports. The project itself is made in BugSmash.", false, false},
 	{"restore_site", "Put back a restore point", "taw-fleet restore <site> <point>", "z",
 		"Puts a restore point back (restore_points lists them; point defaults to the latest): the theme onto the point's branch (commits since stay) and the Local database from its copy, replacing the current one. How things are just before is saved as a new point first, so it can be undone.", false, true},
 }
@@ -146,6 +150,11 @@ type (
 		GitPath   string `json:"git_path,omitempty" jsonschema:"git: where the theme sits in the host's repository (default wp-content/themes/<theme>)"`
 		URL       string `json:"url,omitempty" jsonschema:"the production site's URL"`
 		Confirm   string `json:"confirm,omitempty" jsonschema:"deploy_apply: the token from the first call, after the user said yes to its question"`
+	}
+	linkIn struct {
+		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Project string `json:"project" jsonschema:"the BugSmash project's id (bugsmash_projects lists them)"`
+		Confirm string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
 	}
 	mergeIn struct {
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -278,6 +287,23 @@ func addWrites(s *sdk.Server, d Deps, tk *tokens) {
 			return nil, nil, err
 		}
 		return ask(ctx, req, d, tk, "deploy_apply", args, in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("trust_production"), func(ctx context.Context, req *sdk.CallToolRequest, in siteWriteIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"live", "trust"}, in.Site, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		return ask(ctx, req, d, tk, "trust_production", args, in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("link_bugsmash"), func(ctx context.Context, req *sdk.CallToolRequest, in linkIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"comments", "link"}, in.Site, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		if strings.TrimSpace(in.Project) == "" {
+			return nil, nil, errors.New("project is required (bugsmash_projects lists them)")
+		}
+		return ask(ctx, req, d, tk, "link_bugsmash", append(args, strings.TrimSpace(in.Project)), in.Confirm)
 	})
 	sdk.AddTool(s, writeTool("merge_pr"), func(ctx context.Context, req *sdk.CallToolRequest, in mergeIn) (*sdk.CallToolResult, any, error) {
 		args, err := siteArgs([]string{"merge"}, in.Site, in.Theme)
