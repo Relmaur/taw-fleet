@@ -689,8 +689,17 @@ func (m Model) footer() string {
 		status = " " + m.spin.View() + " " + muted.Render(m.chatStatus())
 	case m.filtering:
 		status = " " + m.filter.View()
+		if m.filter.Value() != "" {
+			status += muted.Render(fmt.Sprintf("  ·  %d of %d", len(m.visible), len(m.rows)))
+		}
+		if m.filterHint != "" {
+			status += "  " + p.Fg(p.Warn).Render(m.filterHint)
+		}
 	case m.filter.Value() != "":
 		status = " " + p.Fg(p.Accent).Render("/ "+m.filter.Value()) + muted.Render(fmt.Sprintf("  ·  %d of %d  ·  esc clears", len(m.visible), len(m.rows)))
+		if m.filterHint != "" {
+			status += "  " + p.Fg(p.Warn).Render(m.filterHint)
+		}
 	case m.err != nil && m.loaded:
 		status = " " + p.Fg(p.Err).Render("✗ last refresh failed: "+m.err.Error())
 	case len(m.rep.Errors) > 0 && len(m.rows) > 0: // the empty state already lists them
