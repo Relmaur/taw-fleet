@@ -536,7 +536,14 @@ deploy it", "move the hero image above the title", "resolve the client's comment
   prints exactly what it's told.
 - **It keeps going.** `esc` goes back to the dashboard and the bottom line says Claude is still
   working; `>` brings the conversation back. Each site keeps its own while the dashboard is open.
-  `ctrl+c` stops Claude; the next message carries on the same conversation.
+  `ctrl+c` stops Claude; the next message carries on the same conversation. It never quits the
+  dashboard from the chat: `esc`, then `q`.
+- **Follow-ups while it works.** `enter` while Claude is working queues the message: it shows at
+  once, marked queued, and goes to Claude when it finishes. If Claude is stopped first, the queued
+  text goes back into the input. Pasting works too.
+- **A new conversation.** `ctrl+n` ends this one: Claude stops, the screen clears, and the next
+  message starts fresh. The old one stays in Claude Code's history (`claude --resume` in the fleet
+  folder, or in the theme folder for a site's chat).
 
 ## Set up a site
 

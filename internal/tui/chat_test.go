@@ -297,3 +297,90 @@ func TestFleetSkillsRunInTheFleetChat(t *testing.T) {
 		t.Errorf("chat:\n%s", screen(m))
 	}
 }
+
+func TestChatFollowUpWhileClaudeWorks(t *testing.T) {
+	m, f, _ := chatModel(t, 26)
+	m = press(t, m, ">")
+	m = typeText(t, m, "what needs attention?")
+	m = send(t, m)
+	m = say(t, m, "fleet", agent.Event{Kind: agent.Started, Session: "s-1", Model: "claude-opus-5-5"},
+		agent.Event{Kind: agent.Tool, ToolID: "t1", Name: agent.ToolName("doctor")})
+
+	// Typed while Claude works: on screen at once, sent when the turn ends.
+	m = typeText(t, m, "and which sites have comments?")
+	m = press(t, m, "enter")
+	sc := screen(m)
+	for _, want := range []string{"you  and which sites have comments?", "queued: goes to Claude when it finishes this", "enter send after this"} {
+		if !strings.Contains(sc, want) {
+			t.Errorf("lacks %q:\n%s", want, sc)
+		}
+	}
+	if strings.Contains(sc, "› and which") {
+		t.Errorf("still in the input:\n%s", sc)
+	}
+	golden(t, "chat-queued-100x26", sc)
+
+	m = say(t, m, "fleet", agent.Event{Kind: agent.Result, ToolID: "t1", Text: "[]"},
+		agent.Event{Kind: agent.Text, Text: "Nothing needs you."},
+		agent.Event{Kind: agent.TurnDone, Cost: 0.02})
+	if msg := f.last(t, "user", 2); msg["message"].(map[string]any)["content"] != "and which sites have comments?" {
+		t.Errorf("sent %v", msg)
+	}
+	c := m.currentChat()
+	if !c.working || len(c.queued) != 0 {
+		t.Errorf("working %v queued %v", c.working, c.queued)
+	}
+	sc = screen(m)
+	if strings.Contains(sc, "queued:") || strings.Index(sc, "Nothing needs you.") > strings.Index(sc, "you  and which sites") {
+		t.Errorf("order:\n%s", sc)
+	}
+
+	// A message waiting when Claude is stopped goes back to the input.
+	m = typeText(t, m, "never mind")
+	m = press(t, m, "enter", "ctrl+c")
+	if v := m.currentChat().input.Value(); v != "never mind" {
+		t.Errorf("input %q", v)
+	}
+}
+
+func TestChatTakesAPaste(t *testing.T) {
+	m, _, _ := chatModel(t, 20)
+	m = press(t, m, ">")
+	m = step(t, m, tea.PasteMsg{Content: "make me this site: https://example.com/design"})
+	if v := m.currentChat().input.Value(); v != "make me this site: https://example.com/design" {
+		t.Errorf("input %q", v)
+	}
+}
+
+func TestChatNewConversationAndCtrlC(t *testing.T) {
+	m, f, _ := chatModel(t, 26)
+	m = press(t, m, ">")
+	m = typeText(t, m, "first")
+	m = send(t, m)
+	m = say(t, m, "fleet", agent.Event{Kind: agent.Started, Session: "s-1", Model: "claude-opus-5-5"},
+		agent.Event{Kind: agent.Text, Text: "An answer."}, agent.Event{Kind: agent.TurnDone, Cost: 0.01})
+
+	// ctrl+c with Claude idle stays in the chat, never quits.
+	next, cmd := m.Update(keyMsg("ctrl+c"))
+	m = next.(Model)
+	if cmd != nil || m.mode != modeChat || !strings.Contains(screen(m), "Nothing to stop: esc goes back to the list, and q quits there.") {
+		t.Fatalf("ctrl+c idle:\n%s", screen(m))
+	}
+
+	// ctrl+n ends it: claude stops, the screen clears, the next message starts fresh.
+	m = press(t, m, "ctrl+n")
+	c := m.currentChat()
+	if c.sess != nil || c.session != "" || len(c.entries) != 0 || c.cost != 0 {
+		t.Fatalf("not fresh: %+v", c)
+	}
+	sc := screen(m)
+	if !strings.Contains(sc, "update every site that's behind") || !strings.Contains(sc, "claude --resume in the fleet folder") {
+		t.Errorf("new chat:\n%s", sc)
+	}
+	golden(t, "chat-new-100x26", sc)
+	select {
+	case <-f.done:
+	case <-time.After(2 * time.Second):
+		t.Error("claude still running")
+	}
+}

@@ -58,6 +58,7 @@ type chatState struct {
 	working   bool
 	since     time.Time
 	cost      float64
+	queued    []string // typed while Claude works: sent as the next message when it finishes
 
 	input  textinput.Model
 	scroll int // lines up from the bottom
@@ -164,14 +165,24 @@ func (m Model) chatStatus() string {
 }
 
 // sendChat sends what the person typed, starting claude (or resuming the
-// conversation) when it isn't running.
+// conversation) when it isn't running. While Claude works, the message waits
+// in the queue, on screen, and goes when the turn ends.
 func (m Model) sendChat() (tea.Model, tea.Cmd) {
 	c := m.currentChat()
 	text := strings.TrimSpace(c.input.Value())
-	if text == "" || c.working {
+	if text == "" {
 		return m, nil
 	}
 	c.input.SetValue("")
+	if c.working {
+		c.queued, c.scroll = append(c.queued, text), 0
+		return m, nil
+	}
+	return m.say(c, text)
+}
+
+// say puts text in the conversation and sends it.
+func (m Model) say(c *chatState, text string) (tea.Model, tea.Cmd) {
 	c.entries = append(c.entries, chatEntry{kind: entryYou, text: text})
 	c.working, c.since, c.scroll = true, m.deps.Now(), 0
 	if c.sess != nil {
@@ -202,6 +213,7 @@ func (m Model) onChatStarted(msg chatStartedMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.err != nil {
 		c.working = false
+		c.unqueue()
 		c.entries = append(c.entries, chatEntry{kind: entryErr, text: "Claude Code didn't start: " + msg.err.Error()})
 		if msg.sess != nil {
 			msg.sess.Stop()
@@ -260,9 +272,16 @@ func (m Model) onChatEvent(msg chatEventMsg) (tea.Model, tea.Cmd) {
 		if ev.Failed && ev.Text != "" {
 			c.entries = append(c.entries, chatEntry{kind: entryErr, text: ev.Text})
 		}
+		if len(c.queued) > 0 {
+			text := strings.Join(c.queued, "\n\n")
+			c.queued = nil
+			model, cmd := m.say(c, text)
+			return model, tea.Batch(next, cmd)
+		}
 	case agent.Ended:
 		c.closeText()
 		c.sess, c.working, c.ask = nil, false, nil
+		c.unqueue()
 		if ev.Err != nil {
 			c.entries = append(c.entries, chatEntry{kind: entryErr, text: "Claude Code stopped: " + ev.Err.Error()})
 		}
@@ -279,6 +298,21 @@ func (m Model) onChatEvent(msg chatEventMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, next
+}
+
+// unqueue puts the messages that were waiting back in the input, for the
+// person to send again: nothing typed is lost when Claude stops.
+func (c *chatState) unqueue() {
+	if len(c.queued) == 0 {
+		return
+	}
+	text := strings.Join(c.queued, " ")
+	if v := strings.TrimSpace(c.input.Value()); v != "" {
+		text += " " + v
+	}
+	c.queued = nil
+	c.input.SetValue(text)
+	c.input.CursorEnd()
 }
 
 func (c *chatState) closeText() {
@@ -354,15 +388,21 @@ func (m Model) onChatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			_ = c.sess.Answer(r, false, false, "The person said no. Don't try another way to do the same; ask what they want instead.")
 		case "ctrl+c":
 			return m.stopChat(c)
+		case "ctrl+n":
+			return m.newChat(c)
 		}
 		return m, nil
 	}
 	switch msg.String() {
 	case "ctrl+c":
+		// Stops Claude; never quits the dashboard from here (esc, then q).
 		if c.working {
 			return m.stopChat(c)
 		}
-		return m, tea.Quit
+		m.setTip("Nothing to stop: esc goes back to the list, and q quits there.")
+		return m, nil
+	case "ctrl+n":
+		return m.newChat(c)
 	case "esc":
 		m.mode = m.chatFrom
 		c.input.Blur()
@@ -381,6 +421,28 @@ func (m Model) onChatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// newChat ends this conversation: claude stops, the screen clears, and the next
+// message starts a new one. The old one stays in Claude Code's history.
+func (m Model) newChat(c *chatState) (tea.Model, tea.Cmd) {
+	if len(c.entries) == 0 && c.sess == nil && len(c.queued) == 0 {
+		return m, nil
+	}
+	if c.sess != nil {
+		c.sess.Stop()
+	}
+	c.unqueue()
+	c.gen++
+	c.sess, c.session, c.model, c.cost = nil, "", "", 0
+	c.entries, c.ask, c.question, c.working, c.scroll = nil, nil, "", false, 0
+	c.questions = map[string]string{}
+	where := "the fleet folder"
+	if c.scope.Site != "" {
+		where = "the theme folder"
+	}
+	m.setFlash("New chat. The last one stays in Claude Code's history: claude --resume in "+where+".", false)
+	return m, nil
+}
+
 // stopChat ends claude; the next message resumes the conversation.
 func (m Model) stopChat(c *chatState) (tea.Model, tea.Cmd) {
 	if c.sess != nil {
@@ -388,6 +450,7 @@ func (m Model) stopChat(c *chatState) (tea.Model, tea.Cmd) {
 	}
 	c.gen++
 	c.sess, c.ask, c.question, c.working = nil, nil, "", false
+	c.unqueue()
 	c.entries = append(c.entries, chatEntry{kind: entryNote, text: "Stopped. Your next message carries on from here."})
 	return m, nil
 }
@@ -545,6 +608,19 @@ func (m Model) transcript(c *chatState, w int) []string {
 	if c.working && c.ask == nil {
 		out = append(out, "", "      "+m.spin.View()+" "+muted.Render("working… "+clock(m.deps.Now().Sub(c.since))))
 	}
+	for i, q := range c.queued {
+		out = append(out, "")
+		for j, l := range wrap(q, w-6, 0) {
+			lead := "      "
+			if j == 0 {
+				lead = " " + p.Fg(p.Brand).Render("you") + "  "
+			}
+			out = append(out, lead+l)
+		}
+		if i == len(c.queued)-1 {
+			out = append(out, "      "+muted.Render("queued: goes to Claude when it finishes this"))
+		}
+	}
 	return out
 }
 
@@ -580,6 +656,7 @@ type chatKeys struct {
 	asking  bool
 	always  bool
 	working bool
+	started bool // there's a conversation to end (ctrl+n)
 }
 
 func (c chatKeys) ShortHelp() []key.Binding {
@@ -595,10 +672,14 @@ func (c chatKeys) ShortHelp() []key.Binding {
 	}
 	b := []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "send"))}
 	if c.working {
-		b = append(b, key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "stop")))
+		b = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "send after this")),
+			key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "stop"))}
+	}
+	if c.started {
+		b = append(b, key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "new chat")))
 	}
 	return append(b,
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (it keeps going)")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (keeps going)")),
 		key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup/pgdn", "scroll")))
 }
 

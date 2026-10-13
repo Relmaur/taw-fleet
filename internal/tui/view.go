@@ -679,6 +679,8 @@ func (m Model) footer() string {
 		status = " " + m.spin.View() + " " + muted.Render("checking the production sites…")
 	case m.feedbackFetching && m.flash == "":
 		status = " " + m.spin.View() + " " + muted.Render("reading the BugSmash comments…")
+	case m.flash != "" && m.flashTip:
+		status = " " + muted.Render(m.flash)
 	case m.flash != "" && m.mode != modeOutput: // the output view shows the result itself
 		status = " " + p.Fg(p.OK).Render("✓ "+m.flash)
 	case m.mergeStatus() != "" && m.mode != modeOutput:
@@ -714,7 +716,7 @@ func (m Model) footer() string {
 		keys = menuKeys{}
 	case m.mode == modeChat:
 		if c := m.currentChat(); c != nil {
-			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working}
+			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working, len(c.entries) > 0 || c.sess != nil}
 		}
 	}
 	// bubbles' help can overflow when the ellipsis itself doesn't fit: cut it.
