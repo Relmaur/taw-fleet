@@ -66,6 +66,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `n` | create a new site (see below); when it's done, `c` copies the admin password |
 | `L` | check the production sites, the BugSmash comments and GitHub now (see below); otherwise every 5 minutes |
 | `C` | pull the production site's content into the Local site: a preview first, then it asks before importing (see below) |
+| `p` | publish the Local site's content to production: compares, then opens the review in your browser, field by field; nothing is written until you press Publish there (see [Publish content to production](#publish-content-to-production)) |
+| `x` | undo the last publish on production: says what goes back, then asks |
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
 | `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site; or a fleet skill (fleet-check, update-fleet, onboard-mac), which runs in the fleet's chat (see [The fleet folder](#the-fleet-folder-taw-fleet)) |
@@ -116,6 +118,7 @@ taw-fleet work <site>     # site, editor, Vite and browser in one go; --stop und
 taw-fleet prs             # open PRs with their CI, and what each theme has deployed
 taw-fleet merge <site>    # merge its PR (--pr N when there are several); deploys production
 taw-fleet pull <site>     # production content into the Local site (preview, then asks)
+taw-fleet publish <site>  # Local content to production, after the review in the browser; publish undo, publish history
 taw-fleet start <site>    # also stop, restart; and: taw-fleet wp <site> <wp-cli args>
 taw-fleet sync <site>     # also update, inspect (see below); sync --all checks every theme
 taw-fleet refresh         # everything again, past the caches (the dashboard's ctrl+r)
@@ -660,6 +663,7 @@ Each tool is a command you can run yourself, and answers with that command's `--
 | `production` | `taw-fleet live --json` |
 | `site_setup` | `taw-fleet ready [site] --json`: the SETUP checklist |
 | `launch_report` | `taw-fleet launch-report <site> --json`: production checked, `launch.html` saved |
+| `publish_history` | `taw-fleet publish history <site> --json`: the site's publishes, each with its review |
 | `bugsmash_projects` | `taw-fleet comments projects --json` |
 | `taw` | `taw @<theme> <command…>`: read-only ones (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) at once |
 
@@ -676,6 +680,8 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `start_site`, `stop_site` | `taw-fleet start|stop <site>` (`s`) |
 | `sync_apply` | `taw-fleet sync <site> --apply` (`S`) |
 | `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
+| `publish_content` | `taw-fleet publish <site> --no-review [--decisions F]` (`p`): the first call returns the review (each change by its field, both values, conflicts); the AI app tells you what changes and asks about each conflict, then a second call publishes with your decisions |
+| `publish_undo` | `taw-fleet publish undo <site>` (`x`): the first call says what goes back |
 | `create_repo` | `taw-fleet repo <site>` (`I`): a new site's theme on GitHub |
 | `deploy_key`, `deploy_apply` | `taw-fleet deploy key`, `deploy apply <site> …` (`I` on Deploy): the deploy to any host; `deploy_profiles` and `deploy_test` read |
 | `trust_production` | `taw-fleet live trust <site>`: pins the live site's key (the question shows it) |
@@ -712,6 +718,90 @@ The detail pane lists the pull requests, the deploy, and the commits not deploye
 - **Preview first:** taw/core's `content:import` dry run lists what would be created or changed, and writes nothing.
 - **Then the import, after you confirm:** production wins, media is downloaded, and taw/core saves a rollback snapshot to `wp-content/uploads/taw-private/` first.
 - A stopped Local site is started first (it asks). Snapshots are kept in `~/Library/Caches/taw-fleet/content/`.
+- **The base:** after a successful import, the pulled snapshot is saved as production's content as
+  Local last had it (`~/Library/Application Support/taw-fleet/content/<site>/base.json`). A publish
+  compares against it, so pull once before the first publish.
+
+## Publish content to production
+
+`p` (or `taw-fleet publish <site>`) sends what changed in the Local site's content to production:
+pages, posts and CPT entries, TAW fields and options, terms, menus, and the media they use. Users,
+comments and site settings never go. The site has to opt in.
+
+**What production needs:**
+
+1. taw/core 1.98 or newer (`u`, then deploy).
+2. taw/hub-companion 0.5 or newer: `"taw/hub-companion": "^0.5"` in the theme's `composer.json`.
+3. Publishing switched on in the theme's `composer.json`, then deployed:
+
+   ```json
+   "extra": { "taw-companion": { "publish": true } }
+   ```
+
+4. Its key pinned (`taw-fleet live trust <site>`).
+
+The details' **PUBLISHED** section says what's missing. Once it's ready, it lists the last publishes.
+
+**How it goes:**
+
+1. **Compare.** taw-fleet exports the Local site's content and diffs it with the base, production's
+   content as Local last had it (saved by a pull, `C`, and by every publish). Only what changed in
+   Local goes. With no base, every value production already has is marked for you to decide.
+2. **Ask production.** Production answers what publishing would change, field by field, and which
+   files it lacks. It writes nothing yet. Its answer comes with a one-time token, good for an hour.
+3. **The review.** A page opens in your browser, served by taw-fleet on this Mac only
+   (`127.0.0.1`, behind a random address):
+   - every record by its title, with a tick to publish it or leave it out;
+   - every change by its field (`Fieldset › Label`), with production's value beside Local's and the
+     words that changed marked;
+   - images side by side, and the files that will be uploaded;
+   - **conflicts** first: a value production changed too since the base. You pick a side for each:
+     keep production's, or take Local's. When only production changed a value, production's is
+     kept for you.
+
+   Nothing is written until you press **Publish**. **Cancel**, or `x` in the dashboard
+   ("stop waiting"), closes it with nothing published.
+4. **Publish.** Files go up by their bytes, each checked against the plan. Production then re-checks
+   the plan: if a record changed there since the review, it refuses the whole publish and you review
+   again. Before writing, it saves a rollback copy and a journal. The page shows the progress, then
+   the result.
+5. **After.** The base is refreshed from production. The review is kept as the record of what went
+   out, in `~/TAW Fleet/sites/<site>/publish/<time>/`: `review.html` (open it any time),
+   `plan.json`, `decisions.json` and `report.json`.
+
+**Undo:** `x` (or `taw-fleet publish undo <site>`) first says what undoing the last publish would put
+back, then asks. A value goes back only where it is still what the publish wrote; an edit made since
+is kept and listed. A record the publish created is deleted unless it was edited since.
+`--journal` undoes an older publish (`taw-fleet publish history <site>` lists them).
+
+**Without a browser:**
+
+```bash
+taw-fleet publish acme --no-review                 # print the review
+taw-fleet publish acme --no-review --json          # the review as JSON, with the record and change keys
+taw-fleet publish acme --no-review --yes           # publish as reviewed: every record but deletes; refuses while a conflict is undecided
+taw-fleet publish acme --decisions choices.json --yes
+```
+
+`choices.json` names the records to publish and the side that wins each conflict (`keep` =
+production's, `take` = Local's):
+
+```json
+{"include": ["post:page:about"], "sides": {"post:page:about": {"fields.hero_heading": "take"}}}
+```
+
+**Security:**
+
+- Every request is signed with the fleet key, and every answer is checked against the site's pinned
+  key.
+- The one-time token works once, for one plan. Production only writes the records you approved,
+  as you reviewed them.
+- Production only accepts the files the plan named, by their sha256.
+- Limits: 32 MB per file, 512 MB and 500 files per publish. One publish at a time.
+- Everything is logged on production (`content.publish.*`; `taw-fleet live <site> --logs 20` reads
+  them).
+- No database copy is made or sent. The base is a content snapshot, kept outside every site, theme
+  and git repository.
 
 ## Monthly reports
 

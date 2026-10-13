@@ -133,13 +133,14 @@ say the site is ready for one), `deploy_key`, the person adds the key at the hos
 `deploy_apply`.
 
 Before the first deploy the host needs WordPress itself, with the site's domain (and its
-certificate). taw-fleet doesn't install WordPress or move content: say what the person does at
-their host, by hand.
+certificate). taw-fleet doesn't install WordPress: say what the person does at their host, by hand.
 
 - **WordPress:** the host's installer, on the production domain.
-- **The content:** the Local site's pages, menus and media aren't in the theme. Moving them is the
-  person's choice: WordPress's Tools → Export and Import, or the host's migration tool. Never
-  export, copy or upload a database yourself, and never put one in the theme.
+- **Publishing on:** the content goes up after the deploy, by publishing (§ 7), which production
+  must allow. On a branch with a pull request, like any change, set in the theme's composer.json
+  `"extra": {"taw-companion": {"publish": true}}` (next to the fleet key already there) and make
+  sure it requires `"taw/hub-companion": "^0.5"` (then `composer update taw/hub-companion`). It
+  deploys with the theme. Never copy, export or upload a database to move content.
 - **DNS:** the domain pointing at the host is the person's.
 
 **Checkpoint 5.** The deploy pull request (`deploy_apply` opened it) and what the person does at
@@ -158,9 +159,15 @@ active yet, and clears the host's page cache.
    URL, then link it.
 3. Screenshot production's pages into `production/`, with the same names and sizes as `build/`
    (`home-desktop.png`, `home-mobile.png`, …).
-4. `launch_report` for the site. It checks production (HTTPS, search engines let in, the deploy,
+4. **The content.** `publish_content` for the site: the first call compares Local's content with
+   production's and returns the review (production is new, so everything is new and nothing
+   conflicts) and its question. Tell the person in a few lines what goes up (pages, menus, how many
+   files), and offer the full review in the browser: `p` on the site in the dashboard. On their yes,
+   call it again with the token. If it says publishing isn't enabled or production needs a newer
+   companion, the "Publishing on" step above wasn't deployed yet.
+5. `launch_report` for the site. It checks production (HTTPS, search engines let in, the deploy,
    the companion, PageSpeed) and writes `launch.html`, with production beside the build.
-5. Open it: `open "$HOME/TAW Fleet/sites/<slug>/launch.html"` (ask first: it opens the browser).
+6. Open it: `open "$HOME/TAW Fleet/sites/<slug>/launch.html"` (ask first: it opens the browser).
 
 **Checkpoint 6.** The report in a few lines: what you did (Local site, repository, deploy, the
 production URL), the scores, and what's left for the person, from the report's list. A failing

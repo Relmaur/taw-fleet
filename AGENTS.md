@@ -31,9 +31,10 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/handoff` | The handoff prompt (`Build`): template + steps; golden prompts in `testdata/` |
 | `internal/create` | New site: `Normalize`/`Check` a `Request`, `Creator.Run` (Local `addSite` → taw-create → npm build → `wp theme activate` → git), `Password` |
 | `internal/createform` | The new-site form (charm.land/huh): `New`, `Defaults`, `Summary`, `Theme` (huh in taw-fleet's palette); shared by `create` and the dashboard's `n` |
-| `internal/companion` | The companion's wire protocol (TAW-HUB-v1): `Canonical`, `Key` (sign), `VerifyResponse`, a signed GET `Client`, typed answers. Tested against taw-hub's `hub-signing-vectors.json` (in `testdata/`) |
+| `internal/companion` | The companion's wire protocol (TAW-HUB-v1): `Canonical`, `Key` (sign), `VerifyResponse`, a signed `Client` (`Get`, and `Post`/`Put` for publishing: the body's sha256 is signed, so files go as raw PUT bodies, never multipart), typed answers (`publish.go`: the plan, records, changes, apply, journals, undo). Tested against taw-hub's `hub-signing-vectors.json` (in `testdata/`) |
 | `internal/keychain` | Secrets in the login keychain (`Item`, `Save` via `security -i` on stdin, never argv; `Load`, `ErrNotFound`); used by `live` and `bugsmash` |
-| `internal/live` | Production checks: `Keychain` (the signing key, through `internal/keychain`), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply` |
+| `internal/live` | Production checks: `Keychain` (the signing key, through `internal/keychain`), `Pins` (site keys), `Prober.Probe`/`ProbeAll` (parallel, 5-min cache), `Apply`. `publish.go`: `Prober.PublishPlan/PublishFile/PublishApply/PublishJournals/PublishUndo` (pinned key and a verified answer required; own timeouts), `PublishError` (companion < 0.5, publishing off, taw/core < 1.98, a host firewall → what to do; other `publish_*` codes → `*Refusal` with `moved`/`conflicts`/`missing`) |
+| `internal/review` | The publish review (umbrella `docs/plans/content-publish.md`): `Words`/`Lines` (LCS diff, folded context), `Build` (plan + base → `Page`: records by kind, changes by `Fieldset › Label`, conflicts first), `Page.Decide` (ticks + sides → approved `{key, hash}` + `keep`; what's undecided), `HTML` (`review.html`, self-contained, light/dark), `Serve` (127.0.0.1, random token path, Host/Origin checks, CSP, only the Local files the plan names via `Within`; one decision; `/status` for the progress) |
 | `internal/bugsmash` | Open BugSmash review comments per site (read-only REST, `X-API-Key`): `KeyStore` (Keychain, then `$BUGSMASH_API_KEY`), `Client` (`Project`, `Projects`, `OpenComments`), `Prober.Check`/`CheckAll` (5-min cache), `NoKey`, `Apply` → `Site.Feedback` |
 | `internal/selfupdate` | Newest GitHub release, sha256 check against `checksums.txt`, atomic replace; refuses Homebrew paths |
 | `internal/report` | Monthly client reports: `Gather` (Sources: GitHub `Month`, BugSmash `MonthComments`, the companion, watch's uptime, PageSpeed; a failed source is a Note, never a failed report; housekeeping PRs counted, not listed), `Markdown`/`HTML` from one doc model (en/es; notes stay out of the client's text), `Save`/`List` (`~/TAW Fleet/reports/<site>/<month>.{md,html}`, `paths.FleetDir`) |
@@ -45,6 +46,7 @@ Decision record: `docs/adr/0001-go-tui-for-the-local-taw-fleet.md`.
 | `internal/pagespeed` | PageSpeed Insights v5 (`Client.Run`: Lighthouse scores + CrUX field data); key in the Keychain (`KeyItem`, `report key import`) or `$PAGESPEED_API_KEY` |
 | `internal/restore` | Restore points: `Store.Save` (Guard first: outside the site, every theme and any git repository, else `ErrUnsafe`; `wp db export -` → 0600 gzip via the site's Local `mysqldump`; theme branch + commit; merge = git only; prune to `restore_keep`), `List`/`Find`, `Check`/`Restore` (saves a `before-restore` point, `git switch`, `wp db import -` from the gzip stream). Database copies live only in `DataDir/restore/` |
 | `internal/watch` | `taw-fleet watch`: `Check` (last `State` + the fleet → `Event`s, each told once; first sight only notes; failed checks keep the last state; uptime per day), `Load`/`Save` (`DataDir/watch/state.json`), `Notifier` (terminal-notifier with `-execute taw-fleet --site <slug>`, osascript fallback, `ErrNotAllowed`), `Agent` (launchd: `Install`/`Uninstall`/`Status`, `gui/<uid>`) |
+| `internal/actions/publish.go` | `PublishTask` (export `--media-hashes` → `ContentDiff --with-base` against the base → `PublishPlan` → `review.Build`; `plan.json` saved without the token) returning a `PublishReview` (`Browser` task: serves the page, `Stoppable`; `Apply(Decisions)` for the CLI/MCP), `publish` (uploads checked by sha256, apply, base refreshed from production, `report.json`), `PublishUndoTask` (preview → `UndoPreview.Apply`), `PublishHistory`, `Base`/`SaveBase` (`DataDir/content/<slug>/base.json`, guarded by `restore.Store.Guard`; `pull.go` saves it after an import) |
 | `internal/taw` | The theme's own tools: `Runner.Sync` / `Inspect` (`bin/taw`), `UpdateCore` (composer), `UpgradeSections` (UPGRADING.md), `Guard`, drift cache, `LineWriter` |
 
 Releases: `.goreleaser.yaml` + `.github/workflows/release.yml` on `v*` tags. The archive names
@@ -105,7 +107,10 @@ go run ./cmd/taw-fleet version
   branch = stop and ask. Change those rules only when the owner asks. Review the golden prompts in
   `internal/handoff/testdata/` whenever the template changes.
 - **The production view only reads.** `live` uses the companion's GET routes; the write routes
-  (`/framework/sync`, `/taw`, `/keys/rotate`) are deliberately unused. The signing key lives only
+  (`/framework/sync`, `/taw`, `/keys/rotate`) are deliberately unused. The one exception is
+  publishing (`content/publish/*`, companion ADR-0006): only through `actions.PublishTask`/
+  `PublishUndoTask`, only after the person decided in the review (the browser's Publish, a
+  dashboard question, `--yes`, or an MCP confirm), never an approval made up by code. The signing key lives only
   in the Keychain: never print it, never pass it on a command line, never write it to a file.
   Change the wire format only together with the companion, and keep the vectors test passing.
 - **BugSmash is read-only too.** `internal/bugsmash` only GETs (`/project/{id}`, `/projects`,

@@ -33,6 +33,9 @@ func TestPullPreviewThenApply(t *testing.T) {
 		return []byte(`{"meta":{"schema":"1.2"},"posts":[{},{}],"media":[{}]}`), nil
 	}
 	f.Script = func(sp exec.Spec) (exec.Result, error) {
+		if sp.Name == "git" {
+			return exec.Result{Code: 128}, nil // the base's folder isn't in a repository
+		}
 		if slices.Contains(sp.Args, "--yes") {
 			return exec.Result{Stdout: []byte(`{"created":[{}],"updated":[{}],"skipped":[],"deleted":[],"media_sideloaded":1,"rollback_path":"/r/rollback.json"}`)}, nil
 		}
@@ -82,8 +85,15 @@ func TestPullPreviewThenApply(t *testing.T) {
 	if err != nil || sum.Headline != "Pulled lsmexico.mx into ls-mxico: 1 created, 1 updated, 1 media downloaded" || sum.Lines[0] != "rollback snapshot: /r/rollback.json" {
 		t.Errorf("applied: %q %v %v", sum.Headline, sum.Lines, err)
 	}
-	if last := f.Calls()[len(f.Calls())-1]; !slices.Contains(last.Args, "--policy=update") {
-		t.Errorf("apply args %v", last.Args)
+	applied := false
+	for _, c := range f.Calls() {
+		applied = applied || (slices.Contains(c.Args, "--yes") && slices.Contains(c.Args, "--policy=update"))
+	}
+	if !applied {
+		t.Errorf("no import call: %v", f.Calls())
+	}
+	if file, meta := a.Base("ls-mxico"); file == "" || meta.Source != "pull" || meta.Production != "https://lsmexico.mx" {
+		t.Errorf("the pulled snapshot is the base for publishing: %q %+v", file, meta)
 	}
 }
 

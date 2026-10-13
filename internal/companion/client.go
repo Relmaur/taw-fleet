@@ -1,6 +1,7 @@
 package companion
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-// Client makes signed GET requests to companions.
+// Client makes signed requests to companions.
 type Client struct {
 	Key   Key
 	HTTP  *http.Client
@@ -41,10 +42,11 @@ type Response struct {
 
 // APIError is a non-2xx answer from the companion.
 type APIError struct {
-	Status int
-	Code   string // e.g. taw_hub_unauthorized
-	Reason string // e.g. timestamp_out_of_window
-	Body   string
+	Status  int
+	Code    string // e.g. taw_hub_unauthorized, publish_moved
+	Reason  string // e.g. timestamp_out_of_window
+	Message string // the companion's own words, when it gave them
+	Body    string
 }
 
 func (e *APIError) Error() string {
@@ -59,6 +61,8 @@ func (e *APIError) Error() string {
 		return "the site doesn't trust taw-fleet's signing key yet (401 unknown_key_id): it needs the public key from `taw-fleet live key show`"
 	case e.Status == http.StatusUnauthorized && e.Reason == "invalid_signature":
 		return "the site doesn't trust taw-fleet's signing key (401 invalid_signature): it has another public key configured"
+	case e.Message != "" && strings.HasPrefix(e.Code, "publish_"):
+		return e.Message
 	case e.Reason != "":
 		return fmt.Sprintf("the companion answered %d: %s", e.Status, e.Reason)
 	case e.Code != "":
@@ -70,36 +74,60 @@ func (e *APIError) Error() string {
 // Get calls a read route ("health", "logs") with an optional query. A pinned
 // key is required for Verified; a bad signature is an error either way.
 func (c *Client) Get(ctx context.Context, s Site, route string, query url.Values) (Response, error) {
+	return c.Do(ctx, s, http.MethodGet, route, query, nil, "")
+}
+
+// Post calls a write route with a JSON body (signed: its sha256 is in the
+// canonical string). Every parameter goes in the body: the query isn't signed.
+func (c *Client) Post(ctx context.Context, s Site, route string, body []byte) (Response, error) {
+	return c.Do(ctx, s, http.MethodPost, route, nil, body, "application/json")
+}
+
+// Put sends raw bytes (a publish's file) as the signed body.
+func (c *Client) Put(ctx context.Context, s Site, route string, body []byte, contentType string) (Response, error) {
+	return c.Do(ctx, s, http.MethodPut, route, nil, body, contentType)
+}
+
+// Do makes one signed request. A pinned key is required for Verified; a bad
+// signature is an error either way.
+func (c *Client) Do(ctx context.Context, s Site, method, route string, query url.Values, body []byte, contentType string) (Response, error) {
 	path := Namespace + "/" + strings.TrimPrefix(route, "/")
 	u := strings.TrimRight(s.URL, "/") + path
 	if len(query) > 0 {
 		u += "?" + query.Encode() // the query isn't signed (ADR-0003)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reader)
 	if err != nil {
 		return Response{}, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "taw-fleet")
-	c.Key.Sign(req.Header, http.MethodGet, path, c.now().Unix(), c.nonce(), nil)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	c.Key.Sign(req.Header, method, path, c.now().Unix(), c.nonce(), body)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return Response{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	got, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
 		return Response{}, err
 	}
-	out := Response{Status: resp.StatusCode, Body: body, KeyID: resp.Header.Get(HeaderKeyID)}
+	out := Response{Status: resp.StatusCode, Body: got, KeyID: resp.Header.Get(HeaderKeyID)}
 	if s.Pinned != nil {
-		if err := VerifyResponse(resp.Header, path, body, *s.Pinned, c.now()); err != nil {
+		if err := VerifyResponse(resp.Header, path, got, *s.Pinned, c.now()); err != nil {
 			return out, err
 		}
 		out.Verified = true
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return out, apiError(resp.StatusCode, body)
+		return out, apiError(resp.StatusCode, got)
 	}
 	return out, nil
 }
@@ -107,9 +135,10 @@ func (c *Client) Get(ctx context.Context, s Site, route string, query url.Values
 func apiError(status int, body []byte) *APIError {
 	e := &APIError{Status: status, Body: strings.TrimSpace(string(body))}
 	var wp struct {
-		Code  string `json:"code"`
-		Error string `json:"error"`
-		Data  struct {
+		Code    string `json:"code"`
+		Error   string `json:"error"`
+		Message string `json:"message"`
+		Data    struct {
 			Reason string `json:"reason"`
 		} `json:"data"`
 		Reason string `json:"reason"`
@@ -119,6 +148,7 @@ func apiError(status int, body []byte) *APIError {
 		if e.Code == "" {
 			e.Code = wp.Error
 		}
+		e.Message = wp.Message
 		e.Reason = wp.Data.Reason
 		if e.Reason == "" {
 			e.Reason = wp.Reason
@@ -151,6 +181,8 @@ type Health struct {
 	SitePublicKey    string `json:"site_public_key"`
 	SiteKeyID        string `json:"site_key_id"`
 	ExecAvailable    bool   `json:"exec_available"`
+	PublishEnabled   bool   `json:"publish_enabled"`   // companion 0.5+: the theme allows publishing
+	PublishAvailable bool   `json:"publish_available"` // companion 0.5+: taw/core 1.98+ can do it
 }
 
 // Plugin is one entry of GET /inventory.

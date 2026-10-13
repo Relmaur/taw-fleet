@@ -305,7 +305,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d), newReadyCmd(d, g), newRepoCmd(d, g), newDeployCmd(d, g), newLaunchReportCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d), newReadyCmd(d, g), newRepoCmd(d, g), newDeployCmd(d, g), newLaunchReportCmd(d, g), newPublishCmd(d, g))
 	return root
 }
 

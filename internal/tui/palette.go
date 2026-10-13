@@ -49,6 +49,8 @@ var actionDocs = []actionDoc{
 	{"P", "Site · Production", "Open production", "The production site in your browser."},
 	{"L", "Site · Production", "Check production now", "Ask every production site's companion, BugSmash and GitHub again, past the 5-minute cache."},
 	{"C", "Site · Production", "Pull production content", "Bring the production site's content into the Local site: a preview of what would change first, then it asks before importing (a rollback snapshot is kept)."},
+	{"p", "Site · Production", "Publish content", "Publish the Local site's content to production after a review in your browser: every change by its field (Fieldset › Label), production's value beside Local's, a value production changed too marked for you to decide, a tick per page. Files go up by their bytes; production keeps a rollback copy. Needs taw/core 1.98+, companion 0.5+ and publishing enabled in the theme's composer.json (extra.taw-companion.publish)."},
+	{"x", "Site · Production", "Undo the last publish", "What undoing production's last publish would put back first, then it asks: values go back only where they're still what the publish wrote; edits made since are kept."},
 	{"F", "Site · Feedback", "Open BugSmash comments", "The site's review page in BugSmash, where the client's comments are."},
 	{"X", "Site · Feedback", "Resolve comments with Claude", "Claude Code beside the dashboard, in the theme folder, with the resolve-comments skill on the site's open BugSmash comments. It plans first and asks before anything reaches production."},
 	{"e", "Theme · Code", "Open in editor", "The theme folder in your editor (setting: editor)."},
@@ -117,7 +119,7 @@ func (m Model) unavailable(k string, s site.Site, t site.Theme) string {
 		if t.Git == nil || t.Git.Repo == nil {
 			return "no GitHub repository (no origin remote)"
 		}
-	case "P", "C":
+	case "P", "C", "p", "x":
 		if !prod {
 			return "no production URL: add production_url to [sites." + s.Slug + "]"
 		}

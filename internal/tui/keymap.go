@@ -19,7 +19,7 @@ type keyMap struct {
 	StartStop, Restart, Work, Yes, No                                 key.Binding
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
 	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch, Restore    key.Binding
-	Report                                                            key.Binding
+	Report, Publish, PublishUndo                                      key.Binding
 	Comments, Resolve, Ask, Chat, Setup                               key.Binding
 }
 
@@ -70,6 +70,8 @@ func newKeyMap() keyMap {
 		Restore:     key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "restore point")),
 		Report:      key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "monthly report")),
 		Pull:        key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "pull content")),
+		Publish:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "publish")),
+		PublishUndo: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "undo publish")),
 		Comments:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "comments")),
 		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
 		Ask:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ask Claude…")),
@@ -104,6 +106,7 @@ type outputKeys struct {
 	k       keyMap
 	running bool
 	secret  bool // the finished task has something to copy (c)
+	stop    bool // the running task waits on the person and can stop waiting (x)
 }
 
 func (o outputKeys) ShortHelp() []key.Binding {
@@ -114,6 +117,9 @@ func (o outputKeys) ShortHelp() []key.Binding {
 		back = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back (it keeps running)"))
 	}
 	keys := []key.Binding{scroll, follow, back}
+	if o.stop {
+		keys = append([]key.Binding{key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "stop waiting"))}, keys...)
+	}
 	if o.secret {
 		keys = append([]key.Binding{o.k.CopySecret}, keys...)
 	}
@@ -192,8 +198,8 @@ func (k keyMap) ShortHelp() []key.Binding {
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.Setup, k.Quit},
-		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Ask},
+		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.PublishUndo, k.Setup, k.Quit},
+		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Publish, k.Ask},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report},
 		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve, k.Chat},
 	}

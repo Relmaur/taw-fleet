@@ -55,6 +55,7 @@ type Actions struct {
 	VitePoll   time.Duration // how often Work checks for Vite; 0 = 300 ms
 	Merger     Merger        // merges pull requests (GitHub); nil = not available
 	Content    ContentSource // fetches production content; nil = not set up
+	Publisher  Publisher     // publishes content to production; nil = not set up
 
 	// CoreLatest asks GitHub for the newest taw-core, skipping the cache, for
 	// an update-all; nil = keep the scan's answer.

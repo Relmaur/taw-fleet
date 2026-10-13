@@ -554,7 +554,7 @@ func (m Model) detailContent(width int) string {
 		return ""
 	}
 	return m.mergeSection(s.ID+"/"+t.Dir, width) + m.updateSection(s.ID+"/"+t.Dir, width) + render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width) +
-		m.reportSection(s, width) + m.restoreSection(s, width) + m.setupSection(s, t, width)
+		m.reportSection(s, width) + m.publishSection(s, width) + m.restoreSection(s, width) + m.setupSection(s, t, width)
 }
 
 // detailPane is the right-hand pane on wide terminals.
@@ -703,7 +703,8 @@ func (m Model) footer() string {
 	case m.mode == modeHandoff:
 		keys = handoffKeys{m.keys}
 	case m.mode == modeOutput:
-		keys = outputKeys{m.keys, m.task != nil && m.task.running, m.task != nil && !m.task.running && m.task.summary.Secret != ""}
+		keys = outputKeys{k: m.keys, running: m.task != nil && m.task.running, secret: m.task != nil && !m.task.running && m.task.summary.Secret != "",
+			stop: m.task != nil && m.task.running && m.task.stop != nil}
 		if m.task != nil && (m.task.steps != nil || m.task.batch != nil) {
 			keys = stepKeys{m.task}
 		}

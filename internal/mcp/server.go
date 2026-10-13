@@ -63,6 +63,8 @@ var Tools = []ToolDoc{
 		"Connects to the host with the site's deploy key (deploy_key), as the deploy will: SSH + rsync logs in, finds the theme folder's parent and rsync; git lists the remote. Reads the server's host key (pinned by deploy_apply). Nothing on the server changes."},
 	{"launch_report", "Check a live site and write its launch report", "taw-fleet launch-report <site> --json", "I once the site is live",
 		"For a site in production: HTTPS, http:// moving to https://, the certificate, search engines let in (no noindex), the last deploy, the companion (verified, the same taw/core, plugins, security), PageSpeed mobile and desktop (up to a minute, unless no_speed), watch, BugSmash and the SETUP checklist; what's left for the person, with how. Saves ~/TAW Fleet/sites/<site>/launch.html (and .md) with PageSpeed's pictures of production beside the Local build's from build/. Production is only read."},
+	{"publish_history", "A site's publishes", "taw-fleet publish history <site> --json", "PUBLISHED section",
+		"The site's publishes to production, newest first: when, published or cancelled, what changed, and where each review is kept."},
 	{"bugsmash_projects", "BugSmash projects", "taw-fleet comments projects --json", "FB column",
 		"Every BugSmash project the stored key sees, with its id and review page: for link_bugsmash."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
@@ -188,6 +190,12 @@ func NewServer(d Deps) *sdk.Server {
 			args = append(args, "--no-speed")
 		}
 		return run(ctx, d, args)
+	})
+	sdk.AddTool(s, tool("publish_history"), func(ctx context.Context, _ *sdk.CallToolRequest, in siteIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Site) == "" {
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		}
+		return run(ctx, d, []string{"publish", "history", in.Site, "--json"})
 	})
 	sdk.AddTool(s, tool("bugsmash_projects"), func(ctx context.Context, _ *sdk.CallToolRequest, _ struct{}) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, []string{"comments", "projects", "--json"})

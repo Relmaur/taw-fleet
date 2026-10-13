@@ -489,18 +489,20 @@ func TestBackgroundColorSwitchesPalette(t *testing.T) {
 }
 
 type fakeActions struct {
-	did      []actions.Kind
-	copied   string
-	launched string
-	beside   string // the tty Launch was given
-	plan     actions.FleetPlan
-	fleet    *actions.FleetPlan // what LaunchFleet was given
-	doneDir  string             // where Launch says its done files go
-	noClaude bool
-	refuse   error
-	created  create.Request
-	worked   string // "work acme" / "stop acme", and whether a SiteOp came along
-	restored string // the restore point RestoreTask was given
+	waitReview bool // the publish review waits until stopped
+	published  []actions.Published
+	did        []actions.Kind
+	copied     string
+	launched   string
+	beside     string // the tty Launch was given
+	plan       actions.FleetPlan
+	fleet      *actions.FleetPlan // what LaunchFleet was given
+	doneDir    string             // where Launch says its done files go
+	noClaude   bool
+	refuse     error
+	created    create.Request
+	worked     string // "work acme" / "stop acme", and whether a SiteOp came along
+	restored   string // the restore point RestoreTask was given
 }
 
 func (f *fakeActions) Restores() restore.Store {
@@ -709,6 +711,33 @@ func (f *fakeActions) MergeTask(_ site.Site, t site.Theme, pr site.PullRequest) 
 				Report: actions.MergeResult{Repo: "Relmaur/client--theme", SHA: "m3rg3d0", Number: pr.Number, Production: "https://acme.mx", Deploys: true}}, nil
 		}}, nil
 }
+
+func (f *fakeActions) PublishTask(s site.Site, _ site.Theme, _ actions.SiteOp) (actions.Task, error) {
+	browser := actions.Task{Title: "Publish review: " + s.Slug + " → acme.mx", Stoppable: f.waitReview, Run: func(ctx context.Context, _ io.Writer) (actions.Summary, error) {
+		if f.waitReview { // the person never decides in the browser
+			<-ctx.Done()
+			return actions.Summary{Headline: "Review closed: nothing was published"}, nil
+		}
+		f.worked = "published " + s.Slug
+		return actions.Summary{Headline: "Published to acme.mx: 0 created, 1 updated"}, nil
+	}}
+	return actions.Task{Title: "Publish review: " + s.Slug + " → acme.mx", Run: func(context.Context, io.Writer) (actions.Summary, error) {
+		return actions.Summary{Headline: s.Slug + " → acme.mx: 1 record, 2 values", Report: actions.PublishReview{Browser: browser}}, nil
+	}}, nil
+}
+
+func (f *fakeActions) PublishUndoTask(s site.Site, _ string) (actions.Task, error) {
+	apply := actions.Task{Title: "Undo: acme.mx", Writes: true, Ask: "Undo the publish of today on acme.mx? 2 values go back.",
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			f.worked = "undone " + s.Slug
+			return actions.Summary{Headline: "Undone on acme.mx: 2 values put back"}, nil
+		}}
+	return actions.Task{Title: "Undo preview: acme.mx", Run: func(context.Context, io.Writer) (actions.Summary, error) {
+		return actions.Summary{Headline: "Undoing would put back 2 values", Report: actions.UndoPreview{Apply: apply}}, nil
+	}}, nil
+}
+
+func (f *fakeActions) PublishHistory(string) []actions.Published { return f.published }
 
 func (f *fakeActions) PullTask(s site.Site, _ site.Theme, _ actions.SiteOp) (actions.Task, error) {
 	apply := actions.Task{Title: "Pull: acme.mx → " + s.Slug, Writes: true, Ask: "Import acme.mx's content into " + s.Slug + "? 1 new, 2 changed; production wins.",

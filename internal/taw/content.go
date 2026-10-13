@@ -138,3 +138,46 @@ func (r Runner) contentImport(ctx context.Context, s site.Site, t site.Theme, fi
 	}
 	return nil
 }
+
+// ContentExport writes the Local site's content to file (`bin/taw
+// content:export --media-hashes`): what a publish compares with the base.
+// Drafts and users stay out (a publish never sends them). The site must run.
+func (r Runner) ContentExport(ctx context.Context, s site.Site, t site.Theme, file string) error {
+	return r.content(ctx, s, t, "content:export", []string{"--output=" + file, "--media-hashes"})
+}
+
+// ContentDiff writes the change-set from base to local into out (`bin/taw
+// content:diff`); withBase: each changed record carries the base's, so
+// production can tell what it changed since. Pure: no database.
+func (r Runner) ContentDiff(ctx context.Context, s site.Site, t site.Theme, base, local, out string, withBase bool) error {
+	args := []string{base, local, "--out=" + out}
+	if withBase {
+		args = append(args, "--with-base")
+	}
+	return r.content(ctx, s, t, "content:diff", args)
+}
+
+func (r Runner) content(ctx context.Context, s site.Site, t site.Theme, command string, args []string) error {
+	if err := Guard(t, false); err != nil {
+		return err
+	}
+	if !t.HasBinTaw {
+		return errors.New("this theme has no bin/taw")
+	}
+	full := append([]string{"-d", "mysqli.default_socket=" + s.Socket, "-d", "pdo_mysql.default_socket=" + s.Socket, "-d", "display_errors=stderr",
+		"bin/taw", command}, args...)
+	ctx, cancel := context.WithTimeout(ctx, ImportTimeout)
+	defer cancel()
+	res, err := r.Exec.Run(ctx, exec.Spec{Dir: t.RealPath, Name: r.php(), Args: full, Env: []string{"MYSQL_UNIX_PORT=" + s.Socket}})
+	if err != nil {
+		return err
+	}
+	if res.Code != 0 {
+		msg := strings.TrimSpace(string(res.Stderr) + "\n" + string(res.Stdout))
+		if strings.Contains(msg, "not defined") || strings.Contains(msg, "does not exist") {
+			return fmt.Errorf("this theme's taw/core can't publish yet (%s with these options needs taw/core 1.98+): u updates it", command)
+		}
+		return fmt.Errorf("bin/taw %s exited %d: %s", command, res.Code, tail(msg, 400))
+	}
+	return nil
+}

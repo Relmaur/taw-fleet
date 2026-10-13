@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Relmaur/taw-fleet/internal/actions"
+	"github.com/Relmaur/taw-fleet/internal/companion"
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/doctor"
 	"github.com/Relmaur/taw-fleet/internal/live"
@@ -34,7 +35,54 @@ func (d Deps) actions() (*actions.Actions, error) {
 		}
 		return pr.Content(ctx, live.Target{Slug: slug, URL: url})
 	}
+	a.Publisher = publisher{d}
 	return a, nil
+}
+
+// publisher reaches production's publish routes through the signing key
+// and the pinned keys (live.Prober).
+type publisher struct{ d Deps }
+
+func (p publisher) prober(ctx context.Context) (*live.Prober, error) { return p.d.prober(ctx) }
+
+func (p publisher) Plan(ctx context.Context, slug, url string, changeSet []byte) (companion.PublishPlan, error) {
+	pr, err := p.prober(ctx)
+	if err != nil {
+		return companion.PublishPlan{}, err
+	}
+	return pr.PublishPlan(ctx, live.Target{Slug: slug, URL: url}, changeSet)
+}
+
+func (p publisher) File(ctx context.Context, slug, url, id string, data []byte) error {
+	pr, err := p.prober(ctx)
+	if err != nil {
+		return err
+	}
+	return pr.PublishFile(ctx, live.Target{Slug: slug, URL: url}, id, data)
+}
+
+func (p publisher) Apply(ctx context.Context, slug, url, id string, req companion.ApplyRequest) (companion.ApplyResult, error) {
+	pr, err := p.prober(ctx)
+	if err != nil {
+		return companion.ApplyResult{}, err
+	}
+	return pr.PublishApply(ctx, live.Target{Slug: slug, URL: url}, id, req)
+}
+
+func (p publisher) Journals(ctx context.Context, slug, url string) ([]companion.Journal, error) {
+	pr, err := p.prober(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pr.PublishJournals(ctx, live.Target{Slug: slug, URL: url})
+}
+
+func (p publisher) Undo(ctx context.Context, slug, url, journal string, dryRun bool) (companion.UndoResult, error) {
+	pr, err := p.prober(ctx)
+	if err != nil {
+		return companion.UndoResult{}, err
+	}
+	return pr.PublishUndo(ctx, live.Target{Slug: slug, URL: url}, journal, dryRun)
 }
 
 // runFleet lists (or, with launch, starts) an update of every client TAW

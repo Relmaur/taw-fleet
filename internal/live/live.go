@@ -141,6 +141,7 @@ func (pr *Prober) Probe(ctx context.Context, t Target) site.Production {
 	}
 	out.Reachable, out.Verified, out.KeyID = true, resp.Verified, resp.KeyID
 	out.WP, out.PHP, out.TawCore, out.Companion = h.WPVersion, h.PHPVersion, h.TawCoreVersion, h.CompanionVersion
+	out.PublishEnabled, out.PublishAvailable = h.PublishEnabled, h.PublishAvailable
 	if !pinned {
 		out.Error, out.ErrorKind = "no pinned key for this site yet: run `taw-fleet live trust "+t.Slug+"`", "no-key"
 	}

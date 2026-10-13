@@ -60,6 +60,9 @@ type Actions interface {
 	MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (actions.Task, error)
 	SiteBranchTask(s site.Site, t site.Theme) (actions.Task, error)
 	PullTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
+	PublishTask(s site.Site, t site.Theme, op actions.SiteOp) (actions.Task, error)
+	PublishUndoTask(s site.Site, journal string) (actions.Task, error)
+	PublishHistory(slug string) []actions.Published
 	CreateTask(r create.Request) (actions.Task, error)
 	OpenComments(ctx context.Context, s site.Site) (string, error)
 	ResolvePrompt(s site.Site, t site.Theme) (handoff.Prompt, error)
@@ -231,7 +234,9 @@ type Model struct {
 
 	restores map[string][]restore.Point // restore points by site slug, newest first
 	reports  map[string][]report.Saved  // saved monthly reports by site slug, newest first
-	bots     map[string]bool            // production sites whose bot is in the Keychain
+	// publishes are each production site's publishes, newest first.
+	publishes map[string][]actions.Published
+	bots      map[string]bool // production sites whose bot is in the Keychain
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -496,7 +501,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		cmds = append(cmds, m.loadRestores(), m.loadReports(), m.loadBots())
+		cmds = append(cmds, m.loadRestores(), m.loadReports(), m.loadBots(), m.loadPublishes())
 		return m, tea.Batch(cmds...)
 
 	case restoresMsg:
@@ -505,6 +510,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case reportsMsg:
 		m.reports = msg
+		return m, nil
+
+	case publishesMsg:
+		m.publishes = msg
 		return m, nil
 
 	case deploySetupDoneMsg:
@@ -883,6 +892,12 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return model, cmd, true
 	case key.Matches(msg, k.Pull):
 		model, cmd := m.askPull()
+		return model, cmd, true
+	case key.Matches(msg, k.Publish):
+		model, cmd := m.askPublish()
+		return model, cmd, true
+	case key.Matches(msg, k.PublishUndo):
+		model, cmd := m.askPublishUndo()
 		return model, cmd, true
 	case key.Matches(msg, k.Comments):
 		model, cmd := m.openComments()

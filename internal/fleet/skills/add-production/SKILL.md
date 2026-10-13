@@ -53,6 +53,9 @@ settings. Merging that pull request deploys: offer `merge_pr` once its CI passes
 Remind the person to clear the site's page cache after a deploy has finished, not during it. Then:
 - `trust_production` once the site answers: it pins the companion's key (it asks);
 - `bugsmash_projects` and `link_bugsmash`, if the person has a BugSmash project for the site;
+- the content, if production hasn't got it yet: `publish_content` (it asks; the person can review
+  it field by field in the browser with `p`). Production must allow it: `"publish": true` under
+  `extra.taw-companion` in the theme's composer.json, deployed;
 - `launch_report`: production checked (HTTPS, search engines let in, the deploy, the companion,
   PageSpeed) and what's left for the person, in `~/TAW Fleet/sites/<site>/launch.html`. Give them
   its summary and what's left.

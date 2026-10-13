@@ -137,6 +137,12 @@ func (a *Actions) applyPull(s site.Site, t site.Theme, file, from string, pv Pul
 			head := fmt.Sprintf("Pulled %s into %s: %d created, %d updated, %d media downloaded",
 				from, s.Slug, len(rep.Created), len(rep.Updated), rep.MediaSideloaded)
 			lines := []string{"rollback snapshot: " + orNone(rep.RollbackPath)}
+			// What Local now has of production: a publish compares with it.
+			if snap, err := os.ReadFile(file); err == nil {
+				if err := a.SaveBase(ctx, s, snap, "pull", a.Config.Site(s.Slug).ProductionURL); err != nil {
+					lines = append(lines, "note: the base for publishing wasn't saved: "+err.Error())
+				}
+			}
 			for _, w := range append(rep.RegistryDrift, rep.Warnings...) {
 				lines = append(lines, "note: "+w)
 			}
