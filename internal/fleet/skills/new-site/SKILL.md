@@ -105,10 +105,8 @@ each change the person asks for, go back to build-site's step for it, screenshot
 
 Say what's built (the Local URL, the theme folder, its branch). Then offer the next step:
 `create_repo` puts the theme on GitHub (a private repository, its branches pushed, the dump check
-required); it asks the person first. `site_setup` lists everything else the site still needs, each
-with how to do it; this skill doesn't do those yet:
-- hosting and production, then the deploy;
-- the client's comments in BugSmash once it's live.
+required); it asks the person first. Then the `add-production` skill sets up the deploy to whatever
+host the person picks. `site_setup` lists everything else the site still needs, with how.
 
 ## Don't
 

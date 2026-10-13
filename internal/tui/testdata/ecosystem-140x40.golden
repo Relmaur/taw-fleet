@@ -34,7 +34,7 @@
                                                                                         │  ○ Deploy         not checked yet                 
                                                                                         │                   L checks GitHub                 
                                                                                         │  ○ Production     no production URL               
-                                                                                        │                   production_url under [sites.bis…
+                                                                                        │                   the deploy setup adds it; or pr…
                                                                                         │  ↓ more: enter                                    
 
  enter details • > chat • t terminal • U update all • : all actions • / filter • ? help • q quit

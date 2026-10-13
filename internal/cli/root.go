@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	osexec "os/exec"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -271,6 +272,14 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			cfg := a.Config
 			deps.Settings = cfg.Site
 			deps.HasBot = wpremote.Store{Exec: d.Runner}.Has
+			if exe, err := d.exePath(); err == nil {
+				// The terminal goes to the wizard while the dashboard waits (tea.ExecProcess
+				// needs an *exec.Cmd: the one place the dashboard starts a process itself).
+				ctx := cmd.Context()
+				deps.DeploySetup = func(slug, theme string) *osexec.Cmd {
+					return osexec.CommandContext(ctx, exe, "deploy", "setup", slug, "--theme", theme) //nolint:gosec // taw-fleet itself
+				}
+			}
 			if claude, err := a.Claude(); err == nil {
 				deps.Chat, deps.ChatWrites = d.chatter(claude), chatWrites()
 				// The fleet folder stays current (after an upgrade, a settings change).
@@ -292,7 +301,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d), newReadyCmd(d, g), newRepoCmd(d, g))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d), newReadyCmd(d, g), newRepoCmd(d, g), newDeployCmd(d, g))
 	return root
 }
 

@@ -60,6 +60,18 @@ func (k Keychain) Load(ctx context.Context, it Item) (string, error) {
 	return strings.TrimSpace(string(res.Stdout)), nil
 }
 
+// Delete removes the item; nothing to delete is fine.
+func (k Keychain) Delete(ctx context.Context, it Item) error {
+	res, err := k.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/security", Args: []string{"delete-generic-password", "-s", Service, "-a", it.Account}})
+	if err != nil {
+		return err
+	}
+	if res.Code != 0 && res.Code != 44 {
+		return fmt.Errorf("keychain: %s", strings.TrimSpace(string(res.Stderr)))
+	}
+	return nil
+}
+
 // Has says whether the item is in the keychain, without reading its secret.
 func (k Keychain) Has(ctx context.Context, it Item) (bool, error) {
 	res, err := k.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/security", Args: []string{"find-generic-password", "-s", Service, "-a", it.Account}})

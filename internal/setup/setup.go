@@ -72,7 +72,7 @@ func Steps(in Input) []Step {
 	case t.GitHub.Deploy != nil:
 		deploy.Done, deploy.State = true, "workflow "+t.GitHub.Deploy.Workflow
 	default:
-		deploy.State, deploy.Fix = "no deploy workflow", "by hand for now: a .github/workflows/deploy.yml and its secrets (taw-fleet's deploy setup comes with hosting)"
+		deploy.State, deploy.Fix, deploy.Key = "no deploy workflow", "I sets it up to any host: SSH + rsync or git push (taw-fleet deploy setup)", "I"
 	}
 	out = append(out, deploy)
 
@@ -80,7 +80,7 @@ func Steps(in Input) []Step {
 	if c.ProductionURL != "" {
 		prod.Done, prod.State = true, c.ProductionURL
 	} else {
-		prod.State, prod.Fix = "no production URL", "production_url under [sites."+s.Slug+"] in the settings (taw-fleet config path)"
+		prod.State, prod.Fix = "no production URL", "the deploy setup adds it; or production_url under [sites."+s.Slug+"] in the settings"
 	}
 	out = append(out, prod)
 

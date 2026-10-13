@@ -28,7 +28,7 @@
                   u updates the site                                                                
  · Deploy         after the repository                                                              
  ○ Production     no production URL                                                                 
-                  production_url under [sites.acme-shop] in the settings (taw-fleet config path)    
+                  the deploy setup adds it; or production_url under [sites.acme-shop] in the settin…
  · Companion      after production                                                                  
  · Bot            after production                                                                  
  · BugSmash       after production                                                                  

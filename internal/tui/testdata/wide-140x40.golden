@@ -27,7 +27,7 @@
                                                                                         │  ○ Deploy         not checked yet                 
                                                                                         │                   L checks GitHub                 
                                                                                         │  ○ Production     no production URL               
-                                                                                        │                   production_url under [sites.acm…
+                                                                                        │                   the deploy setup adds it; or pr…
                                                                                         │  · Companion      after production                
                                                                                         │  · Bot            after production                
                                                                                         │  · BugSmash       after production                

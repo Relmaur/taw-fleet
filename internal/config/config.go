@@ -257,6 +257,59 @@ func SetTop(p paths.Paths, key, value string) (string, error) {
 	return f, os.WriteFile(f, []byte(strings.Join(lines, "\n")), 0o644)
 }
 
+// SetSite sets a key of a site's table ([sites.<slug>]) to a string value in
+// the settings file, keeping everything else, comments included: the key's
+// line in that table is replaced, or added under its header; a missing table
+// is added at the end. The file must still load afterwards, or it's put back.
+func SetSite(p paths.Paths, slug, key, value string) (string, error) {
+	f := File(p)
+	if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
+		if _, err := Init(p); err != nil {
+			return f, err
+		}
+	}
+	old, err := os.ReadFile(f)
+	if err != nil {
+		return f, err
+	}
+	line := fmt.Sprintf("%s = %q", key, value)
+	lines := strings.Split(string(old), "\n")
+	header := regexp.MustCompile(`^\s*\[sites\.("` + regexp.QuoteMeta(slug) + `"|` + regexp.QuoteMeta(slug) + `)\]\s*(#.*)?$`)
+	set := regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*=`)
+	at := -1
+	for i, l := range lines {
+		if header.MatchString(l) {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+			lines = lines[:len(lines)-1]
+		}
+		lines = append(lines, "", fmt.Sprintf("[sites.%s]", slug), line, "")
+	} else {
+		done := false
+		for i := at + 1; i < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[i]), "["); i++ {
+			if set.MatchString(lines[i]) {
+				lines[i], done = line, true
+				break
+			}
+		}
+		if !done {
+			lines = append(lines[:at+1], append([]string{line}, lines[at+1:]...)...)
+		}
+	}
+	if err := os.WriteFile(f, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		return f, err
+	}
+	if _, err := Load(p); err != nil {
+		_ = os.WriteFile(f, old, 0o644)
+		return f, fmt.Errorf("the settings wouldn't load with %s added, so they're unchanged: %w", line, err)
+	}
+	return f, nil
+}
+
 // Init writes the template. It refuses to overwrite an existing file.
 func Init(p paths.Paths) (string, error) {
 	f := File(p)
