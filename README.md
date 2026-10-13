@@ -49,7 +49,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 |---|---|
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
-| `/` | filter by site, theme, branch or version, or by `behind`, `dirty`, `unpushed`, `running`, `live`, `vite`, `other` (themes of another GitHub account), `classic`, `block` |
+| `/` | filter: words (all must match), `-word` to leave out, and conditions: `is:behind\|dirty\|unpushed\|running\|stopped\|live\|down\|failing\|deploying\|undeployed\|vite\|other`, `has:comments\|prs\|findings\|errors`, `kind:classic\|block`, `core:<1.95` (also `<=`, `>`, `>=`, `=`, or `core:1.97` for any 1.97.x). The footer counts the matches and names a term it didn't understand |
 | `w` | work on it: start the site (when stopped), open the theme in your editor, run Vite (`npm run dev`) in its own window and open the site once Vite answers (asks first). On a theme whose Vite is running (`vite` after its name), `w` stops Vite and the site |
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |

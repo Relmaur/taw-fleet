@@ -204,10 +204,11 @@ type Model struct {
 	mode    mode
 	scroll  int // detail screen scroll
 
-	flash    string // last action's result, shown in the footer
-	flashErr bool
-	flashTip bool // a hint, not a result: muted, no ✓
-	flashAt  time.Time
+	flash      string // last action's result, shown in the footer
+	flashErr   bool
+	filterHint string // the filter's terms it didn't understand
+	flashTip   bool   // a hint, not a result: muted, no ✓
+	flashAt    time.Time
 
 	confirm string                             // question on screen; "" = none
 	onYes   func(Model) (tea.Model, tea.Cmd)   // what "yes" does
@@ -281,7 +282,7 @@ func New(ctx context.Context, d Deps) Model {
 	m.menuInput = textinput.New()
 	m.menuInput.Prompt = ": "
 	m.menuInput.Placeholder = "type to find an action"
-	m.filter.Placeholder = "site, theme, branch, version, or: behind, dirty, unpushed, running, live, vite"
+	m.filter.Placeholder = "words, -word, is:behind, has:comments, kind:block, core:<1.95 (all must match)"
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	m.help = help.New()
 	m.setDark(d.Dark)
@@ -1009,50 +1010,30 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 }
 
 func (m *Model) applyFilter() {
-	q := strings.ToLower(strings.TrimSpace(m.filter.Value()))
+	terms, problems := parseFilter(m.filter.Value())
+	m.filterHint = filterHint(problems)
 	m.visible = m.visible[:0]
 	for i, r := range m.rows {
-		if q == "" || m.matches(r, q) {
+		if m.matches(r, terms) {
 			m.visible = append(m.visible, i)
 		}
 	}
 	m.clamp()
 }
 
-func (m Model) matches(r row, q string) bool {
+// matches reports whether a card passes every term of the filter.
+func (m Model) matches(r row, terms []filterTerm) bool {
+	if len(terms) == 0 {
+		return true
+	}
 	s := m.rep.Sites[r.site]
-	t := s.Themes[r.theme]
-	hay := []string{s.Slug, s.Name, s.Domain, t.Dir, string(t.Kind), string(s.Status), t.Core.Installed}
-	if t.Kind == site.KindGutenberg {
-		hay = append(hay, "block") // the cards say "block"
-	}
-	if t.Core.Behind {
-		hay = append(hay, "behind")
-	}
-	if m.deps.Production[s.Slug] {
-		hay = append(hay, "live")
-	}
-	if t.Dev != "" {
-		hay = append(hay, "vite")
-	}
-	if t.Account != "" {
-		hay = append(hay, "@"+t.Account, "other")
-	}
-	if g := t.Git; g != nil {
-		hay = append(hay, g.Branch)
-		if g.Dirty > 0 {
-			hay = append(hay, "dirty", "uncommitted")
-		}
-		if !g.HasUpstream() || g.Ahead > 0 {
-			hay = append(hay, "unpushed")
+	f := m.filterFactsOf(s, s.Themes[r.theme])
+	for _, t := range terms {
+		if !t.matches(f) {
+			return false
 		}
 	}
-	for _, h := range hay {
-		if strings.Contains(strings.ToLower(h), q) {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func (m *Model) move(delta int) {
