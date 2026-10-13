@@ -61,6 +61,10 @@ var Tools = []ToolDoc{
 		"The hosts taw-fleet knows (WPMU DEV, WP Engine by SSH or git push, Kinsta, SiteGround, Cloudways) and any SSH host or git remote: the method each uses (rsync or git), what it pre-fills, and where in the host's panel each value is and where the public key goes. A profile only pre-fills; deploy_test decides."},
 	{"deploy_test", "Test a deploy target", "taw-fleet deploy test <site> …", "I on the Deploy step",
 		"Connects to the host with the site's deploy key (deploy_key), as the deploy will: SSH + rsync logs in, finds the theme folder's parent and rsync; git lists the remote. Reads the server's host key (pinned by deploy_apply). Nothing on the server changes."},
+	{"launch_report", "Check a live site and write its launch report", "taw-fleet launch-report <site> --json", "I once the site is live",
+		"For a site in production: HTTPS, http:// moving to https://, the certificate, search engines let in (no noindex), the last deploy, the companion (verified, the same taw/core, plugins, security), PageSpeed mobile and desktop (up to a minute, unless no_speed), watch, BugSmash and the SETUP checklist; what's left for the person, with how. Saves ~/TAW Fleet/sites/<site>/launch.html (and .md) with PageSpeed's pictures of production beside the Local build's from build/. Production is only read."},
+	{"bugsmash_projects", "BugSmash projects", "taw-fleet comments projects --json", "FB column",
+		"Every BugSmash project the stored key sees, with its id and review page: for link_bugsmash."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
 		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands run at once: " +
 			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
@@ -119,6 +123,11 @@ type (
 		Language string `json:"language,omitempty" jsonschema:"en or es; empty for the site's setting"`
 		Speed    bool   `json:"speed,omitempty" jsonschema:"also measure PageSpeed (mobile and desktop; up to a minute)"`
 	}
+	launchIn struct {
+		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Theme   string `json:"theme,omitempty" jsonschema:"which TAW theme, when the site has several"`
+		NoSpeed bool   `json:"no_speed,omitempty" jsonschema:"skip PageSpeed (it takes up to a minute)"`
+	}
 	tawIn struct {
 		Theme   string   `json:"theme" jsonschema:"the theme: its folder name (chcapital), a site, or site/theme for a site with two TAW themes"`
 		Args    []string `json:"args" jsonschema:"the command and its arguments, e.g. [\"inspect\"] or [\"sync\", \"--json\"]"`
@@ -166,6 +175,22 @@ func NewServer(d Deps) *sdk.Server {
 			return nil, nil, err
 		}
 		return run(ctx, d, args)
+	})
+	sdk.AddTool(s, tool("launch_report"), func(ctx context.Context, _ *sdk.CallToolRequest, in launchIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Site) == "" {
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		}
+		args := []string{"launch-report", in.Site, "--json"}
+		if in.Theme != "" {
+			args = append(args, "--theme", in.Theme)
+		}
+		if in.NoSpeed {
+			args = append(args, "--no-speed")
+		}
+		return run(ctx, d, args)
+	})
+	sdk.AddTool(s, tool("bugsmash_projects"), func(ctx context.Context, _ *sdk.CallToolRequest, _ struct{}) (*sdk.CallToolResult, any, error) {
+		return run(ctx, d, []string{"comments", "projects", "--json"})
 	})
 	sdk.AddTool(s, tool("restore_points"), func(ctx context.Context, _ *sdk.CallToolRequest, in siteIn) (*sdk.CallToolResult, any, error) {
 		if strings.TrimSpace(in.Site) == "" {

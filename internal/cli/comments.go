@@ -124,7 +124,7 @@ func newCommentsCmd(d Deps, g *globals) *cobra.Command {
 			}
 			targets := feedbackTargets(cfg)
 			if len(targets) == 0 {
-				return errors.New("no BugSmash projects: add bugsmash_project under [sites.<folder>] in the config (taw-fleet config path; ids from taw-fleet comments projects)")
+				return errors.New("no BugSmash projects linked: taw-fleet comments link <site> <project id> (ids from taw-fleet comments projects)")
 			}
 			if len(args) == 1 {
 				t, err := pickFeedbackTarget(cmd.Context(), d, g, targets, args[0])
@@ -153,7 +153,7 @@ func newCommentsCmd(d Deps, g *globals) *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.Flags().BoolVar(&prompt, "prompt", false, "print the prompt X hands Claude Code to resolve the site's open comments")
 	cmd.Flags().StringVar(&theme, "theme", "", "which TAW theme, when the site has several (with --prompt)")
-	cmd.AddCommand(newCommentsKeyCmd(d), newCommentsProjectsCmd(d))
+	cmd.AddCommand(newCommentsKeyCmd(d), newCommentsProjectsCmd(d), newCommentsLinkCmd(d, g))
 	return cmd
 }
 

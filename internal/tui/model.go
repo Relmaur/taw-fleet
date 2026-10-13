@@ -98,6 +98,9 @@ type Deps struct {
 	// ReportTask makes a site's monthly report ("2026-10") and opens it;
 	// ReportDir is where reports are saved. nil = no m.
 	ReportTask func(s site.Site, month string) actions.Task
+	// LaunchTask checks a live site's production and opens its launch report
+	// (I once the deploy is set up); nil hides it.
+	LaunchTask func(s site.Site, theme string) actions.Task
 	ReportDir  string
 	// Select is the site to open the dashboard on, its details showing: a
 	// folder, name or domain ("" = the first).

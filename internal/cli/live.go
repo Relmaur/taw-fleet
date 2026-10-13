@@ -375,7 +375,7 @@ func newLiveTrustCmd(d Deps, g *globals) *cobra.Command {
 				}
 			}
 			if !yes {
-				ok, err := d.confirm(out, "Pin this key for "+t.Slug+"?")
+				ok, err := d.confirm(out, "Pin key "+sk.ID+" for "+t.Slug+" ("+t.URL+")? Its answers are then verified against it.")
 				if err != nil {
 					return err
 				}

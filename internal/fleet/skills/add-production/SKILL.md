@@ -50,9 +50,12 @@ settings. Merging that pull request deploys: offer `merge_pr` once its CI passes
 
 ## 5. After the first deploy
 
-`site_setup` again: next are the companion (`taw-fleet live trust <site>` once the site answers),
-the bot and BugSmash. Say which are left and how; remind the person to clear the site's page cache
-after a deploy has finished, not during it.
+Remind the person to clear the site's page cache after a deploy has finished, not during it. Then:
+- `trust_production` once the site answers: it pins the companion's key (it asks);
+- `bugsmash_projects` and `link_bugsmash`, if the person has a BugSmash project for the site;
+- `launch_report`: production checked (HTTPS, search engines let in, the deploy, the companion,
+  PageSpeed) and what's left for the person, in `~/TAW Fleet/sites/<site>/launch.html`. Give them
+  its summary and what's left.
 
 ## Don't
 
