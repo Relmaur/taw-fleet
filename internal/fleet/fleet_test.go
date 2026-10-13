@@ -16,7 +16,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("%s: description %q", s.Name, s.Description)
 		}
 	}
-	if strings.Join(names, " ") != "fleet-check onboard-mac update-fleet" {
+	if strings.Join(names, " ") != "fleet-check new-site onboard-mac update-fleet" {
 		t.Errorf("skills: %v", names)
 	}
 }
@@ -46,7 +46,7 @@ func TestWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrote := strings.Join(r.Wrote, " ")
-	for _, want := range []string{"CLAUDE.md", ".mcp.json", ".claude/skills/fleet-check/SKILL.md", ".claude/skills/update-fleet/SKILL.md", ".claude/skills/onboard-mac/SKILL.md"} {
+	for _, want := range []string{"CLAUDE.md", ".mcp.json", ".claude/skills/fleet-check/SKILL.md", ".claude/skills/update-fleet/SKILL.md", ".claude/skills/onboard-mac/SKILL.md", ".claude/skills/new-site/review-template.html"} {
 		if !strings.Contains(wrote, want) {
 			t.Errorf("didn't write %s: %v", want, r.Wrote)
 		}

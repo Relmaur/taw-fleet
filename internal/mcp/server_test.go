@@ -236,6 +236,8 @@ func TestWritesAskFirst(t *testing.T) {
 		{"sync_apply", map[string]any{"site": "chcapital"}, "sync chcapital --apply"},
 		{"pull_content", map[string]any{"site": "chcapital"}, "pull chcapital"},
 		{"restore_site", map[string]any{"site": "ls-mxico"}, "restore ls-mxico latest"},
+		{"create_site", map[string]any{"name": "Acme Bakery", "kind": "classic"}, "create Acme Bakery --classic --no-password"},
+		{"create_site", map[string]any{"name": "Acme Bakery", "kind": "block", "domain": "bakery.local", "admin_email": "a@b.co"}, "create Acme Bakery --block --domain bakery.local --admin-email a@b.co --no-password"},
 		{"restore_site", map[string]any{"site": "ls-mxico", "point": "20261012-180000-update"}, "restore ls-mxico 20261012-180000-update"},
 	} {
 		c.ask = nil

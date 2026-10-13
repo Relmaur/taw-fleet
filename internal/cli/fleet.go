@@ -55,8 +55,8 @@ func newInitCmd(info BuildInfo, d Deps) *cobra.Command {
 		Short: "Set up the fleet folder (~/TAW Fleet): CLAUDE.md, taw-fleet's MCP server, the fleet skills",
 		Long: "Write the fleet folder, where Claude works on the whole fleet (the dashboard's chat, or\n" +
 			"`claude` there): a CLAUDE.md made from the settings, taw-fleet's MCP server in .mcp.json,\n" +
-			"and the fleet skills (fleet-check, update-fleet, onboard-mac). The dashboard does this\n" +
-			"too when it opens, so it stays current after an upgrade. Your own notes\n" +
+			"and the fleet skills (fleet-check, new-site, update-fleet, onboard-mac). The dashboard\n" +
+			"does this too when it opens, so it stays current after an upgrade. Your own notes\n" +
 			"(CLAUDE.local.md), skills and reports are left alone.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

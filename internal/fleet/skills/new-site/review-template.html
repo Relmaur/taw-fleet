@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- new-site's review page: copy to ~/TAW Fleet/sites/<slug>/review.html, set the title and
+     date, and repeat one <section> per page. Image paths are relative to this file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SITE NAME · reference and build</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1f2328; --muted: #656d76; --line: #d0d7de; --accent: #8250df; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --card: #161b22; --text: #e6edf3; --muted: #8d96a0; --line: #30363d; --accent: #a371f7; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { padding: 24px 24px 8px; }
+  h1 { margin: 0; font-size: 22px; }
+  .meta { color: var(--muted); }
+  nav { padding: 0 24px 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+  nav a { color: var(--accent); text-decoration: none; }
+  section { margin: 0 24px 32px; padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  h2 { margin: 0 0 4px; font-size: 18px; }
+  .notes { color: var(--muted); margin: 0 0 12px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .pair.mobile { grid-template-columns: repeat(2, minmax(0, 390px)); justify-content: start; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  img { width: 100%; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  @media (max-width: 800px) { .pair, .pair.mobile { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>SITE NAME</h1>
+  <p class="meta">Reference beside the Local build · DATE · brief: brief.md</p>
+</header>
+<nav><a href="#home">Home</a></nav>
+
+<section id="home">
+  <h2>Home</h2>
+  <p class="notes">What matches, and what doesn't yet.</p>
+  <div class="pair">
+    <figure><figcaption>Reference · desktop</figcaption><img src="reference/home-desktop.png" alt="Reference, home, desktop"></figure>
+    <figure><figcaption>Build · desktop</figcaption><img src="build/home-desktop.png" alt="Build, home, desktop"></figure>
+  </div>
+  <div class="pair mobile">
+    <figure><figcaption>Reference · mobile</figcaption><img src="reference/home-mobile.png" alt="Reference, home, mobile"></figure>
+    <figure><figcaption>Build · mobile</figcaption><img src="build/home-mobile.png" alt="Build, home, mobile"></figure>
+  </div>
+</section>
+</body>
+</html>
