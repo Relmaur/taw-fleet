@@ -206,6 +206,7 @@ type Model struct {
 
 	flash    string // last action's result, shown in the footer
 	flashErr bool
+	flashTip bool // a hint, not a result: muted, no ✓
 	flashAt  time.Time
 
 	confirm string                             // question on screen; "" = none
@@ -356,7 +357,13 @@ func (m Model) doSiteOp(s site.Site, op local.Op) (tea.Model, tea.Cmd) {
 const flashFor = 6 * time.Second
 
 func (m *Model) setFlash(msg string, isErr bool) {
-	m.flash, m.flashErr, m.flashAt = msg, isErr, m.deps.Now()
+	m.flash, m.flashErr, m.flashTip, m.flashAt = msg, isErr, false, m.deps.Now()
+}
+
+// setTip is a footer hint: how to do something, not the result of an action.
+func (m *Model) setTip(msg string) {
+	m.setFlash(msg, false)
+	m.flashTip = true
 }
 
 // run does an action in the background and reports back.
@@ -640,8 +647,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.onKey(msg)
+
+	case tea.PasteMsg:
+		return m.onPaste(msg)
 	}
 	return m, nil
+}
+
+// onPaste puts pasted text where typing goes: the chat's input, or the filter.
+func (m Model) onPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.mode == modeChat:
+		if c := m.currentChat(); c != nil && c.ask == nil {
+			c.input, cmd = c.input.Update(msg)
+		}
+	case m.filtering:
+		m.filter, cmd = m.filter.Update(msg)
+		m.applyFilter()
+	}
+	return m, cmd
 }
 
 func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
