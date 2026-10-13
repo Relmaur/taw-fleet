@@ -1,0 +1,40 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+ ⌂ LOCAL ────────────────────────────────────────────────────────────────────────── this Mac · Local
+ ● acme-shop  http://acme.local  running                                                            
+   ~/Local Sites/acme-shop                                                                          
+   PHP 8.2.30  ·  id a1                                                                             
+   Local name: Acme                                                                                 
+                                                                                                    
+ ╭───────────────────────────────────────────────╮                                                  
+ │ acme  classic                                 │                                                  
+ │                                               │                                                  
+ │ path       wp-content/themes/acme             │                                                  
+ │ taw/core   1.76.1  (latest)                   │                                                  
+ │ git        main ◇ unpushed                    │                                                  
+ │ remote     git@github.com:Relmaur/x.git       │                                                  
+ │ version    abc1234  ·  last commit 2 days ago │                                                  
+ │ bin/taw    yes                                │                                                  
+ ╰───────────────────────────────────────────────╯                                                  
+                                                                                                    
+ ⚑ FINDINGS ───────────────────────────────────────────────────────────────────────────────── doctor
+   ▲ branch main isn't pushed (no upstream)  acme  git.no-upstream                                  
+     → git push -u origin main                                                                      
+                                                                                                    
+ ⚙ SETUP ─────────────────────────────────────────────────────────────────── I · set up the next one
+ → Repository     not on GitHub                                                                     
+                  I creates a private GitHub repository and pushes it                               
+ ○ Secrets check  comes with taw/core 1.94                                                          
+                  u updates the site                                                                
+ · Deploy         after the repository                                                              
+ ○ Production     no production URL                                                                 
+                  production_url under [sites.acme-shop] in the settings (taw-fleet config path)    
+ · Companion      after production                                                                  
+ · Bot            after production                                                                  
+ · BugSmash       after production                                                                  
+ ✓ Skills         taw/core's site skills installed                                                  
+                                                                                                    
+                                                                                                    
+                                                                                                    
+
+ ↑/↓ scroll • pgdn page down • > chat about this site • esc back • ? help • q quit

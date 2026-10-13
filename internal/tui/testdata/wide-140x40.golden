@@ -20,18 +20,18 @@
                                                                                         │  ⚑ FINDINGS ─────────────────────────────── doctor
                                                                                         │  ✓ Nothing to report.                             
                                                                                         │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
+                                                                                        │  ⚙ SETUP ───────────────── I · set up the next one
+                                                                                        │  ✓ Repository     Relmaur/client--theme           
+                                                                                        │  → Secrets check  comes with taw/core 1.94        
+                                                                                        │                   u updates the site              
+                                                                                        │  ○ Deploy         not checked yet                 
+                                                                                        │                   L checks GitHub                 
+                                                                                        │  ○ Production     no production URL               
+                                                                                        │                   production_url under [sites.acm…
+                                                                                        │  · Companion      after production                
+                                                                                        │  · Bot            after production                
+                                                                                        │  · BugSmash       after production                
+                                                                                        │  ✓ Skills         taw/core's site skills installed
                                                                                         │                                                   
                                                                                         │                                                   
                                                                                         │                                                   

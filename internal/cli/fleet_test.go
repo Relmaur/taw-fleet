@@ -38,3 +38,20 @@ func TestChatPrompt(t *testing.T) {
 		t.Error("chat without --prompt")
 	}
 }
+
+func TestReady(t *testing.T) {
+	p := fixture(t)
+	out, err := run(t, p, "--offline", "ready", "acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"acme · acme-theme", "Repository", "not a git repository", "Production", "no production URL", "Companion"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lacks %q:\n%s", want, out)
+		}
+	}
+	out, err = run(t, p, "--offline", "ready", "--json")
+	if err != nil || !strings.Contains(out, `"name": "Repository"`) {
+		t.Errorf("%v\n%s", err, out)
+	}
+}

@@ -20,7 +20,7 @@ type keyMap struct {
 	SyncCheck, SyncAll, SyncApply, UpdateCore, Output, Menu           key.Binding
 	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch, Restore    key.Binding
 	Report                                                            key.Binding
-	Comments, Resolve, Ask, Chat                                      key.Binding
+	Comments, Resolve, Ask, Chat, Setup                               key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -74,6 +74,7 @@ func newKeyMap() keyMap {
 		Resolve:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "resolve comments")),
 		Ask:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ask Claude…")),
 		Chat:        key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat with Claude")),
+		Setup:       key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "set up next")),
 	}
 }
 
@@ -191,7 +192,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 // FullHelp is the help screen, in columns.
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.Quit},
+		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.Setup, k.Quit},
 		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Ask},
 		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report},
 		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve, k.Chat},

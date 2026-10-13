@@ -93,6 +93,8 @@ var WriteTools = []WriteDoc{
 		"Brings the production site's content into the Local site. The first call shows the preview of what would change; confirming imports it (a rollback snapshot is kept).", false, false},
 	{"create_site", "Create a site", "taw-fleet create <name> --classic|--block", "n",
 		"Creates a Local site with a new TAW theme: classic (taw-theme: PHP blocks, Vite, Tailwind, Alpine) or block (taw-gutenberg: full site editing). Local must be open. The admin user and email come from the settings' [create] section unless given. The admin password isn't shown here; the person can set one with taw-fleet wp <site> user update <user> --prompt=user_pass.", false, false},
+	{"create_repo", "Put a theme on GitHub", "taw-fleet repo <site> [--owner X] [--name Y]", "I",
+		"For a theme with no GitHub repository yet (a new site): a private repository (owner: the settings' first github_owners, else gh's account; name: <theme folder>--theme), origin, the default and current branches pushed, and the dump check (ci / committed-files) required on the default branch. Needs gh signed in.", false, false},
 	{"restore_site", "Put back a restore point", "taw-fleet restore <site> <point>", "z",
 		"Puts a restore point back (restore_points lists them; point defaults to the latest): the theme onto the point's branch (commits since stay) and the Local database from its copy, replacing the current one. How things are just before is saved as a new point first, so it can be undone.", false, true},
 }
@@ -118,6 +120,13 @@ type (
 		AdminUser  string `json:"admin_user,omitempty" jsonschema:"WordPress admin username (default: the settings' [create] admin_user)"`
 		AdminEmail string `json:"admin_email,omitempty" jsonschema:"WordPress admin email (default: the settings' [create] admin_email)"`
 		Confirm    string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
+	}
+	repoIn struct {
+		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Theme   string `json:"theme,omitempty" jsonschema:"which TAW theme, when the site has several"`
+		Owner   string `json:"owner,omitempty" jsonschema:"the GitHub account or organization (default: the settings' first github_owners, else gh's account)"`
+		Name    string `json:"name,omitempty" jsonschema:"the repository's name (default: <theme folder>--theme)"`
+		Confirm string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
 	}
 	mergeIn struct {
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -207,6 +216,19 @@ func addWrites(s *sdk.Server, d Deps, tk *tokens) {
 		}
 		args = append(args, "--no-password")
 		return ask(ctx, req, d, tk, "create_site", args, in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("create_repo"), func(ctx context.Context, req *sdk.CallToolRequest, in repoIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"repo"}, in.Site, in.Theme)
+		if err != nil {
+			return nil, nil, err
+		}
+		if in.Owner != "" {
+			args = append(args, "--owner", in.Owner)
+		}
+		if in.Name != "" {
+			args = append(args, "--name", in.Name)
+		}
+		return ask(ctx, req, d, tk, "create_repo", args, in.Confirm)
 	})
 	sdk.AddTool(s, writeTool("merge_pr"), func(ctx context.Context, req *sdk.CallToolRequest, in mergeIn) (*sdk.CallToolResult, any, error) {
 		args, err := siteArgs([]string{"merge"}, in.Site, in.Theme)

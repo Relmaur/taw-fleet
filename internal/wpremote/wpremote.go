@@ -56,6 +56,12 @@ func (s Store) Save(ctx context.Context, slug string, c Creds) error {
 	return keychain.Keychain{Exec: s.Exec}.Save(ctx, item(slug), c.User+":"+c.Password)
 }
 
+// Has says whether the site's bot is stored, without reading the password.
+func (s Store) Has(ctx context.Context, slug string) bool {
+	ok, err := keychain.Keychain{Exec: s.Exec}.Has(ctx, item(slug))
+	return err == nil && ok
+}
+
 // Load reads the site's credentials; ErrNoCreds when none are stored.
 func (s Store) Load(ctx context.Context, slug string) (Creds, error) {
 	v, err := keychain.Keychain{Exec: s.Exec}.Load(ctx, item(slug))

@@ -55,6 +55,8 @@ var Tools = []ToolDoc{
 		"A site's restore points, newest first: what each holds (the Local database copy and its size, the theme's branch and commit), why it was made (before an update, a merge, a content import) and when. restore_site puts one back."},
 	{"monthly_report", "A site's monthly report", "taw-fleet report <site> [--month 2026-09] --print --json", "m",
 		"A site's month for its client, as data: availability (watch's checks), framework updates and maintenance, the site's own changes merged, deploys, BugSmash comments received and resolved, the live site's versions, plugins and vulnerabilities, and (speed: true, up to a minute) PageSpeed scores. Nothing is saved or sent: taw-fleet report saves it as Markdown and HTML."},
+	{"site_setup", "What a site still needs", "taw-fleet ready [site] --json", "SETUP section, I",
+		"The SETUP checklist for one site or every client site: repository, secrets check, deploy, production, companion, bot, BugSmash, skills. Each step says what's there, or how to do it (create_repo does the repository)."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
 		"Runs a TAW theme's own command line (its taw/core's vendor/bin/taw) with its Local site's PHP and database. Read-only commands run at once: " +
 			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
@@ -143,6 +145,13 @@ func NewServer(d Deps) *sdk.Server {
 	})
 	sdk.AddTool(s, tool("comments"), func(ctx context.Context, _ *sdk.CallToolRequest, in maybeSiteIn) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, flags(withSite([]string{"comments"}, in.Site, "--json"), in.Offline, "--offline"))
+	})
+	sdk.AddTool(s, tool("site_setup"), func(ctx context.Context, _ *sdk.CallToolRequest, in maybeSiteIn) (*sdk.CallToolResult, any, error) {
+		args := []string{"ready", "--json"}
+		if in.Site != "" {
+			args = []string{"ready", in.Site, "--json"}
+		}
+		return run(ctx, d, args)
 	})
 	sdk.AddTool(s, tool("restore_points"), func(ctx context.Context, _ *sdk.CallToolRequest, in siteIn) (*sdk.CallToolResult, any, error) {
 		if strings.TrimSpace(in.Site) == "" {

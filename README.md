@@ -69,6 +69,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `F` | open the site's BugSmash review page, where its comments are |
 | `X` | resolve the site's open comments with Claude: Claude Code in a window beside the dashboard, in the theme folder, asked to use the theme's `resolve-comments` skill on them |
 | `a` | ask Claude…: pick one of the theme's skills (resolve-comments, perf-audit, audit-seo, the site's own…) and Claude Code starts on it in the theme folder, beside the dashboard, with what taw-fleet knows about the site; or a fleet skill (fleet-check, update-fleet, onboard-mac), which runs in the fleet's chat (see [The fleet folder](#the-fleet-folder-taw-fleet)) |
+| `I` | set up the next thing: the SETUP checklist's next step that has a key (a theme with no GitHub repository gets a private one, pushed, with the dump check required), or how to do it by hand (see [Set up a site](#set-up-a-site)) |
 | `>` | chat with Claude: your own Claude Code with taw-fleet's tools, about the whole fleet (from the list) or this site (from its details); it asks before it changes anything (see [Chat with Claude](#chat-with-claude-)) |
 | `m` | the site's monthly report for its client: this month so far, or last month; made, saved and opened in the browser (see [Monthly reports](#monthly-reports)) |
 | `z` | put back a restore point: asks which (the site's newest first), then puts it back after asking again (see [Restore points](#restore-points)) |
@@ -534,6 +535,29 @@ deploy it", "move the hero image above the title", "resolve the client's comment
   working; `>` brings the conversation back. Each site keeps its own while the dashboard is open.
   `ctrl+c` stops Claude; the next message carries on the same conversation.
 
+## Set up a site
+
+A site's details end with a **SETUP** checklist: what the site has and what it still needs, in the
+order it gets set up. **Repository** (on GitHub, pushed), **Secrets check** (taw/core's pre-commit
+hook on), **Deploy** (a deploy workflow), **Production** (`production_url` in the settings),
+**Companion** (answers and verified), **Bot** (in the Keychain, for production writes), **BugSmash**
+(a project linked), **Skills** (taw/core's site skills installed). Each missing step says how to do
+it; steps that wait for production say so. `I` does the next step that has a key, else says how.
+
+**A new site on GitHub** (`I`, or `taw-fleet repo <site>`): for a theme with no GitHub repository,
+a private repository named `<theme folder>--theme` (`--name`), owned by the settings' first
+`github_owners` or your `gh` account (`--owner`), added as `origin`, with the default branch and the
+current one pushed, and the dump check (`ci / committed-files`) required on the default branch, as
+the fleet's other repositories have it. It asks first and needs `gh` signed in. If GitHub won't add
+the requirement (a plan without rulesets on private repositories), the repository is still made and
+it says how to add it by hand.
+
+```bash
+taw-fleet ready                 # every client site's checklist
+taw-fleet ready acme-bakery --json
+taw-fleet repo acme-bakery      # asks first
+```
+
 ## The fleet folder (`~/TAW Fleet`)
 
 Where Claude works on the whole fleet: the dashboard's fleet chat (`>` from the list) starts there,
@@ -593,6 +617,7 @@ Each tool is a command you can run yourself, and answers with that command's `--
 | `pull_requests` | `taw-fleet prs --json` |
 | `comments` | `taw-fleet comments [site] --json` |
 | `production` | `taw-fleet live --json` |
+| `site_setup` | `taw-fleet ready [site] --json`: the SETUP checklist |
 | `taw` | `taw @<theme> <command…>`: read-only ones (`list`, `help`, `inspect`, `policy`, `sync` and `upgrade` without `--apply`, `content:diff`) at once |
 
 **Tools that change something ask first**, as the dashboard does. The first call runs the command
@@ -608,6 +633,7 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `start_site`, `stop_site` | `taw-fleet start|stop <site>` (`s`) |
 | `sync_apply` | `taw-fleet sync <site> --apply` (`S`) |
 | `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
+| `create_repo` | `taw-fleet repo <site>` (`I`): a new site's theme on GitHub |
 | `create_site` | `taw-fleet create <name> --classic\|--block` (`n`); the admin password isn't shown to the agent (it says how to set one) |
 
 The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones
