@@ -121,3 +121,36 @@ func TestSetTopKeepsTheRest(t *testing.T) {
 		t.Errorf("got:\n%s", data)
 	}
 }
+
+func TestSetSite(t *testing.T) {
+	p := paths.ForHome(t.TempDir(), nil)
+	f := File(p)
+	write(t, p, "editor = \"Cursor\"\n\n# the live ones\n[sites.ls-mxico]\nnotes = \"Deploys from main.\" # kept\n\n[sites.chcapital]\nproduction_url = \"https://old.example\"\n")
+	if _, err := SetSite(p, "ls-mxico", "production_url", "https://lsmexico.mx"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetSite(p, "chcapital", "production_url", "https://chcapital.mx"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetSite(p, "acme-bakery", "production_url", "https://acme.mx"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(f)
+	want := "editor = \"Cursor\"\n\n# the live ones\n[sites.ls-mxico]\nproduction_url = \"https://lsmexico.mx\"\nnotes = \"Deploys from main.\" # kept\n\n" +
+		"[sites.chcapital]\nproduction_url = \"https://chcapital.mx\"\n\n[sites.acme-bakery]\nproduction_url = \"https://acme.mx\"\n"
+	if string(data) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", data, want)
+	}
+	c, err := Load(p)
+	if err != nil || c.Site("acme-bakery").ProductionURL != "https://acme.mx" || c.Site("ls-mxico").Notes != "Deploys from main." {
+		t.Errorf("load: %v %+v", err, c.Sites)
+	}
+
+	// A value the settings refuse is put back.
+	if _, err := SetSite(p, "acme-bakery", "production_url", "acme.mx"); err == nil {
+		t.Error("accepted a URL without https://")
+	}
+	if again, _ := os.ReadFile(f); string(again) != want {
+		t.Errorf("not put back:\n%s", again)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	osexec "os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -132,6 +133,9 @@ type Deps struct {
 	// HasBot says whether the site's bot is in the Keychain (never reading
 	// the password). nil = unknown.
 	HasBot func(ctx context.Context, slug string) bool
+	// DeploySetup is the deploy wizard (taw-fleet deploy setup <site>) for
+	// the terminal to run while the dashboard waits. nil = none.
+	DeploySetup func(slug, theme string) *osexec.Cmd
 	// FleetSkills are the fleet folder's skills: the a picker lists them,
 	// and one runs in the fleet's chat.
 	FleetSkills []actions.Skill
@@ -499,6 +503,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case reportsMsg:
 		m.reports = msg
 		return m, nil
+
+	case deploySetupDoneMsg:
+		return m.onDeploySetupDone(msg)
 
 	case botsMsg:
 		m.bots = msg

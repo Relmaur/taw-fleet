@@ -552,7 +552,22 @@ the fleet's other repositories have it. It asks first and needs `gh` signed in. 
 the requirement (a plan without rulesets on private repositories), the repository is still made and
 it says how to add it by hand.
 
+**Deploy, to any host** (`I` on the Deploy step, or `taw-fleet deploy setup <site>`): taw/core's shared
+deploy (1.97+), by **SSH + rsync** into the theme's folder on the server or by **git push** to the host's
+remote. Pick a host profile (WPMU DEV, WP Engine by SSH or git push, Kinsta, SiteGround, Cloudways, or any
+other SSH host or git remote): it only pre-fills and says where each value is in that host's panel. Then
+the details and the production URL; taw-fleet makes an ed25519 deploy key (Keychain, `deploy-<slug>`) and
+shows only its public half (copied) to add at the host; the test logs in as the deploy will and pins the
+server's host key. Apply (asks): the repository's variables (`DEPLOY_*`, on stdin) and the secret
+`DEPLOY_SSH_KEY`, taw/core's stub (`.github/workflows/deploy.yml`) on `deploy/setup` with a pull request
+(merging it is the first deploy), `production_url` in the settings; the key's local copy is deleted. A
+theme with its own deploy workflow keeps it. For an agent, the same in steps: `deploy key`, `deploy test`,
+`deploy apply` (`taw-fleet deploy profiles` lists the hosts).
+
 ```bash
+taw-fleet deploy setup acme-bakery                       # the form
+taw-fleet deploy apply acme-bakery --profile kinsta --host 1.2.3.4 --port 40123 \
+  --user acme --path /www/acme_1/public/wp-content/themes/acme --url https://acme.mx
 taw-fleet ready                 # every client site's checklist
 taw-fleet ready acme-bakery --json
 taw-fleet repo acme-bakery      # asks first
@@ -573,7 +588,7 @@ date every time it opens (after an upgrade, a settings change):
   check, read-only: doctor, production, comments, pull requests and watch, most urgent first),
   **update-fleet** (what `U` does, then the themes that stopped, and each merge and deploy one site
   at a time, asking before each), **onboard-mac** (tools, sites, keys and watch on a new Mac) and
-  **new-site** (below).
+  **new-site** (below) and **add-production** (the deploy to any host, in the chat).
   `a` lists them under **Fleet skills**; picking one runs it in the fleet's chat. Your own skills
   there stay; a fleet skill taw-fleet stops shipping is removed.
 
@@ -634,6 +649,7 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `sync_apply` | `taw-fleet sync <site> --apply` (`S`) |
 | `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
 | `create_repo` | `taw-fleet repo <site>` (`I`): a new site's theme on GitHub |
+| `deploy_key`, `deploy_apply` | `taw-fleet deploy key`, `deploy apply <site> …` (`I` on Deploy): the deploy to any host; `deploy_profiles` and `deploy_test` read |
 | `create_site` | `taw-fleet create <name> --classic\|--block` (`n`); the admin password isn't shown to the agent (it says how to set one) |
 
 The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones

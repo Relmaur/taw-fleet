@@ -108,6 +108,8 @@ func (m Model) setupNext() (tea.Model, tea.Cmd) {
 	case !ok:
 		m.setFlash(s.Slug+" is all set up (what's left waits on production)", false)
 		return m, nil
+	case next.Key == "I" && next.Name == "Deploy":
+		return m.deploySetup(s, t)
 	case next.Key == "I":
 		return m.askRepo(s, t)
 	case next.Key != "":
@@ -115,6 +117,41 @@ func (m Model) setupNext() (tea.Model, tea.Cmd) {
 	}
 	m.setFlash(next.Name+": "+next.Fix, false)
 	return m, nil
+}
+
+// deploySetupDoneMsg is the deploy wizard handing the terminal back.
+type deploySetupDoneMsg struct {
+	slug string
+	err  error
+}
+
+// deploySetup hands the terminal to taw-fleet deploy setup (a form: host,
+// details, key, test, apply), then reads everything again.
+func (m Model) deploySetup(s site.Site, t site.Theme) (tea.Model, tea.Cmd) {
+	if m.deps.DeploySetup == nil {
+		m.setFlash("Deploy: taw-fleet deploy setup "+s.Slug, false)
+		return m, nil
+	}
+	c := m.deps.DeploySetup(s.Slug, t.Dir)
+	slug := s.Slug
+	return m, tea.ExecProcess(c, func(err error) tea.Msg { return deploySetupDoneMsg{slug, err} })
+}
+
+func (m Model) onDeploySetupDone(msg deploySetupDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.setFlash("deploy setup: "+msg.err.Error(), true)
+	} else {
+		m.setFlash("Back from the deploy setup for "+msg.slug+": reading everything again", false)
+	}
+	var cmds []tea.Cmd
+	if m.deps.GitHub != nil {
+		model, cmd := m.fetchRepos(true)
+		m, cmds = model.(Model), append(cmds, cmd)
+	}
+	if !m.scanning {
+		cmds = append(cmds, m.startScan())
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // askRepo asks before putting the theme on GitHub.

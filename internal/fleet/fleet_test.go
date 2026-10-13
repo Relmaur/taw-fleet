@@ -16,7 +16,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("%s: description %q", s.Name, s.Description)
 		}
 	}
-	if strings.Join(names, " ") != "fleet-check new-site onboard-mac update-fleet" {
+	if strings.Join(names, " ") != "add-production fleet-check new-site onboard-mac update-fleet" {
 		t.Errorf("skills: %v", names)
 	}
 }
