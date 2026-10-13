@@ -12,8 +12,8 @@
    │  o   last output      R      restart             P production        U update all         │    
    │  n   new site         M      merge PR            g GitHub            h hand off           │    
    │  z   restore point    D      site's branch       G PRs               c copy prompt        │    
-   │  q   quit             C      pull content        F comments          X resolve comments   │    
-   │                       a      ask Claude…         m monthly report    > chat with Claude   │    
+   │  I   set up next      C      pull content        F comments          X resolve comments   │    
+   │  q   quit             a      ask Claude…         m monthly report    > chat with Claude   │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    

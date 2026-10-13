@@ -60,6 +60,21 @@ func (k Keychain) Load(ctx context.Context, it Item) (string, error) {
 	return strings.TrimSpace(string(res.Stdout)), nil
 }
 
+// Has says whether the item is in the keychain, without reading its secret.
+func (k Keychain) Has(ctx context.Context, it Item) (bool, error) {
+	res, err := k.Exec.Run(ctx, exec.Spec{Name: "/usr/bin/security", Args: []string{"find-generic-password", "-s", Service, "-a", it.Account}})
+	if err != nil {
+		return false, err
+	}
+	switch res.Code {
+	case 0:
+		return true, nil
+	case 44: // errSecItemNotFound
+		return false, nil
+	}
+	return false, fmt.Errorf("keychain: %s", strings.TrimSpace(string(res.Stderr)))
+}
+
 // quote is a double-quoted word for security -i's parser.
 func quote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`

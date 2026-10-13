@@ -66,6 +66,8 @@ type Actions interface {
 	LaunchSkill(ctx context.Context, s site.Site, t site.Theme, kind string, p handoff.Prompt, beside string) (actions.Launched, error)
 	Restores() restore.Store
 	RestoreTask(ctx context.Context, s site.Site, t site.Theme, p restore.Point) (actions.Task, error)
+	RepoTask(s site.Site, t site.Theme, owner, name string) (actions.Task, error)
+	RepoOwner() string
 }
 
 // Deps is what the dashboard needs from the outside.
@@ -124,6 +126,12 @@ type Deps struct {
 	// ChatWrites are taw-fleet's MCP write tools: called without their
 	// token they only return the question, so the chat lets them through.
 	ChatWrites map[string]bool
+	// Settings is a site's settings (production URL, BugSmash project…), for
+	// the SETUP checklist. nil = none.
+	Settings func(slug string) config.Site
+	// HasBot says whether the site's bot is in the Keychain (never reading
+	// the password). nil = unknown.
+	HasBot func(ctx context.Context, slug string) bool
 	// FleetSkills are the fleet folder's skills: the a picker lists them,
 	// and one runs in the fleet's chat.
 	FleetSkills []actions.Skill
@@ -216,6 +224,7 @@ type Model struct {
 
 	restores map[string][]restore.Point // restore points by site slug, newest first
 	reports  map[string][]report.Saved  // saved monthly reports by site slug, newest first
+	bots     map[string]bool            // production sites whose bot is in the Keychain
 
 	task *taskState          // the running or last task (sync, update)
 	busy map[string]local.Op // site ID → operation in progress
@@ -480,7 +489,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		cmds = append(cmds, m.loadRestores(), m.loadReports())
+		cmds = append(cmds, m.loadRestores(), m.loadReports(), m.loadBots())
 		return m, tea.Batch(cmds...)
 
 	case restoresMsg:
@@ -489,6 +498,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case reportsMsg:
 		m.reports = msg
+		return m, nil
+
+	case botsMsg:
+		m.bots = msg
 		return m, nil
 
 	case reposDoneMsg:
@@ -727,6 +740,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.runAgent()
 		case key.Matches(msg, k.Chat):
 			return m.openChat()
+		case key.Matches(msg, k.Setup):
+			return m.setupNext()
 		case key.Matches(msg, k.StartStop):
 			return m.askSiteOp(false)
 		case key.Matches(msg, k.Restart):
@@ -806,6 +821,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.runAgent()
 	case key.Matches(msg, k.Chat):
 		return m.openChat()
+	case key.Matches(msg, k.Setup):
+		return m.setupNext()
 	case key.Matches(msg, k.UpdateAll):
 		return m.planFleet()
 	case key.Matches(msg, k.StartStop):

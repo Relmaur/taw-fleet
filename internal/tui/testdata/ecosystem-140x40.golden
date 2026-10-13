@@ -26,15 +26,15 @@
                                                                                         │    • on chore/update-core, not main  bistro-theme…
                                                                                         │      → D in the dashboard switches back, when tha…
                                                                                         │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
-                                                                                        │                                                   
+                                                                                        │  ⚙ SETUP ───────────────── I · set up the next one
+                                                                                        │  → Repository     Relmaur/client--theme, not push…
+                                                                                        │                   git push -u origin chore/update…
+                                                                                        │  ○ Secrets check  comes with taw/core 1.94        
+                                                                                        │                   u updates the site              
+                                                                                        │  ○ Deploy         not checked yet                 
+                                                                                        │                   L checks GitHub                 
+                                                                                        │  ○ Production     no production URL               
+                                                                                        │                   production_url under [sites.bis…
+                                                                                        │  ↓ more: enter                                    
 
  enter details • > chat • t terminal • U update all • : all actions • / filter • ? help • q quit

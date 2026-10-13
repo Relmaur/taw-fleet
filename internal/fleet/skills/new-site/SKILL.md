@@ -103,9 +103,10 @@ each change the person asks for, go back to build-site's step for it, screenshot
 
 ## 5. Done, for now
 
-Say what's built (the Local URL, the theme folder, its branch) and what's next, which this skill
-doesn't do yet:
-- a GitHub repository with CI (the theme already has a git repo with a first commit);
+Say what's built (the Local URL, the theme folder, its branch). Then offer the next step:
+`create_repo` puts the theme on GitHub (a private repository, its branches pushed, the dump check
+required); it asks the person first. `site_setup` lists everything else the site still needs, each
+with how to do it; this skill doesn't do those yet:
 - hosting and production, then the deploy;
 - the client's comments in BugSmash once it's live.
 
@@ -113,4 +114,4 @@ doesn't do yet:
 
 - Don't write the brief, screenshots or anything else about the site into the theme.
 - Don't copy a database anywhere, and don't commit `.sync/`, `.env` files or keys.
-- Don't push, create repositories or touch production.
+- Don't push or create a repository except through `create_repo`, and don't touch production.

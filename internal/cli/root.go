@@ -29,6 +29,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
 	"github.com/Relmaur/taw-fleet/internal/tui"
+	"github.com/Relmaur/taw-fleet/internal/wpremote"
 )
 
 // BuildInfo is what the release build stamps into the binary.
@@ -267,6 +268,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			deps.Actions = a
 			deps.CreateDefaults = a.Config.Create
 			deps.TTY = a.TTY(cmd.Context())
+			cfg := a.Config
+			deps.Settings = cfg.Site
+			deps.HasBot = wpremote.Store{Exec: d.Runner}.Has
 			if claude, err := a.Claude(); err == nil {
 				deps.Chat, deps.ChatWrites = d.chatter(claude), chatWrites()
 				// The fleet folder stays current (after an upgrade, a settings change).
@@ -288,7 +292,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),
-		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d))
+		newSelfUpdateCmd(info, d), newCreateCmd(d), newLiveCmd(d, g), newWorkCmd(d, g), newPRsCmd(d, g), newMergeCmd(d, g), newPullCmd(d, g), newRefreshCmd(d, g), newCommentsCmd(d, g), newBranchCmd(d, g), newMCPCmd(info, d), newWatchCmd(d, g), newRestoreCmd(d, g), newReportCmd(d, g), newChatCmd(d, g), newInitCmd(info, d), newReadyCmd(d, g), newRepoCmd(d, g))
 	return root
 }
 

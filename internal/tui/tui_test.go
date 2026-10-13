@@ -678,6 +678,19 @@ func (f *fakeActions) StopWorkTask(_ site.Site, t site.Theme, op actions.SiteOp)
 		}}, nil
 }
 
+func (f *fakeActions) RepoOwner() string { return "Relmaur" }
+
+func (f *fakeActions) RepoTask(_ site.Site, t site.Theme, owner, _ string) (actions.Task, error) {
+	if t.Git != nil && t.Git.Repo != nil {
+		return actions.Task{}, errors.New("it's on GitHub already")
+	}
+	return actions.Task{Title: "GitHub repository: " + t.Dir, Writes: true,
+		Ask: "Create the private repository " + actions.RepoName(t.Dir) + " on " + owner + " and push main?",
+		Run: func(context.Context, io.Writer) (actions.Summary, error) {
+			return actions.Summary{Headline: t.Dir + " is on GitHub"}, nil
+		}}, nil
+}
+
 func (f *fakeActions) SiteBranchTask(_ site.Site, t site.Theme) (actions.Task, error) {
 	return actions.Task{Title: "Back to main: " + t.Dir, Writes: true, Ask: "Switch " + t.Dir + " to main?", Quiet: true,
 		Run: func(context.Context, io.Writer) (actions.Summary, error) {
