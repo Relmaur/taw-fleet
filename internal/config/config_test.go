@@ -154,3 +154,75 @@ func TestSetSite(t *testing.T) {
 		t.Errorf("not put back:\n%s", again)
 	}
 }
+
+func TestSetSiteList(t *testing.T) {
+	p := paths.ForHome(t.TempDir(), nil)
+	f := File(p)
+	write(t, p, "editor = \"Cursor\"\n\n[sites.ls-mxico]\nnotes = \"Deploys from main.\" # kept\n")
+	if _, err := SetSiteList(p, "ls-mxico", "tags", []string{"retainer", "es"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetSiteList(p, "fes", "tags", []string{"client:silvana"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(f)
+	want := "editor = \"Cursor\"\n\n[sites.ls-mxico]\ntags = [\"retainer\", \"es\"]\nnotes = \"Deploys from main.\" # kept\n\n[sites.fes]\ntags = [\"client:silvana\"]\n"
+	if string(data) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", data, want)
+	}
+	c, err := Load(p)
+	if err != nil || strings.Join(c.Site("ls-mxico").Tags, ",") != "retainer,es" {
+		t.Errorf("load: %v %+v", err, c.Sites)
+	}
+
+	// Replaced in place; a bad tag is refused and the file put back.
+	if _, err := SetSiteList(p, "ls-mxico", "tags", []string{"es"}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(f)
+	if _, err := SetSiteList(p, "ls-mxico", "tags", []string{"Not OK"}); err == nil {
+		t.Error("accepted a bad tag")
+	}
+	if after, _ := os.ReadFile(f); string(after) != string(before) {
+		t.Errorf("not put back:\n%s", after)
+	}
+
+	// An empty list removes the line; removing from a missing table is nothing.
+	if _, err := SetSiteList(p, "ls-mxico", "tags", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetSiteList(p, "nowhere", "tags", nil); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(f); strings.Contains(string(data), "tags = [\"es\"]") || strings.Contains(string(data), "nowhere") {
+		t.Errorf("not removed:\n%s", data)
+	}
+}
+
+func TestTagsAndGroupByAreChecked(t *testing.T) {
+	for _, tag := range []string{"retainer", "es", "client:parallel", "wp_engine", "a-1"} {
+		if err := CheckTag(tag); err != nil {
+			t.Errorf("%q: %v", tag, err)
+		}
+	}
+	for _, tag := range []string{"", "Retainer", "has space", "-x", strings.Repeat("a", 33), "#x"} {
+		if CheckTag(tag) == nil {
+			t.Errorf("%q accepted", tag)
+		}
+	}
+	for _, g := range []string{"", "none", "tag", "kind", "production", "prefix:client"} {
+		if err := CheckGroupBy(g); err != nil {
+			t.Errorf("%q: %v", g, err)
+		}
+	}
+	for _, g := range []string{"folder", "prefix:", "prefix:a:b", "Tag"} {
+		if CheckGroupBy(g) == nil {
+			t.Errorf("%q accepted", g)
+		}
+	}
+	p := paths.ForHome(t.TempDir(), nil)
+	write(t, p, "group_by = \"folder\"\n")
+	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "group_by") {
+		t.Errorf("load: %v", err)
+	}
+}

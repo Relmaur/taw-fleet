@@ -1,0 +1,34 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+    SITE · THEME                              TAW/CORE         SYNC  GIT                            
+────────────────────────────────────────────────────────────────────────────────── grouped by tag ──
+▌▾ client:acme · 1                                                                                  
+  ● acme-shop                                 1.76.1           —     main                           
+    acme  classic  #retainer #es #client:ac…                         2d ago                         
+                                                                                                    
+ ▾ es · 1                                                                                           
+  ● acme-shop                                 1.76.1           —     main                           
+    acme  classic  #retainer #es #client:ac…                         2d ago                         
+                                                                                                    
+ ▾ retainer · 2                                                                                     
+  ● acme-shop                                 1.76.1           —     main                           
+    acme  classic  #retainer #es #client:ac…                         2d ago                         
+                                                                                                    
+  ○ bistro                                    1.59.2 ▲ 1.76.1  —     chore/update-core ±5 ◇ unpushed
+    bistro-theme  classic  #retainer                                 2d ago                         
+                                                                                                    
+ ▾ untagged · 2                                                                                     
+  ● taw                                       1.76.1           —     main                           
+    taw-gutenberg ↗  block                                           2d ago                         
+                                                                                                    
+    taw                                       1.76.1           —     main                           
+    taw-theme  classic                                               2d ago                         
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ Grouped by tag. ← folds a group, → opens it; = groups another way.
+ enter fold/open • ← fold group • → open group • = group by • / filter • : all actions • ? help …

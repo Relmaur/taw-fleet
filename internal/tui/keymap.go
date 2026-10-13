@@ -21,6 +21,7 @@ type keyMap struct {
 	New, CopySecret, LiveRefresh, Merge, Pull, SiteBranch, Restore    key.Binding
 	Report, Publish, PublishUndo                                      key.Binding
 	Comments, Resolve, Ask, Chat, Setup                               key.Binding
+	Tags, Group, Fold, Unfold                                         key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -77,6 +78,10 @@ func newKeyMap() keyMap {
 		Ask:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ask Claude…")),
 		Chat:        key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat with Claude")),
 		Setup:       key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "set up next")),
+		Tags:        key.NewBinding(key.WithKeys("#"), key.WithHelp("#", "tags")),
+		Group:       key.NewBinding(key.WithKeys("="), key.WithHelp("=", "group by")),
+		Fold:        key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "fold group")),
+		Unfold:      key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "open group")),
 	}
 }
 
@@ -200,8 +205,8 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Filter, k.Refresh, k.Menu, k.Output, k.New, k.Restore, k.PublishUndo, k.Setup, k.Quit},
 		{k.Detail, k.RefreshAll, k.LiveRefresh, k.Work, k.StartStop, k.Restart, k.Merge, k.SiteBranch, k.Pull, k.Publish, k.Ask},
-		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report},
-		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve, k.Chat},
+		{k.Editor, k.Finder, k.Terminal, k.Browser, k.Admin, k.Production, k.GitHub, k.PRs, k.Comments, k.Report, k.Tags},
+		{k.SyncCheck, k.SyncAll, k.SyncApply, k.UpdateCore, k.Agent, k.UpdateAll, k.Handoff, k.Copy, k.Resolve, k.Chat, k.Group},
 	}
 }
 
@@ -217,3 +222,25 @@ func (createKeys) ShortHelp() []key.Binding {
 }
 
 func (c createKeys) FullHelp() [][]key.Binding { return [][]key.Binding{c.ShortHelp()} }
+
+// tagKeys is the help bar while the tag input is open.
+type tagKeys struct{}
+
+func (tagKeys) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "save")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+	}
+}
+
+func (t tagKeys) FullHelp() [][]key.Binding { return [][]key.Binding{t.ShortHelp()} }
+
+// headerKeys is the help bar with the cursor on a group's header.
+type headerKeys struct{ k keyMap }
+
+func (h headerKeys) ShortHelp() []key.Binding {
+	toggle := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "fold/open"))
+	return []key.Binding{toggle, h.k.Fold, h.k.Unfold, h.k.Group, h.k.Filter, h.k.Menu, h.k.Help, h.k.Quit}
+}
+
+func (h headerKeys) FullHelp() [][]key.Binding { return h.k.FullHelp() }

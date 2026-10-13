@@ -109,6 +109,18 @@ func (d Deps) accounts() scan.Accounts {
 	return a
 }
 
+// tags puts each site's tags from the settings on the scanned sites, read
+// fresh on every scan (a tag set from the dashboard or the CLI shows at once).
+func (d Deps) tags(sites []site.Site) {
+	cfg, err := config.Load(d.Paths)
+	if err != nil {
+		return
+	}
+	for i := range sites {
+		sites[i].Tags = cfg.Sites[sites[i].Slug].Tags
+	}
+}
+
 func (d Deps) scanner(g *globals) *scan.Scanner {
 	src := scan.NewLocalSource(d.Paths)
 	src.Live = func(ctx context.Context) (map[string]site.Status, error) {
@@ -122,7 +134,7 @@ func (d Deps) scanner(g *globals) *scan.Scanner {
 		Sources:   []scan.Source{src},
 		Enrichers: []scan.Enricher{scan.GitEnricher{Runner: d.Runner}, scan.CoreEnricher{}, scan.DriftEnricher{CacheDir: d.Paths.CacheDir}, scan.DevEnricher{}},
 		Lookups:   []scan.Lookup{scan.GitHubLookup{Client: d.github(g)}},
-		After:     []func([]site.Site){d.accounts().Apply},
+		After:     []func([]site.Site){d.accounts().Apply, d.tags},
 	}
 	if d.active != nil {
 		sc.Sites = []scan.SiteEnricher{d.active}
@@ -214,7 +226,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 				}
 				return errors.New("couldn't open the dashboard in a new window")
 			}
-			return runList(cmd, d, g, false, false)
+			return runList(cmd, d, g, false, false, nil)
 		}
 		if d.openWindow(cmd, g, false) {
 			return nil
@@ -275,6 +287,15 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			deps.TTY = a.TTY(cmd.Context())
 			cfg := a.Config
 			deps.Settings = cfg.Site
+			deps.GroupBy = cfg.GroupBy
+			deps.SaveTags = func(slug string, tags []string) error {
+				_, err := config.SetSiteList(d.Paths, slug, "tags", tags)
+				return err
+			}
+			deps.SaveGroupBy = func(g string) error {
+				_, err := config.SetTop(d.Paths, "group_by", g)
+				return err
+			}
 			deps.HasBot = wpremote.Store{Exec: d.Runner}.Has
 			if exe, err := d.exePath(); err == nil {
 				// The terminal goes to the wizard while the dashboard waits (tea.ExecProcess
@@ -301,7 +322,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
-	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
+	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newTagCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),

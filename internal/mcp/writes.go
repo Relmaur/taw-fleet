@@ -103,6 +103,8 @@ var WriteTools = []WriteDoc{
 		"Asks the live site's companion for the key it signs its answers with, checks the answer is signed by it, and pins it, so taw-fleet verifies the site from then on (trust on first use: the question shows the key's id for the person to confirm). For a site just deployed; a pinned key that changes is replaced only after asking.", true, false},
 	{"link_bugsmash", "Link a BugSmash project", "taw-fleet comments link <site> <project>", "the BugSmash step",
 		"Checks the project with BugSmash (bugsmash_projects lists them) and sets bugsmash_project for the site in the settings, so its comments show in the dashboard, watch and the reports. The project itself is made in BugSmash.", false, false},
+	{"set_tags", "Set a site's tags", "taw-fleet tag <site> <tag…>", "#",
+		"Sets a site's tags in the settings, replacing the old ones (list_sites shows each site's tags; an empty list removes them). Tags organise the fleet: lower case letters, digits, \":\", \"_\" or \"-\", such as retainer, es or client:parallel. The dashboard shows them on the card, filters them (tag:retainer) and groups by them.", false, false},
 	{"publish_content", "Publish content to production", "taw-fleet publish <site> --no-review [--decisions F]", "p",
 		"Compares the Local site's content with production's as Local last had it (the base), asks production what publishing it would change, and returns the review: each record (page, post, option, menu) with its changes by field label, production's value and Local's, and those production changed too ([changed on production too]). The question publishes every record but deletes, a value only production changed staying production's. A value both sides changed must be decided: pass decisions {include: [record keys], sides: {record key: {change key: keep|take}}} (keep = production's, take = Local's); the review's JSON (taw-fleet publish <site> --no-review --json) has the keys. Files go up by their bytes; production keeps a rollback copy (undo: taw-fleet publish undo). Needs taw/core 1.98+, companion 0.5+ and publishing enabled in the theme. Tell the person what changes in words, and ask about each conflict, before confirming.", true, false},
 	{"publish_undo", "Undo the last publish", "taw-fleet publish undo <site>", "x",
@@ -159,6 +161,11 @@ type (
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
 		Project string `json:"project" jsonschema:"the BugSmash project's id (bugsmash_projects lists them)"`
 		Confirm string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
+	}
+	tagsIn struct {
+		Site    string   `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Tags    []string `json:"tags" jsonschema:"all of the site's tags (they replace the old ones); empty removes them"`
+		Confirm string   `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
 	}
 	publishIn struct {
 		Site      string     `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -314,6 +321,22 @@ func addWrites(s *sdk.Server, d Deps, tk *tokens) {
 			return nil, nil, errors.New("project is required (bugsmash_projects lists them)")
 		}
 		return ask(ctx, req, d, tk, "link_bugsmash", append(args, strings.TrimSpace(in.Project)), in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("set_tags"), func(ctx context.Context, req *sdk.CallToolRequest, in tagsIn) (*sdk.CallToolResult, any, error) {
+		args, err := siteArgs([]string{"tag"}, in.Site, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(in.Tags) == 0 {
+			// No tags: remove every one (the CLI sets what it's given).
+			return ask(ctx, req, d, tk, "set_tags", append(args, "--clear"), in.Confirm)
+		}
+		for _, t := range in.Tags {
+			if strings.HasPrefix(strings.TrimSpace(t), "-") {
+				return nil, nil, errors.New("a tag can't start with -")
+			}
+		}
+		return ask(ctx, req, d, tk, "set_tags", append(args, in.Tags...), in.Confirm)
 	})
 	sdk.AddTool(s, writeTool("publish_content"), func(ctx context.Context, req *sdk.CallToolRequest, in publishIn) (*sdk.CallToolResult, any, error) {
 		args, err := siteArgs([]string{"publish"}, in.Site, in.Theme)

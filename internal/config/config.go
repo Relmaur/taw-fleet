@@ -31,6 +31,9 @@ type Config struct {
 	Umbrella       string          `toml:"umbrella"` // unused since v1.12.0 (X runs in the theme folder); kept so configs that set it still load
 	Create         Create          `toml:"create"`   // defaults for taw-fleet create
 	Sites          map[string]Site `toml:"sites"`    // keyed by site folder name
+	// GroupBy is how the dashboard groups the list: "" (none), "tag",
+	// "kind", "production", or "prefix:<p>" (by the tags that start "<p>:").
+	GroupBy string `toml:"group_by"`
 
 	// GitHubOwners are the owner's GitHub accounts and organizations: a
 	// theme whose repository belongs to another one is marked @owner.
@@ -59,6 +62,36 @@ type Site struct {
 	// BugSmashProject is the id of the site's project in BugSmash, where
 	// reviewers leave comments on the live site (FB column, doctor).
 	BugSmashProject string `toml:"bugsmash_project"`
+
+	// Tags organise the fleet: shown on the card, filtered (tag:x) and
+	// grouped by. Lower case letters, digits, ":", "_" and "-".
+	Tags []string `toml:"tags"`
+}
+
+// MaxTags is how many tags a site can have.
+const MaxTags = 12
+
+// tagRE is one tag: "retainer", "es", "client:parallel".
+var tagRE = regexp.MustCompile(`^[a-z0-9][a-z0-9:_-]{0,31}$`)
+
+// CheckTag says what's wrong with a tag, or nil.
+func CheckTag(t string) error {
+	if !tagRE.MatchString(t) {
+		return fmt.Errorf("tag %q: use lower case letters, digits, \":\", \"_\" or \"-\" (up to 32)", t)
+	}
+	return nil
+}
+
+// CheckGroupBy says what's wrong with a group_by value, or nil.
+func CheckGroupBy(g string) error {
+	switch g {
+	case "", "none", "tag", "kind", "production":
+		return nil
+	}
+	if p, ok := strings.CutPrefix(g, "prefix:"); ok && p != "" && !strings.Contains(p, ":") && tagRE.MatchString(p) {
+		return nil
+	}
+	return fmt.Errorf("group_by %q: use \"tag\", \"kind\", \"production\", \"prefix:<name>\" or \"none\"", g)
 }
 
 // File is the config file's path.
@@ -113,6 +146,17 @@ func Load(p paths.Paths) (Config, error) {
 		if s.BugSmashProject != "" && !uuid.MatchString(s.BugSmashProject) {
 			return c, fmt.Errorf("%s: sites.%s.bugsmash_project must be the project's id (a UUID like a15552c8-a3d9-4bce-9a06-7859fbb7f27c)", File(p), slug)
 		}
+		if len(s.Tags) > MaxTags {
+			return c, fmt.Errorf("%s: sites.%s.tags: %d at most", File(p), slug, MaxTags)
+		}
+		for _, t := range s.Tags {
+			if err := CheckTag(t); err != nil {
+				return c, fmt.Errorf("%s: sites.%s.%w", File(p), slug, err)
+			}
+		}
+	}
+	if err := CheckGroupBy(c.GroupBy); err != nil {
+		return c, fmt.Errorf("%s: %w", File(p), err)
 	}
 	return c, nil
 }
@@ -171,6 +215,10 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # brew install --cask font-jetbrains-mono-nerd-font). taw-fleet config icons nerd
 # icons = "nerd"
 
+# How the dashboard groups the list (= cycles it, and saves it here): "tag",
+# "kind", "production", "prefix:client" (by the client:… tags), or "none".
+# group_by = "tag"
+
 # Restore points: before an update (u, U), a merge (M) and a content import
 # (C), taw-fleet saves the Local site's database and the theme's commit, in
 # ~/Library/Application Support/taw-fleet/restore/ (never in a site or a
@@ -209,6 +257,9 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # The GitHub account the theme belongs to, while it has no origin remote yet
 # (for the @account mark):
 # github_account = "EmeLambda"
+# Tags organise the fleet: shown on the card, filtered with tag:retainer (or
+# #retainer) and grouped by (= in the dashboard). taw-fleet tag <site> sets them.
+# tags = ["retainer", "es", "client:ls"]
 `
 
 // SetTop sets a top-level key (one before any [table]) to a string value in
@@ -262,6 +313,25 @@ func SetTop(p paths.Paths, key, value string) (string, error) {
 // line in that table is replaced, or added under its header; a missing table
 // is added at the end. The file must still load afterwards, or it's put back.
 func SetSite(p paths.Paths, slug, key, value string) (string, error) {
+	return setSiteLine(p, slug, key, fmt.Sprintf("%s = %q", key, value))
+}
+
+// SetSiteList sets a key of a site's table to a list of strings
+// (tags = ["a", "b"]); an empty list removes the key's line. Like SetSite, the
+// file must still load afterwards, or it's put back.
+func SetSiteList(p paths.Paths, slug, key string, values []string) (string, error) {
+	if len(values) == 0 {
+		return setSiteLine(p, slug, key, "")
+	}
+	q := make([]string, len(values))
+	for i, v := range values {
+		q[i] = fmt.Sprintf("%q", v)
+	}
+	return setSiteLine(p, slug, key, fmt.Sprintf("%s = [%s]", key, strings.Join(q, ", ")))
+}
+
+// setSiteLine writes line as key's line in the site's table ("" removes it).
+func setSiteLine(p paths.Paths, slug, key, line string) (string, error) {
 	f := File(p)
 	if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
 		if _, err := Init(p); err != nil {
@@ -272,7 +342,6 @@ func SetSite(p paths.Paths, slug, key, value string) (string, error) {
 	if err != nil {
 		return f, err
 	}
-	line := fmt.Sprintf("%s = %q", key, value)
 	lines := strings.Split(string(old), "\n")
 	header := regexp.MustCompile(`^\s*\[sites\.("` + regexp.QuoteMeta(slug) + `"|` + regexp.QuoteMeta(slug) + `)\]\s*(#.*)?$`)
 	set := regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*=`)
@@ -283,20 +352,28 @@ func SetSite(p paths.Paths, slug, key, value string) (string, error) {
 			break
 		}
 	}
-	if at < 0 {
+	switch {
+	case at < 0 && line == "":
+		return f, nil // nothing to remove
+	case at < 0:
 		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
 			lines = lines[:len(lines)-1]
 		}
 		lines = append(lines, "", fmt.Sprintf("[sites.%s]", slug), line, "")
-	} else {
+	default:
 		done := false
 		for i := at + 1; i < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[i]), "["); i++ {
 			if set.MatchString(lines[i]) {
-				lines[i], done = line, true
+				if line == "" {
+					lines = append(lines[:i], lines[i+1:]...)
+				} else {
+					lines[i] = line
+				}
+				done = true
 				break
 			}
 		}
-		if !done {
+		if !done && line != "" {
 			lines = append(lines[:at+1], append([]string{line}, lines[at+1:]...)...)
 		}
 	}
@@ -305,7 +382,7 @@ func SetSite(p paths.Paths, slug, key, value string) (string, error) {
 	}
 	if _, err := Load(p); err != nil {
 		_ = os.WriteFile(f, old, 0o644)
-		return f, fmt.Errorf("the settings wouldn't load with %s added, so they're unchanged: %w", line, err)
+		return f, fmt.Errorf("the settings wouldn't load with that change, so they're unchanged: %w", err)
 	}
 	return f, nil
 }

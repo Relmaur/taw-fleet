@@ -136,6 +136,12 @@ type Deps struct {
 	// Settings is a site's settings (production URL, BugSmash project…), for
 	// the SETUP checklist. nil = none.
 	Settings func(slug string) config.Site
+	// SaveTags sets a site's tags in the settings (#). nil = read-only.
+	SaveTags func(slug string, tags []string) error
+	// GroupBy is the list's grouping from the settings; SaveGroupBy keeps a
+	// new one there (=). See groups.go.
+	GroupBy     string
+	SaveGroupBy func(string) error
 	// HasBot says whether the site's bot is in the Keychain (never reading
 	// the password). nil = unknown.
 	HasBot func(ctx context.Context, slug string) bool
@@ -207,8 +213,15 @@ type Model struct {
 	flash      string // last action's result, shown in the footer
 	flashErr   bool
 	filterHint string // the filter's terms it didn't understand
-	flashTip   bool   // a hint, not a result: muted, no ✓
-	flashAt    time.Time
+
+	entries  []entry         // the list as shown: the visible rows, under group headers when grouped
+	groupBy  string          // "" | tag | kind | production | prefix:<p> (=)
+	folded   map[string]bool // group key → folded (←/→)
+	tagging  bool            // the tag input is open (#)
+	tagSite  string          // whose tags it edits
+	tagInput textinput.Model
+	flashTip bool // a hint, not a result: muted, no ✓
+	flashAt  time.Time
 
 	confirm string                             // question on screen; "" = none
 	onYes   func(Model) (tea.Model, tea.Cmd)   // what "yes" does
@@ -282,7 +295,10 @@ func New(ctx context.Context, d Deps) Model {
 	m.menuInput = textinput.New()
 	m.menuInput.Prompt = ": "
 	m.menuInput.Placeholder = "type to find an action"
-	m.filter.Placeholder = "words, -word, is:behind, has:comments, kind:block, core:<1.95 (all must match)"
+	m.filter.Placeholder = "words, -word, #tag, is:behind, has:comments, kind:block, core:<1.95 (all must match)"
+	m.tagInput = textinput.New()
+	m.tagInput.Placeholder = "tags, with spaces between: retainer es client:acme (empty removes them)"
+	m.groupBy = d.GroupBy
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	m.help = help.New()
 	m.setDark(d.Dark)
@@ -663,6 +679,8 @@ func (m Model) onPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 		if c := m.currentChat(); c != nil && c.ask == nil {
 			c.input, cmd = c.input.Update(msg)
 		}
+	case m.tagging:
+		m.tagInput, cmd = m.tagInput.Update(msg)
 	case m.filtering:
 		m.filter, cmd = m.filter.Update(msg)
 		m.applyFilter()
@@ -676,6 +694,9 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.tagging {
+		return m.onTagKey(msg)
 	}
 	if m.filtering {
 		switch msg.String() {
@@ -802,6 +823,13 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// On a group's header only the list's own keys work; a site's need a site.
+	if m.onHeader() && !key.Matches(msg, k.Quit, k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom, k.Detail, k.Back,
+		k.Filter, k.Refresh, k.RefreshAll, k.LiveRefresh, k.Help, k.Menu, k.New, k.Chat, k.UpdateAll, k.SyncAll, k.Output,
+		k.Group, k.Fold, k.Unfold) {
+		m.setTip("That's the " + m.groupAt().title + " group: pick a site in it (← folds the group, → opens it).")
+		return m, nil
+	}
 	switch {
 	case key.Matches(msg, k.Quit):
 		return m, tea.Quit
@@ -814,13 +842,23 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.PageDown):
 		m.move(m.tableRows())
 	case key.Matches(msg, k.Top):
-		m.move(-len(m.visible))
+		m.move(-len(m.entries))
 	case key.Matches(msg, k.Bottom):
-		m.move(len(m.visible))
+		m.move(len(m.entries))
 	case key.Matches(msg, k.Detail):
-		if _, ok := m.selected(); ok {
+		if m.onHeader() {
+			m.fold(!m.folded[m.groupAt().key])
+		} else if _, ok := m.selected(); ok {
 			m.mode, m.scroll = modeDetail, 0
 		}
+	case key.Matches(msg, k.Fold):
+		m.fold(true)
+	case key.Matches(msg, k.Unfold):
+		m.fold(false)
+	case key.Matches(msg, k.Group):
+		return m.cycleGroup(), nil
+	case key.Matches(msg, k.Tags):
+		return m.openTags()
 	case key.Matches(msg, k.Back):
 		if m.filter.Value() != "" {
 			m.filter.SetValue("")
@@ -987,16 +1025,23 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 	}
 	sort.SliceStable(m.rows, func(i, j int) bool { return rank(m.rows[i]) < rank(m.rows[j]) })
 	m.applyFilter()
-	for vi, ri := range m.visible {
-		r := m.rows[ri]
+	for ei, e := range m.entries {
+		if e.isHeader() {
+			continue
+		}
+		r := m.rows[e.row]
 		if rep.Sites[r.site].ID == prevSite && rep.Sites[r.site].Themes[r.theme].Dir == prevTheme {
-			m.cursor = vi
+			m.cursor = ei
+			break
 		}
 	}
 	if m.selectAfterScan != "" { // a site was just created, or Deps.Select: select it
 		want := strings.ToLower(m.selectAfterScan)
-		for vi, ri := range m.visible {
-			s := rep.Sites[m.rows[ri].site]
+		for vi, e := range m.entries {
+			if e.isHeader() {
+				continue
+			}
+			s := rep.Sites[m.rows[e.row].site]
 			if strings.ToLower(s.Slug) == want || strings.ToLower(s.Name) == want || strings.ToLower(s.Domain) == want {
 				m.cursor, m.selectAfterScan = vi, ""
 				if m.detailAfterScan {
@@ -1018,6 +1063,7 @@ func (m *Model) applyFilter() {
 			m.visible = append(m.visible, i)
 		}
 	}
+	m.buildEntries()
 	m.clamp()
 }
 
@@ -1041,13 +1087,26 @@ func (m *Model) move(delta int) {
 	m.clamp()
 }
 
-// clamp keeps the cursor on a row and the row on screen.
+// clamp keeps the cursor on an entry and the entry on screen.
 func (m *Model) clamp() {
-	if len(m.visible) == 0 {
+	if len(m.entries) == 0 {
 		m.cursor, m.offset = 0, 0
 		return
 	}
-	m.cursor = min(max(m.cursor, 0), len(m.visible)-1)
+	m.cursor = min(max(m.cursor, 0), len(m.entries)-1)
+	if m.grouped() { // headers and cards differ in height: fit by lines
+		air := m.groupedAiry()
+		if m.cursor < m.offset {
+			m.offset = m.cursor
+		}
+		for m.cursor >= m.offset+m.groupedFit(m.offset, air) {
+			m.offset++
+		}
+		for m.offset > 0 && m.groupedFit(m.offset-1, air) >= len(m.entries)-m.offset+1 {
+			m.offset-- // no empty room at the bottom
+		}
+		return
+	}
 	rows := m.tableRows()
 	if rows < 1 {
 		rows = 1
@@ -1058,14 +1117,20 @@ func (m *Model) clamp() {
 	if m.cursor >= m.offset+rows {
 		m.offset = m.cursor - rows + 1
 	}
-	m.offset = min(max(m.offset, 0), max(len(m.visible)-rows, 0))
+	m.offset = min(max(m.offset, 0), max(len(m.entries)-rows, 0))
 }
 
+// selected is the card under the cursor; none on a group's header.
 func (m Model) selected() (row, bool) {
-	if len(m.visible) == 0 {
+	if len(m.entries) == 0 || m.entries[m.cursor].isHeader() {
 		return row{}, false
 	}
-	return m.rows[m.visible[m.cursor]], true
+	return m.rows[m.entries[m.cursor].row], true
+}
+
+// onHeader reports whether the cursor is on a group's header.
+func (m Model) onHeader() bool {
+	return m.cursor < len(m.entries) && m.entries[m.cursor].isHeader()
 }
 
 func (m Model) selectedTheme() (site.Site, site.Theme, bool) {
