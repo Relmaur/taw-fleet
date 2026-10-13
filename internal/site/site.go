@@ -77,7 +77,8 @@ type Site struct {
 	MultiSite    string `json:"multisite,omitempty"`
 	Xdebug       bool   `json:"xdebug"`
 
-	ActiveTheme string `json:"active_theme,omitempty"` // the theme WordPress uses; known only while the site runs
+	ActiveTheme string   `json:"active_theme,omitempty"` // the theme WordPress uses; known only while the site runs
+	Tags        []string `json:"tags,omitempty"`         // the owner's tags for it, from the settings
 
 	Production *Production `json:"production,omitempty"` // the live site, through its companion (nil = not checked)
 	Feedback   *Feedback   `json:"feedback,omitempty"`   // open comments in its BugSmash project (nil = not checked)

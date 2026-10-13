@@ -254,6 +254,8 @@ func TestWritesAskFirst(t *testing.T) {
 		{"publish_content", map[string]any{"site": "acme-bakery"}, "publish acme-bakery --no-review"},
 		{"publish_undo", map[string]any{"site": "acme-bakery"}, "publish undo acme-bakery"},
 		{"link_bugsmash", map[string]any{"site": "acme-bakery", "project": " a15552c8-a3d9-4bce-9a06-7859fbb7f27c "}, "comments link acme-bakery a15552c8-a3d9-4bce-9a06-7859fbb7f27c"},
+		{"set_tags", map[string]any{"site": "acme-bakery", "tags": []string{"retainer", "client:acme"}}, "tag acme-bakery retainer client:acme"},
+		{"set_tags", map[string]any{"site": "acme-bakery", "tags": []string{}}, "tag acme-bakery --clear"},
 	} {
 		c.ask = nil
 		call(t, cs, tc.tool, tc.args)

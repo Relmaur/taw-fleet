@@ -238,8 +238,12 @@ func (m Model) columns(width int) columns {
 	for _, r := range m.rows {
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
-		c.card = max(c.card, ansi.StringWidth(s.Slug), ansi.StringWidth(m.subline(s, t, false, false)))
-		full = max(full, c.card, ansi.StringWidth(m.subline(s, t, false, true)))
+		chips := 0 // the tags after the second line
+		if len(s.Tags) > 0 {
+			chips = 2 + ansi.StringWidth("#"+strings.Join(s.Tags, " #"))
+		}
+		c.card = max(c.card, ansi.StringWidth(s.Slug), ansi.StringWidth(m.subline(s, t, false, false))+chips)
+		full = max(full, c.card, ansi.StringWidth(m.subline(s, t, false, true))+chips)
 		c.core = max(c.core, ansi.StringWidth(m.pal.Core(t.Core)))
 		gw := ansi.StringWidth(m.pal.GitFit(t.Git, 0))
 		if t.Account != "" {
@@ -379,7 +383,10 @@ func prodHost(s site.Site) string {
 // line for "x–y of n" when they don't all fit. The last row needs no blank
 // line after it.
 func (m Model) tableRows() int {
-	n := len(m.visible)
+	if m.grouped() {
+		return m.groupedFit(m.offset, m.groupedAiry())
+	}
+	n := len(m.entries)
 	if m.airy() {
 		return n
 	}
@@ -389,13 +396,19 @@ func (m Model) tableRows() int {
 // airy reports whether every row fits with a blank line between the cards;
 // otherwise the cards sit tight, so more of them fit.
 func (m Model) airy() bool {
-	n := len(m.visible)
+	if m.grouped() {
+		return m.groupedAiry()
+	}
+	n := len(m.entries)
 	return n*(cardLines+1)-1+m.labelLines() <= m.bodyHeight()-2
 }
 
 // labelLines is the room the TAW ecosystem's label takes in the list: one
 // line when client sites come before it (the rows sort it last).
 func (m Model) labelLines() int {
+	if m.grouped() {
+		return 0 // the ecosystem is a group with its header
+	}
 	if n := len(m.visible); n > 1 && !m.ecosystemRow(0) && m.ecosystemRow(n-1) {
 		return 1
 	}
@@ -408,10 +421,16 @@ func (m Model) table(width int) string {
 	head := p.Fg(p.Muted).Bold(true)
 	sep := c.sep()
 	names := "    " + head.Render(pad("SITE · THEME", c.card)+sep+pad("TAW/CORE", c.core)+sep+pad("SYNC", c.sync)+sep+c.liveCol("LIVE")+c.fbCol("FB")+c.ghCols("PR", "DEPLOY")+"GIT")
-	end := min(m.offset+m.tableRows(), len(m.visible))
+	end := min(m.offset+m.tableRows(), len(m.entries))
 	rule := p.Fg(p.Faint).Render(strings.Repeat("─", width))
-	if len(m.visible) > end-m.offset && width > 24 { // where the list is, set into the rule
-		pos := fmt.Sprintf(" %d–%d of %d ", m.offset+1, end, len(m.visible))
+	var where []string // set into the rule: the grouping, where the list is
+	if w := groupWords(m.groupBy); w != "" {
+		where = append(where, "grouped by "+w)
+	}
+	if len(m.entries) > end-m.offset {
+		where = append(where, fmt.Sprintf("%d–%d of %d", m.offset+1, end, len(m.entries)))
+	}
+	if pos := " " + strings.Join(where, " · ") + " "; len(where) > 0 && width > ansi.StringWidth(pos)+6 {
 		rule = p.Fg(p.Faint).Render(strings.Repeat("─", max(width-ansi.StringWidth(pos)-2, 1))) + p.Fg(p.Muted).Render(pos) + p.Fg(p.Faint).Render("──")
 	}
 	lines := []string{names, rule}
@@ -423,12 +442,20 @@ func (m Model) table(width int) string {
 	air := m.airy()
 	selAt := 0 // the selected card's first line
 	for vi := m.offset; vi < end; vi++ {
-		r := m.rows[m.visible[vi]]
+		e := m.entries[vi]
+		if e.isHeader() {
+			if vi > m.offset && air {
+				lines = append(lines, "")
+			}
+			lines = append(lines, m.headerLine(e, vi == m.cursor, width))
+			continue
+		}
+		r := m.rows[e.row]
 		s := m.rep.Sites[r.site]
 		t := s.Themes[r.theme]
 		sel := vi == m.cursor
 		eco := ecosystem(t)
-		if eco && (vi == m.offset || !m.ecosystemRow(vi-1)) {
+		if eco && !m.grouped() && (vi == m.offset || !m.ecosystemRow(vi-1)) {
 			// The TAW ecosystem starts: its label goes under the air above
 			// it, or takes the place of the rule under the column names.
 			label := strings.TrimSuffix(render.Section(p, "TAW ECOSYSTEM", p.Accent, "the scaffolds every TAW site is made from", width), "\n")
@@ -440,13 +467,13 @@ func (m Model) table(width int) string {
 			default:
 				lines = append(lines, label)
 			}
-		} else if vi > m.offset && air {
-			lines = append(lines, "") // air between the cards
+		} else if vi > m.offset && air && !m.entries[vi-1].isHeader() {
+			lines = append(lines, "") // air between the cards (not under a group's header)
 		}
 
 		// Site-wide cells (dot, LIVE, FB) once per group of rows, like
 		// `list`; a site's other themes repeat its name, quieter.
-		first := vi == m.offset || m.rows[m.visible[vi-1]].site != r.site
+		first := vi == m.offset || m.entries[vi-1].isHeader() || m.rows[m.entries[vi-1].row].site != r.site
 		dot, liveCell, fbCell, fbAge := " ", "", "", ""
 		nameStyle := lipgloss.NewStyle().Bold(true)
 		if first {
@@ -495,7 +522,7 @@ func (m Model) table(width int) string {
 			doing = ansi.Truncate(p.Fg(p.Accent).Render(st.short()), c.core, "…")
 		}
 		bottom := margin +
-			pad(m.subline(s, t, sel, c.host), c.card) + sep +
+			pad(m.tagChips(m.subline(s, t, sel, c.host), s.Tags, c.card), c.card) + sep +
 			pad(doing, c.core) + sep +
 			pad("", c.sync) + sep +
 			c.liveCol("") +
@@ -658,6 +685,11 @@ func (m Model) footer() string {
 	switch {
 	case m.confirm != "":
 		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil, len(m.choices)))
+	case m.tagging:
+		status = " " + m.tagInput.View()
+		if m.flash != "" && m.flashErr {
+			status += "  " + p.Fg(p.Err).Render("✗ "+m.flash)
+		}
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
 	case m.full.active && m.mode != modeOutput:
@@ -727,6 +759,10 @@ func (m Model) footer() string {
 		if c := m.currentChat(); c != nil {
 			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working, len(c.entries) > 0 || c.sess != nil}
 		}
+	case m.tagging:
+		keys = tagKeys{}
+	case m.mode == modeTable && m.onHeader():
+		keys = headerKeys{m.keys}
 	}
 	// bubbles' help can overflow when the ellipsis itself doesn't fit: cut it.
 	return ansi.Truncate(status, m.width, "…") + "\n" + ansi.Truncate(" "+m.help.View(keys), m.width, "…")

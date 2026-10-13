@@ -3,12 +3,14 @@ package cli
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
 	"github.com/Relmaur/taw-fleet/internal/style"
@@ -16,6 +18,7 @@ import (
 
 func newListCmd(d Deps, g *globals) *cobra.Command {
 	var asJSON, all bool
+	var tags []string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the TAW sites on this Mac",
@@ -23,18 +26,28 @@ func newListCmd(d Deps, g *globals) *cobra.Command {
 			"--all also shows sites and themes that aren't TAW.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runList(cmd, d, g, asJSON, all)
+			return runList(cmd, d, g, asJSON, all, tags)
 		},
 	}
+	cmd.Flags().StringSliceVar(&tags, "tag", nil, "only sites with this tag (repeatable: all must match; client: = any client tag)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.Flags().BoolVar(&all, "all", false, "include sites and themes that aren't TAW")
 	return cmd
 }
 
-func runList(cmd *cobra.Command, d Deps, g *globals, asJSON, all bool) error {
+func runList(cmd *cobra.Command, d Deps, g *globals, asJSON, all bool, tags []string) error {
 	rep, err := d.scanner(g).Run(cmd.Context())
 	if err != nil {
 		return err
+	}
+	if len(tags) > 0 {
+		kept := rep.Sites[:0]
+		for _, s := range rep.Sites {
+			if !slices.ContainsFunc(tags, func(t string) bool { return !config.TagMatches(s.Tags, t) }) {
+				kept = append(kept, s)
+			}
+		}
+		rep.Sites = kept
 	}
 	hidden := 0
 	if !all {
@@ -107,6 +120,9 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 			dot, name, domain := "", "", ""
 			if i == 0 {
 				dot, name, domain = p.Dot(s.Status), s.Slug, s.Domain
+				if len(s.Tags) > 0 {
+					domain += "  #" + strings.Join(s.Tags, " #")
+				}
 				if len(s.Errors) > 0 {
 					name += " " + p.Fg(p.Warn).Render("⚠")
 				}

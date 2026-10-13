@@ -26,6 +26,7 @@ type filterFacts struct {
 	is   map[string]bool // is: and has: conditions that hold
 	kind string          // classic | block
 	core string          // the installed taw/core
+	tags []string        // the site's tags
 }
 
 // conditions are the is: and has: names, with what each means (the help line).
@@ -40,6 +41,9 @@ func parseFilter(q string) (terms []filterTerm, problems []string) {
 		t := filterTerm{}
 		if len(w) > 1 && w[0] == '-' {
 			t.neg, w = true, w[1:]
+		}
+		if len(w) > 1 && w[0] == '#' { // #retainer is tag:retainer
+			w = "tag:" + w[1:]
 		}
 		field, value, ok := strings.Cut(w, ":")
 		if !ok {
@@ -66,6 +70,7 @@ func parseFilter(q string) (terms []filterTerm, problems []string) {
 				problems = append(problems, w)
 				continue
 			}
+		case "tag": // any: a tag nobody has yet just matches nothing
 		default:
 			problems = append(problems, w)
 			continue
@@ -131,6 +136,10 @@ func (t filterTerm) matches(f filterFacts) bool {
 		hit = f.kind != "" && strings.HasPrefix(f.kind, t.value)
 	case "core":
 		hit = coreMatches(f.core, t.value)
+	case "tag": // its start: tag:client: is every client, tag:ret while typed
+		for _, tag := range f.tags {
+			hit = hit || strings.HasPrefix(tag, t.value)
+		}
 	}
 	return hit != t.neg
 }
@@ -164,13 +173,14 @@ func coreMatches(installed, cond string) bool {
 
 // filterFactsOf is what the dashboard knows about a theme of a site.
 func (m Model) filterFactsOf(s site.Site, t site.Theme) filterFacts {
-	f := filterFacts{is: map[string]bool{}, core: t.Core.Installed, kind: string(t.Kind)}
+	f := filterFacts{is: map[string]bool{}, core: t.Core.Installed, kind: string(t.Kind), tags: s.Tags}
 	if t.Kind == site.KindGutenberg {
 		f.kind = "block" // the cards say "block"
 	}
 	for _, h := range []string{s.Slug, s.Name, s.Domain, t.Dir, string(t.Kind), f.kind, string(s.Status), t.Core.Installed} {
 		f.text = append(f.text, strings.ToLower(h))
 	}
+	f.text = append(f.text, s.Tags...) // a word finds a tag too
 	set := func(c string, ok bool) {
 		if ok {
 			f.is[c] = true
