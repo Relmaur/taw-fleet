@@ -91,6 +91,8 @@ var WriteTools = []WriteDoc{
 		"Writes the framework files that differ from the taw-theme scaffold (Tier 1); files to review (Tier 2) stay as they are.", false, false},
 	{"pull_content", "Pull production content", "taw-fleet pull <site>", "C",
 		"Brings the production site's content into the Local site. The first call shows the preview of what would change; confirming imports it (a rollback snapshot is kept).", false, false},
+	{"create_site", "Create a site", "taw-fleet create <name> --classic|--block", "n",
+		"Creates a Local site with a new TAW theme: classic (taw-theme: PHP blocks, Vite, Tailwind, Alpine) or block (taw-gutenberg: full site editing). Local must be open. The admin user and email come from the settings' [create] section unless given. The admin password isn't shown here; the person can set one with taw-fleet wp <site> user update <user> --prompt=user_pass.", false, false},
 	{"restore_site", "Put back a restore point", "taw-fleet restore <site> <point>", "z",
 		"Puts a restore point back (restore_points lists them; point defaults to the latest): the theme onto the point's branch (commits since stay) and the Local database from its copy, replacing the current one. How things are just before is saved as a new point first, so it can be undone.", false, true},
 }
@@ -108,6 +110,14 @@ type (
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
 		Point   string `json:"point,omitempty" jsonschema:"the restore point's id (restore_points lists them); empty or latest for the newest"`
 		Confirm string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
+	}
+	createIn struct {
+		Name       string `json:"name" jsonschema:"the site's name, e.g. Acme Bakery (its folder and domain come from it)"`
+		Kind       string `json:"kind" jsonschema:"classic (taw-theme: PHP blocks, Tailwind) or block (taw-gutenberg: full site editing)"`
+		Domain     string `json:"domain,omitempty" jsonschema:"the Local domain (default <name>.local)"`
+		AdminUser  string `json:"admin_user,omitempty" jsonschema:"WordPress admin username (default: the settings' [create] admin_user)"`
+		AdminEmail string `json:"admin_email,omitempty" jsonschema:"WordPress admin email (default: the settings' [create] admin_email)"`
+		Confirm    string `json:"confirm,omitempty" jsonschema:"the token from the first call, after the user said yes to its question"`
 	}
 	mergeIn struct {
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -178,6 +188,25 @@ func addWrites(s *sdk.Server, d Deps, tk *tokens) {
 			point = "latest"
 		}
 		return ask(ctx, req, d, tk, "restore_site", append(args, point), in.Confirm)
+	})
+	sdk.AddTool(s, writeTool("create_site"), func(ctx context.Context, req *sdk.CallToolRequest, in createIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Name) == "" {
+			return nil, nil, errors.New("name is required")
+		}
+		args := []string{"create", in.Name}
+		switch in.Kind {
+		case "classic", "block":
+			args = append(args, "--"+in.Kind)
+		default:
+			return nil, nil, errors.New("kind is classic or block")
+		}
+		for _, f := range [][2]string{{"--domain", in.Domain}, {"--admin-user", in.AdminUser}, {"--admin-email", in.AdminEmail}} {
+			if f[1] != "" {
+				args = append(args, f[0], f[1])
+			}
+		}
+		args = append(args, "--no-password")
+		return ask(ctx, req, d, tk, "create_site", args, in.Confirm)
 	})
 	sdk.AddTool(s, writeTool("merge_pr"), func(ctx context.Context, req *sdk.CallToolRequest, in mergeIn) (*sdk.CallToolResult, any, error) {
 		args, err := siteArgs([]string{"merge"}, in.Site, in.Theme)

@@ -548,11 +548,27 @@ date every time it opens (after an upgrade, a settings change):
 - **The fleet skills** in `.claude/skills/`, shipped inside taw-fleet: **fleet-check** (the morning
   check, read-only: doctor, production, comments, pull requests and watch, most urgent first),
   **update-fleet** (what `U` does, then the themes that stopped, and each merge and deploy one site
-  at a time, asking before each) and **onboard-mac** (tools, sites, keys and watch on a new Mac).
+  at a time, asking before each), **onboard-mac** (tools, sites, keys and watch on a new Mac) and
+  **new-site** (below).
   `a` lists them under **Fleet skills**; picking one runs it in the fleet's chat. Your own skills
   there stay; a fleet skill taw-fleet stops shipping is removed.
 
 Monthly reports live there too (`reports/`).
+
+**A new site from a link (`new-site`).** In the fleet chat: "make me a site for a bakery", or "make
+me this site: <link>" (a Claude design or artifact, a Figma file, an existing website, or a brief in
+words). Three checkpoints, each waiting for you:
+
+1. **The brief:** the link read into `sites/<slug>/brief.md` (pages and their sections, header and
+   footer, colours and fonts, content and images, forms, classic or block, questions), with the
+   reference screenshots in `sites/<slug>/reference/`.
+2. **The build:** `create_site` makes the Local site (it asks), then the theme's `build-site` skill
+   (taw/core 1.96+) builds it on a branch, page by page, ending with the theme's checks.
+3. **Reference beside build:** screenshots of the Local site at the same sizes, side by side in
+   `sites/<slug>/review.html`, opened in the browser; your corrections go back to build-site.
+
+Nothing about the project goes in the theme, and it stops at the Local site: GitHub, hosting and
+production come later, by hand for now.
 
 ## AI apps (MCP)
 
@@ -592,6 +608,7 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `start_site`, `stop_site` | `taw-fleet start|stop <site>` (`s`) |
 | `sync_apply` | `taw-fleet sync <site> --apply` (`S`) |
 | `pull_content` | `taw-fleet pull <site>` (`C`): the first call shows the preview |
+| `create_site` | `taw-fleet create <name> --classic\|--block` (`n`); the admin password isn't shown to the agent (it says how to set one) |
 
 The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones
 (an update) send their progress lines as MCP progress notifications.

@@ -10,12 +10,13 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/Relmaur/taw-fleet/internal/actions"
 	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/createform"
 )
 
 func newCreateCmd(d Deps) *cobra.Command {
-	var classic, block, yes, asJSON bool
+	var classic, block, yes, asJSON, noPassword bool
 	var f createform.Fields
 	cmd := &cobra.Command{
 		Use:   "create [name]",
@@ -115,7 +116,10 @@ func newCreateCmd(d Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if asJSON {
+			if noPassword {
+				hidePassword(&sum)
+			}
+			if asJSON && !noPassword {
 				return writeJSON(out, sum.Report)
 			}
 			return printSummary(cmd, d, sum)
@@ -131,5 +135,19 @@ func newCreateCmd(d Deps) *cobra.Command {
 	cmd.Flags().StringVar(&f.AdminEmail, "admin-email", "", "WordPress admin email")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "don't ask")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print the result as JSON (includes the password)")
+	cmd.Flags().BoolVar(&noPassword, "no-password", false, "")
+	_ = cmd.Flags().MarkHidden("no-password") // the MCP tool's: no password in an agent's context
 	return cmd
+}
+
+// hidePassword keeps a new site's admin password out of the summary, for an
+// agent (the MCP tool): it says how to set one instead.
+func hidePassword(sum *actions.Summary) {
+	res, _ := sum.Report.(create.Result)
+	for i, l := range sum.Lines {
+		if j := strings.Index(l, " · password "); j >= 0 {
+			sum.Lines[i] = l[:j] + " · password not shown; set one with: taw-fleet wp " + res.Slug + " user update " + res.AdminUser + " --prompt=user_pass"
+		}
+	}
+	sum.Secret = ""
 }

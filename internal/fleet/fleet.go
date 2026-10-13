@@ -190,6 +190,8 @@ so can ` + "`claude`" + ` in a terminal. For one site, work in its theme folder 
 - **Settings:** ` + "`" + f.settings() + "`" + ` (` + "`taw-fleet config show`" + `). Unknown keys are errors.
 - **Sites:** ` + "`~/Local Sites/<folder>/`" + `; each theme's path from ` + "`taw-fleet list --json`" + `.
 - **Monthly reports:** ` + "`reports/<site>/<month>.{md,html}`" + ` in this folder.
+- **New sites:** ` + "`sites/<slug>/`" + ` in this folder: the brief, the reference and build screenshots, the
+  review page (the new-site skill). Never in the theme.
 - **Restore points:** ` + "`~/Library/Application Support/taw-fleet/restore/`" + `. They hold database copies:
   never copy, move or read them into a site, a theme or anything git or a sync reaches. Use
   ` + "`restore_points`" + ` and ` + "`restore_site`" + `.
