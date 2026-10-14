@@ -1,0 +1,30 @@
+ ◆ taw-fleet v0.3.0 · 3 sites · 4 themes · 2 running · 1 behind                    updated just now 
+
+ ✦ Claude · the fleet                                                                               
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ you  update every site that's behind                                                               
+                                                                                                    
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ ? Claude asks · build-site · 1 of 2                                                                
+   Four themes are skipped only because of an untracked build-site skill folder. How should I       
+   handle them?                                                                                     
+                                                                                                    
+ ▸ 1  Remove, then update (Recommended)                                                             
+        Delete the 4 untracked folders: they come back from taw/core, so U updates 5 themes.        
+   2  Update only acme-shop                                                                         
+   3  Stop here                                                                                     
+   4  Something else: type my own answer                                                            
+
+ ↑↓ move • enter pick • 1–4 pick by number • esc don't answer

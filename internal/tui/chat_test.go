@@ -384,3 +384,82 @@ func TestChatNewConversationAndCtrlC(t *testing.T) {
 		t.Error("claude still running")
 	}
 }
+
+// Claude's multiple-choice questions show as a picker, and the answers go
+// back the way Claude Code takes them.
+func TestChatClaudeAsksAQuestion(t *testing.T) {
+	m, f, _ := chatModel(t, 30)
+	m = press(t, m, ">")
+	m = typeText(t, m, "update every site that's behind")
+	m = send(t, m)
+	f.last(t, "user", 1)
+
+	input := map[string]any{"questions": []any{
+		map[string]any{"question": "Four themes are skipped only because of an untracked build-site skill folder. How should I handle them?",
+			"header": "build-site", "multiSelect": false, "options": []any{
+				map[string]any{"label": "Remove, then update (Recommended)", "description": "Delete the 4 untracked folders: they come back from taw/core, so U updates 5 themes."},
+				map[string]any{"label": "Update only acme-shop", "description": "Leave the folders alone and run U now."},
+				map[string]any{"label": "Stop here", "description": "Don't update anything yet."}}},
+		map[string]any{"question": "Which sites should get a monthly report?", "header": "Reports", "multiSelect": true, "options": []any{
+			map[string]any{"label": "acme-shop"}, map[string]any{"label": "acme-blog"}, map[string]any{"label": "bakery"}}},
+	}}
+	ask := &agent.Request{ID: "q1", Tool: agent.AskTool, Input: input}
+	m = say(t, m, "fleet",
+		agent.Event{Kind: agent.Started, Session: "s-1"},
+		agent.Event{Kind: agent.Tool, ToolID: "t1", Name: agent.AskTool, Summary: agent.Summarize(agent.AskTool, input), Input: input},
+		agent.Event{Kind: agent.Ask, Name: agent.AskTool, Request: ask})
+	sc := screen(m)
+	if strings.Contains(sc, `"questions"`) || strings.Contains(sc, "AskUserQuestion") {
+		t.Errorf("no JSON:\n%s", sc)
+	}
+	if !strings.Contains(sc, "? Claude asks · build-site · 1 of 2") || !strings.Contains(sc, "▸ 1  Remove, then update (Recommended)") ||
+		!strings.Contains(sc, "Delete the 4 untracked folders") || !strings.Contains(sc, "4  Something else: type my own answer") || !strings.Contains(sc, "enter pick") {
+		t.Errorf("picker:\n%s", sc)
+	}
+	golden(t, "chat-question-100x30", sc)
+
+	m = press(t, m, "down", "enter") // the second option
+	sc = screen(m)
+	if !strings.Contains(sc, "Reports · 2 of 2 · pick any") || !strings.Contains(sc, "[ ] acme-shop") || !strings.Contains(sc, "you  Update only acme-shop") {
+		t.Errorf("second question:\n%s", sc)
+	}
+	m = press(t, m, "1", "3")
+	if !strings.Contains(screen(m), "[x] acme-shop") || !strings.Contains(screen(m), "[x] bakery") {
+		t.Errorf("ticks:\n%s", screen(m))
+	}
+	golden(t, "chat-question-multi-100x30", screen(m))
+	m = press(t, m, "enter")
+
+	r := f.last(t, "control_response", 1)["response"].(map[string]any)
+	resp := r["response"].(map[string]any)
+	answers, _ := resp["updatedInput"].(map[string]any)["answers"].(map[string]any)
+	if r["request_id"] != "q1" || resp["behavior"] != "allow" || answers["Which sites should get a monthly report?"] != "acme-shop, bakery" ||
+		answers["Four themes are skipped only because of an untracked build-site skill folder. How should I handle them?"] != "Update only acme-shop" {
+		t.Errorf("answers: %v", r)
+	}
+	if c := m.currentChat(); c.ask != nil || c.pick != nil || !strings.Contains(screen(m), "you  acme-shop, bakery") {
+		t.Errorf("answered:\n%s", screen(m))
+	}
+
+	// One's own words; esc leaves the question unanswered.
+	one := map[string]any{"questions": []any{map[string]any{"question": "Which host?", "header": "Host", "options": []any{
+		map[string]any{"label": "WPMU DEV"}, map[string]any{"label": "SiteGround"}}}}}
+	m = say(t, m, "fleet", agent.Event{Kind: agent.Ask, Name: agent.AskTool, Request: &agent.Request{ID: "q2", Tool: agent.AskTool, Input: one}})
+	m = press(t, m, "3")
+	m = typeText(t, m, "Kinsta")
+	if !strings.Contains(screen(m), "Kinsta") || !strings.Contains(screen(m), "esc back to the options") {
+		t.Errorf("typing:\n%s", screen(m))
+	}
+	m = press(t, m, "enter")
+	if a := f.last(t, "control_response", 2)["response"].(map[string]any)["response"].(map[string]any)["updatedInput"].(map[string]any)["answers"].(map[string]any); a["Which host?"] != "Kinsta" {
+		t.Errorf("own answer: %v", a)
+	}
+	m = say(t, m, "fleet", agent.Event{Kind: agent.Ask, Name: agent.AskTool, Request: &agent.Request{ID: "q3", Tool: agent.AskTool, Input: one}})
+	m = press(t, m, "esc")
+	if r := f.last(t, "control_response", 3)["response"].(map[string]any)["response"].(map[string]any); r["behavior"] != "deny" {
+		t.Errorf("esc: %v", r)
+	}
+	if !strings.Contains(screen(m), "Not answered: Claude will ask in words instead.") || m.mode != modeChat {
+		t.Errorf("esc:\n%s", screen(m))
+	}
+}

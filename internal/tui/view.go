@@ -756,7 +756,9 @@ func (m Model) footer() string {
 	case m.mode == modeMenu, m.mode == modeSkills:
 		keys = menuKeys{}
 	case m.mode == modeChat:
-		if c := m.currentChat(); c != nil {
+		if c := m.currentChat(); c != nil && c.pick != nil {
+			keys = pickKeys{multi: c.pick.q().Multi, typing: c.pick.typing, n: c.pick.own() + 1}
+		} else if c != nil {
 			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working, len(c.entries) > 0 || c.sess != nil}
 		}
 	case m.tagging:
