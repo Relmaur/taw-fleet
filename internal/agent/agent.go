@@ -184,6 +184,12 @@ func Summarize(tool string, in map[string]any) string {
 		return str("url")
 	case "WebSearch":
 		return str("query")
+	case AskTool:
+		var qs []string
+		for _, q := range Choices(&Request{Tool: tool, Input: in}) {
+			qs = append(qs, q.Text)
+		}
+		return strings.Join(qs, " · ")
 	}
 	if len(in) == 0 {
 		return ""

@@ -29,6 +29,7 @@ const (
 	entryTool
 	entryNote
 	entryErr
+	entryAnswer // the person's answer to Claude's question: text the question, tool the answer
 )
 
 type chatEntry struct {
@@ -53,6 +54,7 @@ type chatState struct {
 
 	entries   []chatEntry
 	ask       *agent.Request
+	pick      *picker           // Claude's multiple-choice question, when ask is one
 	question  string            // what the person is asked about ask
 	questions map[string]string // a taw-fleet call in words (tool and what it acts on) → the question it returned
 	working   bool
@@ -245,7 +247,8 @@ func (m Model) onChatEvent(msg chatEventMsg) (tea.Model, tea.Cmd) {
 		// A taw-fleet write without its token only fetches the question,
 		// which comes next: the line is the call that does it.
 		quiet := agent.OnlyAsks(&agent.Request{Tool: ev.Name, Input: ev.Input}, m.deps.ChatWrites) && m.deps.ChatWrites[agent.FleetTool(ev.Name)]
-		c.entries = append(c.entries, chatEntry{kind: entryTool, id: ev.ToolID, tool: toolWords(ev.Name, ev.Summary), running: true, hidden: quiet})
+		c.entries = append(c.entries, chatEntry{kind: entryTool, id: ev.ToolID, tool: toolWords(ev.Name, ev.Summary), running: true,
+			hidden: quiet || ev.Name == agent.AskTool}) // a question shows as the picker, then its answers
 	case agent.Result:
 		for i := range c.entries {
 			e := &c.entries[i]
@@ -265,6 +268,10 @@ func (m Model) onChatEvent(msg chatEventMsg) (tea.Model, tea.Cmd) {
 			return m, next
 		}
 		c.closeText()
+		if qs := agent.Choices(r); len(qs) > 0 {
+			c.ask, c.pick, c.question = r, newPicker(r, qs), ""
+			return m, next
+		}
 		c.ask, c.question = r, askWords(r, c.questions)
 	case agent.TurnDone:
 		c.closeText()
@@ -280,7 +287,7 @@ func (m Model) onChatEvent(msg chatEventMsg) (tea.Model, tea.Cmd) {
 		}
 	case agent.Ended:
 		c.closeText()
-		c.sess, c.working, c.ask = nil, false, nil
+		c.sess, c.working, c.ask, c.pick = nil, false, nil, nil
 		c.unqueue()
 		if ev.Err != nil {
 			c.entries = append(c.entries, chatEntry{kind: entryErr, text: "Claude Code stopped: " + ev.Err.Error()})
@@ -313,6 +320,14 @@ func (c *chatState) unqueue() {
 	c.queued = nil
 	c.input.SetValue(text)
 	c.input.CursorEnd()
+}
+
+// dropPick puts back what was in the input while an answer was typed.
+func (c *chatState) dropPick() {
+	if c.pick != nil && c.pick.typing {
+		c.input.SetValue(c.pick.draft)
+		c.input.Placeholder = c.pick.hint
+	}
 }
 
 func (c *chatState) closeText() {
@@ -374,6 +389,9 @@ func (m Model) onChatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeTable
 		return m, nil
 	}
+	if c.pick != nil {
+		return m.onPickKey(c, msg)
+	}
 	if c.ask != nil {
 		r := c.ask
 		switch msg.String() {
@@ -431,9 +449,10 @@ func (m Model) newChat(c *chatState) (tea.Model, tea.Cmd) {
 		c.sess.Stop()
 	}
 	c.unqueue()
+	c.dropPick()
 	c.gen++
 	c.sess, c.session, c.model, c.cost = nil, "", "", 0
-	c.entries, c.ask, c.question, c.working, c.scroll = nil, nil, "", false, 0
+	c.entries, c.ask, c.pick, c.question, c.working, c.scroll = nil, nil, nil, "", false, 0
 	c.questions = map[string]string{}
 	where := "the fleet folder"
 	if c.scope.Site != "" {
@@ -449,7 +468,8 @@ func (m Model) stopChat(c *chatState) (tea.Model, tea.Cmd) {
 		c.sess.Stop()
 	}
 	c.gen++
-	c.sess, c.ask, c.question, c.working = nil, nil, "", false
+	c.dropPick()
+	c.sess, c.ask, c.pick, c.question, c.working = nil, nil, nil, "", false
 	c.unqueue()
 	c.entries = append(c.entries, chatEntry{kind: entryNote, text: "Stopped. Your next message carries on from here."})
 	return m, nil
@@ -486,9 +506,12 @@ func (m Model) chatScreen(height int) string {
 	}
 
 	var bottom []string
-	if c.ask != nil {
+	switch {
+	case c.pick != nil:
+		bottom = m.pickCard(c)
+	case c.ask != nil:
 		bottom = m.askCard(c)
-	} else {
+	default:
 		bottom = []string{" " + c.input.View()}
 	}
 	lines := m.transcript(c, m.width-2)
@@ -599,6 +622,24 @@ func (m Model) transcript(c *chatState, w int) []string {
 			}
 		case entryNote:
 			out = append(out, "", "      "+muted.Render(e.text))
+		case entryAnswer:
+			if len(out) > 0 && out[len(out)-1] != "" {
+				out = append(out, "")
+			}
+			for j, l := range wrap(e.text, w-8, 3) {
+				lead := "        "
+				if j == 0 {
+					lead = "      " + p.Fg(p.Warn).Render("?") + " "
+				}
+				out = append(out, lead+muted.Render(l))
+			}
+			for j, l := range wrap(e.tool, w-6, 0) {
+				lead := "      "
+				if j == 0 {
+					lead = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Brand).Render("you") + "  "
+				}
+				out = append(out, lead+lipgloss.NewStyle().Bold(true).Render(l))
+			}
 		case entryErr:
 			for _, l := range wrap(e.text, w-8, 0) {
 				out = append(out, "      "+p.Fg(p.Err).Render(l))
