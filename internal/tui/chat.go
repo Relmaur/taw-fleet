@@ -339,6 +339,8 @@ func (c *chatState) closeText() {
 // toolWords is a tool call as people read it: "taw-fleet merge pr  acme"
 // or "Bash  git status".
 func toolWords(name, summary string) string {
+	// One line on screen, whatever the command holds (a heredoc's lines).
+	summary = strings.Join(strings.Fields(summary), " ")
 	if t := agent.FleetTool(name); t != "" {
 		name = "taw-fleet " + strings.ReplaceAll(t, "_", " ")
 		if summary == "" {
@@ -514,7 +516,14 @@ func (m Model) chatScreen(height int) string {
 	default:
 		bottom = []string{" " + c.input.View()}
 	}
-	lines := m.transcript(c, m.width-2)
+	// One screen line each: a line break inside one would push the input off
+	// the screen.
+	var lines []string
+	for _, l := range m.transcript(c, m.width-2) {
+		for _, part := range strings.Split(l, "\n") {
+			lines = append(lines, ansi.Truncate(part, m.width, "…"))
+		}
+	}
 	room := max(height-3-len(bottom), 1)
 	end := max(len(lines)-c.scroll, 0)
 	start := max(end-room, 0)

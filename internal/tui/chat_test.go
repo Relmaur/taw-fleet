@@ -463,3 +463,30 @@ func TestChatClaudeAsksAQuestion(t *testing.T) {
 		t.Errorf("esc:\n%s", screen(m))
 	}
 }
+
+// A command with line breaks (a heredoc) stays one line, and the input stays
+// on screen however long the conversation.
+func TestChatKeepsTheInputOnScreen(t *testing.T) {
+	m, f, _ := chatModel(t, 24)
+	m = press(t, m, ">")
+	m = typeText(t, m, "delete the merged branches")
+	m = send(t, m)
+	f.last(t, "user", 1)
+	evs := []agent.Event{{Kind: agent.Started, Session: "s-1"}}
+	for i := range 30 {
+		id := "t" + string(rune('a'+i%26)) + string(rune('a'+i/26))
+		cmd := "while read p b; do git -C $p branch -d $b; done <<'EOF'\nacme-shop taw/update-1\nbakery taw/update-2\nEOF"
+		evs = append(evs, agent.Event{Kind: agent.Tool, ToolID: id, Name: "Bash", Summary: agent.Summarize("Bash", map[string]any{"command": cmd})},
+			agent.Event{Kind: agent.Result, ToolID: id})
+	}
+	evs = append(evs, agent.Event{Kind: agent.Tool, ToolID: "sk", Name: "Skill", Summary: agent.Summarize("Skill", map[string]any{"skill": "update-fleet"})})
+	m = say(t, m, "fleet", evs...)
+	sc := screen(m)
+	lines := strings.Split(sc, "\n")
+	if len(lines) != 24 || !strings.Contains(lines[21], "Ask Claude about any site") {
+		t.Errorf("%d lines, input gone:\n%s", len(lines), sc)
+	}
+	if strings.Contains(sc, "\nacme-shop") || !strings.Contains(sc, "Skill  update-fleet") || strings.Contains(sc, `{"skill"`) {
+		t.Errorf("one line per tool, in words:\n%s", sc)
+	}
+}

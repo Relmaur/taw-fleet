@@ -14,7 +14,7 @@
    │  z   restore point    D      site's branch       G PRs               c copy prompt        │    
    │  x   undo publish     C      pull content        F comments          X resolve comments   │    
    │  I   set up next      p      publish             m monthly report    > chat with Claude   │    
-   │  q   quit             a      ask Claude…         # tags              = group by           │    
+   │  q   quit             a      ask Claude…         T tags              = group by           │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    

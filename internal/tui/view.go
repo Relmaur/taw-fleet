@@ -46,6 +46,9 @@ func (m Model) render() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.pal.Fg(m.pal.Muted).Render(msg))
 	}
 	body := m.body()
+	if m.popup != nil {
+		body = m.overlay(body)
+	}
 	return m.header() + "\n\n" + body + "\n" + m.footer()
 }
 
@@ -685,11 +688,6 @@ func (m Model) footer() string {
 	switch {
 	case m.confirm != "":
 		status = " " + lipgloss.NewStyle().Bold(true).Foreground(p.Warn).Render(m.confirm) + muted.Render(confirmHint(m.onAgent != nil, len(m.choices)))
-	case m.tagging:
-		status = " " + m.tagInput.View()
-		if m.flash != "" && m.flashErr {
-			status += "  " + p.Fg(p.Err).Render("✗ "+m.flash)
-		}
 	case m.flash != "" && m.flashErr: // a refusal the user just caused beats the busy line
 		status = " " + p.Fg(p.Err).Render("✗ "+m.flash)
 	case m.full.active && m.mode != modeOutput:
@@ -761,8 +759,8 @@ func (m Model) footer() string {
 		} else if c != nil {
 			keys = chatKeys{m.keys, c.ask != nil, c.ask != nil && len(c.ask.Suggestions) > 0, c.working, len(c.entries) > 0 || c.sess != nil}
 		}
-	case m.tagging:
-		keys = tagKeys{}
+	case m.popup != nil:
+		keys = popupKeys{kind: m.popup.kind, n: len(m.popup.items), typed: strings.TrimSpace(m.tagInput.Value()) != ""}
 	case m.mode == modeTable && m.onHeader():
 		keys = headerKeys{m.keys}
 	}
