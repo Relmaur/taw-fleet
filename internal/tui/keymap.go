@@ -78,7 +78,7 @@ func newKeyMap() keyMap {
 		Ask:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ask Claude…")),
 		Chat:        key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "chat with Claude")),
 		Setup:       key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "set up next")),
-		Tags:        key.NewBinding(key.WithKeys("#"), key.WithHelp("#", "tags")),
+		Tags:        key.NewBinding(key.WithKeys("T", "#", "alt+3"), key.WithHelp("T", "tags")), // # is Option+3 on a Spanish keyboard
 		Group:       key.NewBinding(key.WithKeys("="), key.WithHelp("=", "group by")),
 		Fold:        key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "fold group")),
 		Unfold:      key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "open group")),
@@ -222,18 +222,6 @@ func (createKeys) ShortHelp() []key.Binding {
 }
 
 func (c createKeys) FullHelp() [][]key.Binding { return [][]key.Binding{c.ShortHelp()} }
-
-// tagKeys is the help bar while the tag input is open.
-type tagKeys struct{}
-
-func (tagKeys) ShortHelp() []key.Binding {
-	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "save")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-	}
-}
-
-func (t tagKeys) FullHelp() [][]key.Binding { return [][]key.Binding{t.ShortHelp()} }
 
 // headerKeys is the help bar with the cursor on a group's header.
 type headerKeys struct{ k keyMap }

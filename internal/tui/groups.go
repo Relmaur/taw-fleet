@@ -47,17 +47,6 @@ func (m Model) groupModes() []string {
 	return append(modes, ps...)
 }
 
-// nextGroupBy is the mode after the current one.
-func (m Model) nextGroupBy() string {
-	modes := m.groupModes()
-	for i, g := range modes {
-		if g == m.groupBy {
-			return modes[(i+1)%len(modes)]
-		}
-	}
-	return "" // a mode that's gone (its tags were removed): back to none
-}
-
 // groupWords is the grouping as people read it.
 func groupWords(g string) string {
 	switch g {
@@ -174,9 +163,10 @@ func (m *Model) fold(closed bool) {
 	m.clamp()
 }
 
-// cycleGroup moves = on: the next grouping, saved in the settings.
-func (m Model) cycleGroup() Model {
-	m.groupBy = m.nextGroupBy()
+// setGroup groups the list by g (picked in the = popup), saved in the settings.
+func (m Model) setGroup(g string) Model {
+	m.popup = nil
+	m.groupBy = g
 	m.cursor, m.offset = 0, 0
 	m.buildEntries()
 	m.clamp()

@@ -216,6 +216,12 @@ func Summarize(tool string, in map[string]any) string {
 		}
 		return strings.Join(parts, " ")
 	}
+	// Another tool: the field that says what it does, else its input as JSON.
+	for _, k := range []string{"skill", "query", "description", "prompt", "subject", "url", "path"} {
+		if s := str(k); s != "" {
+			return s
+		}
+	}
 	var b strings.Builder
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)

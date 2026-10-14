@@ -217,10 +217,9 @@ type Model struct {
 	entries  []entry         // the list as shown: the visible rows, under group headers when grouped
 	groupBy  string          // "" | tag | kind | production | prefix:<p> (=)
 	folded   map[string]bool // group key → folded (←/→)
-	tagging  bool            // the tag input is open (#)
-	tagSite  string          // whose tags it edits
-	tagInput textinput.Model
-	flashTip bool // a hint, not a result: muted, no ✓
+	popup    *popup          // the = or T popup, over the list
+	tagInput textinput.Model // the tag popup's line for new tags
+	flashTip bool            // a hint, not a result: muted, no ✓
 	flashAt  time.Time
 
 	confirm string                             // question on screen; "" = none
@@ -297,7 +296,7 @@ func New(ctx context.Context, d Deps) Model {
 	m.menuInput.Placeholder = "type to find an action"
 	m.filter.Placeholder = "words, -word, #tag, is:behind, has:comments, kind:block, core:<1.95 (all must match)"
 	m.tagInput = textinput.New()
-	m.tagInput.Placeholder = "tags, with spaces between: retainer es client:acme (empty removes them)"
+	m.tagInput.Placeholder = "type tags, then enter"
 	m.groupBy = d.GroupBy
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	m.help = help.New()
@@ -676,10 +675,10 @@ func (m Model) onPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch {
 	case m.mode == modeChat:
-		if c := m.currentChat(); c != nil && c.ask == nil {
+		if c := m.currentChat(); c != nil && (c.ask == nil || c.pick != nil && c.pick.typing) {
 			c.input, cmd = c.input.Update(msg)
 		}
-	case m.tagging:
+	case m.popup != nil && m.popup.kind == popTags:
 		m.tagInput, cmd = m.tagInput.Update(msg)
 	case m.filtering:
 		m.filter, cmd = m.filter.Update(msg)
@@ -695,8 +694,8 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
-	if m.tagging {
-		return m.onTagKey(msg)
+	if m.popup != nil {
+		return m.onPopupKey(msg)
 	}
 	if m.filtering {
 		switch msg.String() {
@@ -856,7 +855,7 @@ func (m Model) onKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Unfold):
 		m.fold(false)
 	case key.Matches(msg, k.Group):
-		return m.cycleGroup(), nil
+		return m.openGroupBy()
 	case key.Matches(msg, k.Tags):
 		return m.openTags()
 	case key.Matches(msg, k.Back):

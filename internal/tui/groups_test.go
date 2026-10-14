@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // tagged is the fixture with tags: acme-shop retainer + es + client:acme,
@@ -23,7 +25,7 @@ func tagged(t *testing.T, h int) (Model, *[]string, map[string][]string) {
 
 func TestGroupByTag(t *testing.T) {
 	m, groups, _ := tagged(t, 34)
-	m = press(t, m, "=")
+	m = press(t, m, "=", "2")
 	if m.groupBy != "tag" || strings.Join(*groups, ",") != "tag" {
 		t.Fatalf("group %q, saved %v", m.groupBy, *groups)
 	}
@@ -72,18 +74,33 @@ func TestGroupByTag(t *testing.T) {
 	}
 }
 
-func TestGroupCycles(t *testing.T) {
+// = opens a list of the groupings; a digit, or the arrows and enter, picks.
+func TestGroupByPopup(t *testing.T) {
 	m, groups, _ := tagged(t, 30)
-	for _, want := range []string{"tag", "kind", "production", "prefix:client", ""} {
-		m = press(t, m, "=")
-		if m.groupBy != want {
-			t.Fatalf("= → %q, want %q", m.groupBy, want)
+	m = press(t, m, "=")
+	sc := screen(m)
+	for _, want := range []string{"Group the list by", "▸ 1  ● None", "2  ○ Tag", "3  ○ Kind", "4  ○ Production", "5  ○ Client", "by its client: tags", "enter group"} {
+		if !strings.Contains(sc, want) {
+			t.Errorf("lacks %q:\n%s", want, sc)
 		}
 	}
-	if strings.Join(*groups, ",") != "tag,kind,production,prefix:client," {
+	golden(t, "group-popup-100x30", sc)
+	m = press(t, m, "esc")
+	if m.popup != nil || m.groupBy != "" || len(*groups) != 0 {
+		t.Fatalf("esc changes nothing: %q %v", m.groupBy, *groups)
+	}
+	m = press(t, m, "=", "down", "down", "enter")
+	if m.groupBy != "kind" || m.popup != nil {
+		t.Fatalf("arrows and enter: %q", m.groupBy)
+	}
+	m = press(t, m, "=")
+	if !strings.Contains(screen(m), "▸ 3  ● Kind") {
+		t.Errorf("opens on the grouping in use:\n%s", screen(m))
+	}
+	m = press(t, m, "5") // by client
+	if strings.Join(*groups, ",") != "kind,prefix:client" {
 		t.Errorf("saved %v", *groups)
 	}
-	m = press(t, m, "=", "=", "=", "=") // by client
 	if sc := screen(m); !strings.Contains(sc, "▾ acme · 1") || !strings.Contains(sc, "▾ no client · 3") || !strings.Contains(sc, "grouped by client") {
 		t.Errorf("by client:\n%s", sc)
 	}
@@ -99,31 +116,45 @@ func TestGroupingOffLeavesTheListAlone(t *testing.T) {
 	}
 }
 
-func TestTagsInput(t *testing.T) {
+// T (or #) opens the site's tags: the fleet's to tick, new ones typed below.
+func TestTagsPopup(t *testing.T) {
 	m, _, saved := tagged(t, 24)
-	m = press(t, m, "#")
-	if !m.tagging || !strings.Contains(screen(m), "# acme-shop: retainer es client:acme") || !strings.Contains(screen(m), "enter save") {
-		t.Fatalf("input:\n%s", screen(m))
+	for _, k := range []string{"T", "#"} {
+		m = press(t, m, k)
+		if m.popup == nil || m.popup.kind != popTags {
+			t.Fatalf("%s opens the tags", k)
+		}
+		m = press(t, m, "esc")
 	}
-	m.tagInput.SetValue("bad!tag")
+	m = step(t, m, tea.KeyPressMsg{Code: '3', Mod: tea.ModAlt}) // Option+3 on a Spanish keyboard
+	sc := screen(m)
+	for _, want := range []string{"Tags · acme-shop", "▸ [x] #client:acme", "[x] #es", "[x] #retainer", "2 sites", "new:", "space tick"} {
+		if !strings.Contains(sc, want) {
+			t.Errorf("lacks %q:\n%s", want, sc)
+		}
+	}
+	m = press(t, m, " ") // untick client:acme
+	m = typeText(t, m, "bad!tag")
 	m = press(t, m, "enter")
-	if !m.tagging || !strings.Contains(screen(m), `✗ tag "bad!tag"`) {
+	if !strings.Contains(screen(m), `✗ tag "bad!tag"`) {
 		t.Errorf("bad tag:\n%s", screen(m))
 	}
 	m.tagInput.SetValue("on-hold, #Retainer")
-	golden(t, "tags-input-100x24", screen(m))
 	m = press(t, m, "enter")
-	if m.tagging || strings.Join(saved["acme-shop"], " ") != "on-hold retainer" {
+	golden(t, "tags-popup-100x24", screen(m))
+	if !strings.Contains(screen(m), "[x] #on-hold") || m.tagInput.Value() != "" {
+		t.Fatalf("added:\n%s", screen(m))
+	}
+	m = press(t, m, "enter")
+	if m.popup != nil || strings.Join(saved["acme-shop"], " ") != "es on-hold retainer" {
 		t.Fatalf("saved %v", saved)
 	}
-	if sc := screen(m); !strings.Contains(sc, "Tags saved for acme-shop: #on-hold #retainer") || !strings.Contains(sc, "#on-hold #retainer") {
+	if sc := screen(m); !strings.Contains(sc, "Tags saved for acme-shop: #es #on-hold #retainer") {
 		t.Errorf("after:\n%s", sc)
 	}
 	// esc leaves them as they are.
-	m = press(t, m, "#")
-	m.tagInput.SetValue("gone")
-	m = press(t, m, "esc")
-	if m.tagging || len(saved["acme-shop"]) != 2 {
+	m = press(t, m, "T", " ", "esc")
+	if m.popup != nil || len(saved["acme-shop"]) != 3 {
 		t.Errorf("esc saved %v", saved)
 	}
 }
@@ -141,7 +172,7 @@ func TestFilterByTag(t *testing.T) {
 
 func TestGroupedListScrolls(t *testing.T) {
 	m, _, _ := tagged(t, 14) // room for a few entries only
-	m = press(t, m, "=")
+	m = press(t, m, "=", "2")
 	last := len(m.entries) - 1
 	for range last {
 		m = press(t, m, "down")

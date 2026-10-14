@@ -50,8 +50,8 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
 | `/` | filter: words (all must match), `-word` to leave out, and conditions: `is:behind\|dirty\|unpushed\|running\|stopped\|live\|down\|failing\|deploying\|undeployed\|vite\|other`, `has:comments\|prs\|findings\|errors`, `kind:classic\|block`, `core:<1.95` (also `<=`, `>`, `>=`, `=`, or `core:1.97` for any 1.97.x), `#retainer` or `tag:retainer` (`tag:client:` = any client tag). The footer counts the matches and names a term it didn't understand |
-| `#` | the selected site's tags, in a line at the bottom: `enter` saves them in the settings, `esc` cancels (see [Tags and groups](#tags-and-groups)) |
-| `=` | group the list: by tag (a site with several shows under each), kind, production, or a tag prefix (`client:` groups by client), then none; remembered in the settings (`group_by`). `←` folds a group, `→` opens it, `enter` on a header does either |
+| `T` | the selected site's tags, in a popup: the fleet's tags to tick (`space`), new ones typed below; `enter` saves them in the settings, `esc` cancels. `#` opens it too (see [Tags and groups](#tags-and-groups)) |
+| `=` | group the list, picked in a popup (`↑`/`↓` and `enter`, or a digit): none, by tag (a site with several shows under each), kind, production, or a tag prefix (`client:` groups by client); remembered in the settings (`group_by`). `←` folds a group, `→` opens it, `enter` on a header does either |
 | `w` | work on it: start the site (when stopped), open the theme in your editor, run Vite (`npm run dev`) in its own window and open the site once Vite answers (asks first). On a theme whose Vite is running (`vite` after its name), `w` stops Vite and the site |
 | `e` `f` `t` | open the theme in your editor, in Finder, in a terminal |
 | `b` `B` `P` | open the site, its wp-admin, its production site (when configured) |
@@ -419,7 +419,7 @@ tags = ["retainer", "es", "client:awesome"]   # # in the dashboard, taw-fleet ta
 ```
 
 `group_by = "tag"` (top level; also `"kind"`, `"production"`, `"prefix:client"`, `"none"`) is how the
-dashboard groups the list; `=` changes it and saves it here.
+dashboard groups the list; `=` picks it and saves it here.
 
 #### Tags and groups
 
@@ -427,8 +427,8 @@ Tags organise a bigger fleet: lower case letters, digits, `:`, `_` and `-` (`ret
 `client:acme`), up to 12 per site. They show as `#tag` on the site's card, the filter finds them
 (`#retainer`, `tag:client:` for any client), and `=` groups the list by them. A site with several tags
 shows under each; untagged sites come last, and the TAW ecosystem is always its own last group. A
-`prefix:` grouping (`client:` → by client) appears in `=`'s cycle once a tag uses that prefix. Set
-tags with `#` in the dashboard, `taw-fleet tag`, or Claude's `set_tags`; `list --tag` and `list_sites`
+`prefix:` grouping (`client:` → by client) appears in `=`'s list once a tag uses that prefix. Set
+tags with `T` (or `#`) in the dashboard, `taw-fleet tag`, or Claude's `set_tags`; `list --tag` and `list_sites`
 show them.
 
 **Icons.** `taw-fleet config icons nerd` switches to Nerd Font icons and `taw-fleet config icons
@@ -715,7 +715,7 @@ only a second call with the same arguments and that token runs it (good for 10 m
 | `deploy_key`, `deploy_apply` | `taw-fleet deploy key`, `deploy apply <site> …` (`I` on Deploy): the deploy to any host; `deploy_profiles` and `deploy_test` read |
 | `trust_production` | `taw-fleet live trust <site>`: pins the live site's key (the question shows it) |
 | `link_bugsmash` | `taw-fleet comments link <site> <project>` |
-| `set_tags` | `taw-fleet tag <site> <tag…>` (`#`): replaces the site's tags; an empty list removes them |
+| `set_tags` | `taw-fleet tag <site> <tag…>` (`T`): replaces the site's tags; an empty list removes them |
 | `create_site` | `taw-fleet create <name> --classic\|--block` (`n`); the admin password isn't shown to the agent (it says how to set one) |
 
 The `taw` tool runs read-only theme commands at once, and asks first for any other. Long ones
