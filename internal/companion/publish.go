@@ -20,6 +20,9 @@ type PublishPlan struct {
 		Needed []MediaFile `json:"needed"`
 	} `json:"media"`
 	Limits map[string]int64 `json:"limits"`
+	// TawCore is production's taw/core when the plan was made (from /health;
+	// "" when it didn't say).
+	TawCore string `json:"taw_core,omitempty"`
 }
 
 // PlanRecord is one record the publish would change: a post, term, option,

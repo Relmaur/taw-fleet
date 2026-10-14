@@ -55,7 +55,7 @@ func changeOf(t *testing.T, r Record, key string) Change {
 }
 
 func TestBuild(t *testing.T) {
-	p := Build("fid-b", "Fidelity B", "https://b.test", "13 Oct 2026, 08:00", "13 Oct 2026, 07:58", plan(t))
+	p := Build("fid-b", "Fidelity B", "https://b.test", "13 Oct 2026, 08:00", "13 Oct 2026, 07:58", plan(t), nil)
 
 	var titles []string
 	for _, g := range p.Groups {
@@ -98,7 +98,7 @@ func TestBuild(t *testing.T) {
 }
 
 func TestWithoutABaseNothingIsAConflict(t *testing.T) {
-	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "", plan(t))
+	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "", plan(t), nil)
 	if p.Conflicts != 0 || changeOf(t, find(t, p, "post:page:about"), "fields.f_url").Conflict != "" {
 		t.Error("no base: no conflicts to decide, a banner says why")
 	}
@@ -109,7 +109,7 @@ func TestWithoutABaseNothingIsAConflict(t *testing.T) {
 }
 
 func TestDecide(t *testing.T) {
-	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t))
+	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t), nil)
 
 	_, missing := p.Decide([]string{"post:page:about"}, nil)
 	if len(missing) != 1 || !strings.Contains(missing[0], "Textarea") {
@@ -131,7 +131,7 @@ func TestDecide(t *testing.T) {
 }
 
 func TestHTMLShowsTheChoicesAndTheDiff(t *testing.T) {
-	html, err := Build("fid-b", "Fidelity <B>", "https://b.test", "now", "base", plan(t)).HTML()
+	html, err := Build("fid-b", "Fidelity <B>", "https://b.test", "now", "base", plan(t), nil).HTML()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestHTMLShowsTheChoicesAndTheDiff(t *testing.T) {
 }
 
 func TestSavedCopyShowsWhatWasDecided(t *testing.T) {
-	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t))
+	p := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t), nil)
 	d, _ := p.Decide([]string{"post:page:about"}, map[string]map[string]string{"post:page:about": {"fields.f_textarea": "take"}})
 	p.State, p.Decisions, p.Result, p.MediaBase = "published", &d, &Result{Updated: 1, Files: 1}, "file:///uploads/"
 	html, _ := p.HTML()
@@ -179,7 +179,7 @@ func TestServer(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(uploads, "2026", "09", "fresh.jpg"), []byte("jpeg"), 0o644)
 	_ = os.WriteFile(filepath.Join(uploads, "secret.txt"), []byte("no"), 0o644)
 
-	page := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t))
+	page := Build("fid-b", "Fidelity B", "https://b.test", "now", "base", plan(t), nil)
 	s, err := Serve(context.Background(), page, uploads)
 	if err != nil {
 		t.Fatal(err)

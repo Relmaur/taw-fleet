@@ -71,6 +71,17 @@ var tmpl = template.Must(template.New("review").Funcs(template.FuncMap{
 		return local(p, m.Src)
 	},
 	"local": local,
+	"image": isImage,
+	"join":  strings.Join,
+	// goes: whether a new file goes up (with what's ticked, or was decided).
+	"goes": func(p Page, f File) bool {
+		for _, g := range p.Going() {
+			if g.Key == f.Key {
+				return true
+			}
+		}
+		return false
+	},
 }).Parse(pageHTML))
 
 // local is one of Local's files, by its path under uploads, as the page loads it.

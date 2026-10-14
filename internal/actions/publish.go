@@ -19,6 +19,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/local"
 	"github.com/Relmaur/taw-fleet/internal/review"
 	"github.com/Relmaur/taw-fleet/internal/site"
+	"golang.org/x/mod/semver"
 )
 
 // Publisher talks to a production site's publish routes (live.Prober;
@@ -167,11 +168,14 @@ func (a *Actions) PublishTask(s site.Site, t site.Theme, op SiteOp) (Task, error
 			if err != nil {
 				return Summary{}, err
 			}
+			if err := mediaSafe(plan, to); err != nil {
+				return Summary{}, err
+			}
 			baseLabel := ""
 			if withBase {
 				baseLabel = meta.SavedAt.Local().Format("2 Jan 2006, 15:04")
 			}
-			page := review.Build(s.Slug, siteName(s), prod, a.now().Format("2 Jan 2006, 15:04"), baseLabel, plan)
+			page := review.Build(s.Slug, siteName(s), prod, a.now().Format("2 Jan 2006, 15:04"), baseLabel, plan, review.MediaUsers(changeSet))
 			if page.Records == 0 {
 				return Summary{Headline: fmt.Sprintf("Nothing to publish: %s already has what %s has", to, s.Slug), Lines: page.Warnings}, nil
 			}
@@ -190,6 +194,28 @@ func (a *Actions) PublishTask(s site.Site, t site.Theme, op SiteOp) (Task, error
 			return Summary{Headline: reviewHead(s.Slug, to, page), Lines: reviewLines(page), Report: pr}, nil
 		},
 	}, nil
+}
+
+// mediaFirst is the first taw/core that publishes only the media a person
+// picked. Before it, any publish also wrote every picture's details and
+// every new file in the change-set.
+const mediaFirst = "v1.99.1"
+
+// mediaSafe refuses a plan with media that production's taw/core would
+// publish whatever the person picks.
+func mediaSafe(plan companion.PublishPlan, to string) error {
+	core := "v" + strings.TrimPrefix(plan.TawCore, "v")
+	if plan.TawCore == "" || !semver.IsValid(core) || semver.Compare(core, mediaFirst) >= 0 {
+		return nil
+	}
+	for _, r := range plan.Plan.Records {
+		if r.Kind == "media" {
+			return fmt.Errorf("%s runs taw/core %s, which would publish every picture's details and new file along with any record you pick. "+
+				"Update its taw/core to %s or newer (u, then merge and deploy), then publish again. Nothing was published",
+				to, strings.TrimPrefix(plan.TawCore, "v"), strings.TrimPrefix(mediaFirst, "v"))
+		}
+	}
+	return nil
 }
 
 // whenOf is production's time stamp as people read it, on this Mac's clock.
@@ -225,8 +251,8 @@ func undoWhat(u companion.UndoResult) string {
 // reviewHead is the review in one line.
 func reviewHead(slug, to string, page review.Page) string {
 	head := fmt.Sprintf("%s → %s: %d %s, %d %s", slug, to, page.Records, plural(page.Records, "record", "records"), page.Values, plural(page.Values, "value", "values"))
-	if len(page.Files) > 0 {
-		head += fmt.Sprintf(", %d %s to upload", len(page.Files), plural(len(page.Files), "file", "files"))
+	if n := len(page.Going()); n > 0 {
+		head += fmt.Sprintf(", %d %s to upload", n, plural(n, "file", "files"))
 	}
 	if page.Conflicts > 0 {
 		head += fmt.Sprintf("; %d changed on production too", page.Conflicts)
@@ -251,11 +277,18 @@ func reviewLines(p review.Page) []string {
 			if len(labels) > 0 {
 				l += ": " + strings.Join(labels, ", ")
 			}
+			if !r.Include && r.Op != "delete" {
+				l += " [not included unless asked: " + r.Key + "]"
+			}
 			lines = append(lines, l)
 		}
 	}
 	for _, f := range p.Files {
-		lines = append(lines, "file    "+f.Path+" ("+f.Size+")")
+		with := "goes with " + strings.Join(f.Users, ", ")
+		if len(f.Users) == 0 {
+			with = "nothing uses it: stays in Local unless asked (" + f.Key + ")"
+		}
+		lines = append(lines, "file    "+f.Path+" ("+f.Size+"): "+with)
 	}
 	for _, w := range p.Warnings {
 		lines = append(lines, "note: "+w)
@@ -319,8 +352,8 @@ func (a *Actions) publishApply(s site.Site, prod string, plan companion.PublishP
 		}
 	}
 	ask := fmt.Sprintf("Publish %d %s (%d %s) to %s?", len(d.Approved), plural(len(d.Approved), "record", "records"), values, plural(values, "value", "values"), hostOf(prod))
-	if len(page.Files) > 0 {
-		ask += fmt.Sprintf(" %d %s go up with it.", len(page.Files), plural(len(page.Files), "file", "files"))
+	if n := len(page.FilesFor(d)); n > 0 {
+		ask += fmt.Sprintf(" %d %s %s up with it.", n, plural(n, "file", "files"), plural(n, "goes", "go"))
 	}
 	ask += " Production keeps a rollback copy first; undo puts it back."
 	return Task{
@@ -351,28 +384,73 @@ func (a *Actions) publish(ctx context.Context, out io.Writer, s site.Site, prod 
 	}
 
 	uploads := filepath.Join(s.WebRoot, "wp-content", "uploads")
-	total := len(plan.Media.Needed)
-	for i, f := range plan.Media.Needed {
-		status(review.Status{State: "publishing", Step: "upload", Done: i, Total: total, Message: fmt.Sprintf("Uploading %s (%d of %d)", f.File, i+1, total)})
-		say("Uploading %s (%d of %d)…", f.File, i+1, total)
-		file, err := review.Within(uploads, f.File)
-		if err != nil {
-			return fail(fmt.Errorf("%s isn't in %s's uploads any more: %w", f.File, s.Slug, err))
+	going := map[string]bool{}
+	for _, f := range page.FilesFor(d) {
+		going[f.Path] = true
+	}
+	var needed []companion.MediaFile
+	for _, f := range plan.Media.Needed {
+		if going[f.File] {
+			needed = append(needed, f)
 		}
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return fail(err)
+	}
+	total := len(needed)
+	upload := func(files []companion.MediaFile) error {
+		for i, f := range files {
+			status(review.Status{State: "publishing", Step: "upload", Done: i, Total: len(files), Message: fmt.Sprintf("Uploading %s (%d of %d)", f.File, i+1, len(files))})
+			say("Uploading %s (%d of %d)…", f.File, i+1, len(files))
+			file, err := review.Within(uploads, f.File)
+			if err != nil {
+				return fmt.Errorf("%s isn't in %s's uploads any more: %w", f.File, s.Slug, err)
+			}
+			data, err := os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != f.SHA256 {
+				return fmt.Errorf("%s changed in Local since the review: publish again (p)", f.File)
+			}
+			if err := a.Publisher.File(ctx, s.Slug, prod, plan.ID, data); err != nil {
+				return err
+			}
 		}
-		if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != f.SHA256 {
-			return fail(fmt.Errorf("%s changed in Local since the review: publish again (p)", f.File))
-		}
-		if err := a.Publisher.File(ctx, s.Slug, prod, plan.ID, data); err != nil {
-			return fail(err)
-		}
+		return nil
+	}
+	if err := upload(needed); err != nil {
+		return fail(err)
 	}
 	status(review.Status{State: "publishing", Step: "apply", Done: total, Total: total, Message: "Publishing on " + to + "…"})
 	say("Publishing %d %s on %s…", len(d.Approved), plural(len(d.Approved), "record", "records"), to)
-	res, err := a.Publisher.Apply(ctx, s.Slug, prod, plan.ID, companion.ApplyRequest{Token: plan.Token, Approved: d.Approved, Keep: nonNil(d.Keep), Take: nonNil(d.Take)})
+	req := companion.ApplyRequest{Token: plan.Token, Approved: d.Approved, Keep: nonNil(d.Keep), Take: nonNil(d.Take)}
+	res, err := a.Publisher.Apply(ctx, s.Slug, prod, plan.ID, req)
+	var extra []string // files production wanted that taw-fleet's check didn't see
+	if r := (*live.Refusal)(nil); errors.As(err, &r) && r.Code == "publish_media_missing" {
+		if plan.TawCore == "" {
+			return fail(fmt.Errorf("%s wants files nothing you ticked uses (%s): its taw/core may be older than 1.99.1, which publishes every new file. Update it (u, then merge and deploy), then publish again. Nothing was published",
+				to, strings.Join(r.Missing, ", ")))
+		}
+		// Production decides what the approved records use (apply checks the
+		// files before it spends the token): send what it asks for, once.
+		want := map[string]bool{}
+		for _, m := range r.Missing {
+			want[m] = true
+		}
+		var more []companion.MediaFile
+		for _, f := range plan.Media.Needed {
+			if want[f.File] && !going[f.File] {
+				more = append(more, f)
+				extra = append(extra, f.File)
+			}
+		}
+		if len(more) == 0 {
+			return fail(err)
+		}
+		say("%s also needs %s; uploading %s too…", to, strings.Join(extra, ", "), plural(len(more), "it", "them"))
+		if err := upload(more); err != nil {
+			return fail(err)
+		}
+		res, err = a.Publisher.Apply(ctx, s.Slug, prod, plan.ID, req)
+	}
 	if err != nil {
 		return fail(err)
 	}
@@ -426,6 +504,9 @@ func (a *Actions) publish(ctx context.Context, out io.Writer, s site.Site, prod 
 	}
 	if baseNote != "" {
 		lines = append(lines, "note: "+baseNote)
+	}
+	if len(extra) > 0 {
+		lines = append(lines, "note: production also needed "+strings.Join(extra, ", ")+", which taw-fleet didn't see a ticked record use; please report it (taw-fleet's media check missed a reference)")
 	}
 	lines = append(lines, "clear the site's page cache now that it's published, if the host has one")
 	return Summary{Headline: head, Lines: lines, Failed: result.Failed > 0}, nil

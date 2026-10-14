@@ -116,6 +116,10 @@ func Load(p paths.Paths) (Config, error) {
 		for _, k := range undec {
 			keys = append(keys, k.String())
 		}
+		if Replaced() {
+			return c, fmt.Errorf("%s has settings from a newer taw-fleet (%s): taw-fleet was updated since this one started, so restart it (an MCP server: /mcp, then reconnect taw-fleet)",
+				File(p), strings.Join(keys, ", "))
+		}
 		return c, fmt.Errorf("%s: unknown keys: %s", File(p), strings.Join(keys, ", "))
 	}
 	switch c.Icons {

@@ -12,7 +12,7 @@ import (
 // Decisions are what to publish and which side wins each conflict, as an
 // agent passes them (taw-fleet publish --decisions).
 type Decisions struct {
-	Include []string                     `json:"include" jsonschema:"the record keys to publish (record_key in the review's JSON)"`
+	Include []string                     `json:"include" jsonschema:"the record keys to publish (record_key in the review's JSON); a picture's details are media:<path>, a new file goes up with a record that uses it"`
 	Sides   map[string]map[string]string `json:"sides,omitempty" jsonschema:"record key → change key → keep (production's) or take (Local's)"`
 }
 

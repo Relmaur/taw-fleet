@@ -33,7 +33,7 @@ func TestChoose(t *testing.T) {
 	}
 	var plan companion.PublishPlan
 	_ = json.Unmarshal(data, &plan)
-	page := review.Build("b", "B", "https://b.test", "now", "base", plan)
+	page := review.Build("b", "B", "https://b.test", "now", "base", plan, nil)
 
 	if _, missing, _ := choose(page, ""); len(missing) != 1 {
 		t.Errorf("as reviewed: the value both sides changed is undecided: %v", missing)
