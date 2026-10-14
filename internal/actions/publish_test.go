@@ -28,6 +28,7 @@ type fakeProduction struct {
 	files    [][]byte
 	applied  []companion.ApplyRequest
 	refuse   error
+	once     bool // refuse only the first apply
 	undone   []bool
 	snapshot []byte
 }
@@ -48,7 +49,11 @@ func (f *fakeProduction) Apply(_ context.Context, _, _, _ string, req companion.
 	f.applied = append(f.applied, req)
 	var r companion.ApplyResult
 	if f.refuse != nil {
-		return r, f.refuse
+		err := f.refuse
+		if f.once {
+			f.refuse = nil
+		}
+		return r, err
 	}
 	journal := "/wp-content/uploads/taw-private/import-20261013-1.json"
 	r.Report.Updated = []json.RawMessage{json.RawMessage(`"page:about"`)}
@@ -66,6 +71,15 @@ func (f *fakeProduction) Undo(_ context.Context, _, _, _ string, dryRun bool) (c
 	f.undone = append(f.undone, dryRun)
 	return companion.UndoResult{Restored: 4, Deleted: 1, Kept: []string{"post:12 fields.post_title (edited since)"}}, nil
 }
+
+// changeSet is what content:diff wrote: the records that use the plan's two
+// new files (Local's ids 10 and 30).
+const changeSet = `{"taw_changeset":{"schema":"1.8"},
+ "media":[{"id":10,"filename":"photo.jpg","url":"http://ls-mexico.local/wp-content/uploads/2025/03/photo.jpg"},
+  {"id":30,"filename":"fresh.jpg","url":"http://ls-mexico.local/wp-content/uploads/2026/09/fresh.jpg"}],
+ "operations":[
+  {"op":"update","target":{"kind":"post","type":"page","slug":"home","path":"home"},"post":{"fields":{"f_files":[5036,10]}}},
+  {"op":"update","target":{"kind":"post","type":"page","slug":"about","path":"about"},"post":{"fields":{"f_image":"30"}}}]}`
 
 func publishSetup(t *testing.T) (*Actions, *exec.FakeRunner, *fakeProduction, site.Site, site.Theme) {
 	t.Helper()
@@ -102,7 +116,7 @@ func publishSetup(t *testing.T) (*Actions, *exec.FakeRunner, *fakeProduction, si
 				_ = os.WriteFile(out, []byte(`{"meta":{"schema":"1.8"},"posts":[{"slug":"about"}]}`), 0o600)
 			}
 			if out, ok := strings.CutPrefix(arg, "--out="); ok {
-				_ = os.WriteFile(out, []byte(`{"taw_changeset":{"schema":"1.8"},"operations":[{"op":"update"}]}`), 0o600)
+				_ = os.WriteFile(out, []byte(changeSet), 0o600)
 			}
 		}
 		return exec.Result{}, nil
@@ -262,5 +276,80 @@ func TestPublishRefusals(t *testing.T) {
 	a.Config.Sites = nil
 	if _, err := a.PublishTask(s, th, nil); err == nil || !strings.Contains(err.Error(), "no production URL") {
 		t.Errorf("no production: %v", err)
+	}
+}
+
+// A new file goes up only with a ticked record that uses it (taw/core 1.99.1).
+func TestPublishUploadsOnlyTheFilesItsRecordsUse(t *testing.T) {
+	a, _, prod, s, th := publishSetup(t)
+	task, _ := a.PublishTask(s, th, nil)
+	sum, err := task.Run(context.Background(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := sum.Report.(PublishReview)
+	d, missing := pr.Page.Decide([]string{"post:page:about"}, nil)
+	if len(missing) != 0 {
+		t.Fatal(missing)
+	}
+	apply := pr.Apply(d)
+	if !strings.Contains(apply.Ask, "1 file goes up with it.") {
+		t.Errorf("ask %q", apply.Ask)
+	}
+	if _, err := apply.Run(context.Background(), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if len(prod.files) != 1 || string(prod.files[0]) != "bytes of 2026/09/fresh.jpg" {
+		t.Errorf("only about's picture goes up: %q", prod.files)
+	}
+}
+
+func TestPublishRefusesATawCoreThatPublishesEveryPicture(t *testing.T) {
+	a, _, prod, s, th := publishSetup(t)
+	prod.plan.TawCore = "1.99.0"
+	task, _ := a.PublishTask(s, th, nil)
+	if _, err := task.Run(context.Background(), io.Discard); err == nil || !strings.Contains(err.Error(), "taw/core 1.99.0") || !strings.Contains(err.Error(), "1.99.1 or newer") {
+		t.Errorf("refused, with what to do: %v", err)
+	}
+	prod.plan.TawCore = "1.99.1"
+	task, _ = a.PublishTask(s, th, nil)
+	if _, err := task.Run(context.Background(), io.Discard); err != nil {
+		t.Errorf("1.99.1 publishes: %v", err)
+	}
+}
+
+// When production needs a file taw-fleet's check didn't tie to a ticked
+// record, it sends the file and applies again, once, and says so.
+func TestPublishSendsWhatProductionStillNeeds(t *testing.T) {
+	a, _, prod, s, th := publishSetup(t)
+	prod.plan.TawCore = "1.99.1"
+	prod.refuse, prod.once = &live.Refusal{Code: "publish_media_missing", Missing: []string{"2025/03/photo.jpg"}}, true
+	task, _ := a.PublishTask(s, th, nil)
+	sum, err := task.Run(context.Background(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := sum.Report.(PublishReview)
+	d, _ := pr.Page.Decide([]string{"post:page:about"}, nil)
+	sum, err = pr.Apply(d).Run(context.Background(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prod.files) != 2 || string(prod.files[1]) != "bytes of 2025/03/photo.jpg" || len(prod.applied) != 2 || prod.applied[1].Token != "t0k3n" {
+		t.Errorf("the missing file, then apply again: %q, %d applies", prod.files, len(prod.applied))
+	}
+	if !slices.ContainsFunc(sum.Lines, func(l string) bool { return strings.Contains(l, "production also needed 2025/03/photo.jpg") }) {
+		t.Errorf("says so: %v", sum.Lines)
+	}
+
+	// Without knowing production's taw/core, it doesn't guess.
+	a, _, prod, s, th = publishSetup(t)
+	prod.refuse = &live.Refusal{Code: "publish_media_missing", Missing: []string{"2025/03/photo.jpg"}}
+	task, _ = a.PublishTask(s, th, nil)
+	sum, _ = task.Run(context.Background(), io.Discard)
+	pr = sum.Report.(PublishReview)
+	d, _ = pr.Page.Decide([]string{"post:page:about"}, nil)
+	if _, err := pr.Apply(d).Run(context.Background(), io.Discard); err == nil || !strings.Contains(err.Error(), "older than 1.99.1") || len(prod.applied) != 1 {
+		t.Errorf("refused, once: %v (%d applies)", err, len(prod.applied))
 	}
 }

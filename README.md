@@ -780,14 +780,20 @@ The details' **PUBLISHED** section says what's missing. Once it's ready, it list
    - every record by its title, with a tick to publish it or leave it out;
    - every change by its field (`Fieldset › Label`), with production's value beside Local's and the
      words that changed marked;
-   - images side by side, and the files that will be uploaded;
+   - images side by side;
+   - **pictures' details** (alt text, title, caption, description) as records of their own, in
+     "Pictures and files", unticked: production keeps its own unless you tick one;
+   - **new files**, each with the records that use it: a file goes up only with a ticked record that
+     uses it, and the count follows what you tick;
    - **conflicts** first: a value production changed too since the base. You pick a side for each:
      keep production's, or take Local's. When only production changed a value, production's is
      kept for you.
 
    Nothing is written until you press **Publish**. **Cancel**, or `x` in the dashboard
    ("stop waiting"), closes it with nothing published.
-4. **Publish.** Files go up by their bytes, each checked against the plan. Production then re-checks
+4. **Publish.** The files that go are uploaded by their bytes, each checked against the plan. If
+   production still needs one taw-fleet didn't tie to a ticked record, taw-fleet sends it and tries
+   once more, and says so. Production then re-checks
    the plan: if a record changed there since the review, it refuses the whole publish and you review
    again. Before writing, it saves a rollback copy and a journal. The page shows the progress, then
    the result.

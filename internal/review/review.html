@@ -111,6 +111,11 @@ tr.skip td { color: var(--faint); text-align: center; font-style: italic; backgr
 .files img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; display: block; }
 .files .file { height: 100px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .files figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+.files .with { display: block; margin-top: 4px; color: var(--good); word-break: normal; }
+.files figure.off { opacity: .5; }
+.files figure.off .with { color: var(--faint); }
+p.note { color: var(--muted); font-size: 14px; margin: -4px 0 10px; }
+.rt .thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); vertical-align: middle; margin-right: 8px; }
 footer.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(15, 23, 42, .06); }
 footer.bar .wrap { display: flex; gap: 14px; align-items: center; padding-top: 12px; padding-bottom: 12px; }
 #summary { flex: 1; color: var(--muted); }
@@ -158,7 +163,7 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
     <div class="chips">
       <span class="chip"><b>{{.Records}}</b> {{plural .Records "record" "records"}}</span>
       <span class="chip"><b>{{.Values}}</b> {{plural .Values "value" "values"}}</span>
-      {{if .Files}}<span class="chip"><b>{{len .Files}}</b> {{plural (len .Files) "file" "files"}}{{if eq .State "review"}} to upload{{end}}</span>{{end}}
+      {{if .Files}}<span class="chip" id="chip-files"><b>{{len .Going}}</b> {{plural (len .Going) "file" "files"}}{{if eq .State "review"}} to upload{{end}}</span>{{end}}
       {{if and .Conflicts (eq .State "review")}}<span class="chip decide" id="chip-decide"><b>{{.Conflicts}}</b> to decide</span>{{end}}
       {{if eq .State "review"}}<div class="tools">
         <div class="seg" role="group" aria-label="Show">
@@ -204,11 +209,12 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
   {{if ne .State "review"}}{{$old = "Production before"}}{{$new = "Local"}}{{end}}
   {{range .Groups}}
   <h2>{{.Title}} <span class="n">{{len .Records}}</span></h2>
+  {{if .Note}}<p class="note">{{.Note}}</p>{{end}}
   {{range .Records}}
   <article class="rec{{if not (included $.Decisions .)}} off{{end}}" data-key="{{.Key}}" data-hash="{{.Hash}}" data-op="{{.Op}}" data-search="{{lower .Title}} {{lower .What}}{{range .Changes}} {{lower .Label}}{{end}}">
     <header>
       <label class="inc" title="Publish this"><input type="checkbox" {{if included $.Decisions .}}checked{{end}}{{if ne $.State "review"}} disabled{{end}} aria-label="Publish {{.Title}}"></label>
-      <div class="rt"><strong>{{.Title}}</strong><span class="what">{{.What}}</span></div>
+      <div class="rt">{{if and .File (image .File)}}<img class="thumb" src="{{local $ .File}}" alt="" loading="lazy">{{end}}<strong>{{.Title}}</strong><span class="what">{{.What}}</span></div>
       {{if eq .Op "new"}}<span class="badge new">New on production</span>{{else if eq .Op "delete"}}<span class="badge delete">Deletes it from production</span>{{else}}<span class="badge">{{len .Changes}} {{plural (len .Changes) "change" "changes"}}</span>{{end}}
       {{if .Conflicts}}{{if eq $.State "review"}}<span class="badge decide" data-decide-badge>{{.Conflicts}} to decide</span>{{else}}<span class="badge">decided</span>{{end}}{{end}}
       {{if .EditURL}}<a href="{{.EditURL}}" target="_blank" rel="noopener" class="sub">Open on production ↗</a>{{end}}
@@ -262,8 +268,9 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
   {{end}}
 
   {{if .Files}}
-  <h2>Files uploaded with this <span class="n">{{len .Files}}</span></h2>
-  <div class="files">{{range .Files}}<figure>{{if .Image}}<img src="{{local $ .Path}}" alt="" loading="lazy">{{else}}<div class="file">{{.Name}}</div>{{end}}<figcaption>{{.Path}} · {{.Size}}</figcaption></figure>{{end}}</div>
+  <h2>New files <span class="n">{{len .Files}}</span></h2>
+  <p class="note">Each goes up only with a ticked record that uses it.</p>
+  <div class="files">{{range .Files}}<figure data-users="{{join .UsedBy " "}}"{{if not (goes $ .)}} class="off"{{end}}>{{if .Image}}<img src="{{local $ .Path}}" alt="" loading="lazy">{{else}}<div class="file">{{.Name}}</div>{{end}}<figcaption>{{.Path}} · {{.Size}}<span class="with">{{if .Users}}With {{join .Users ", "}}{{else}}Nothing here uses it: it stays in Local{{end}}</span></figcaption></figure>{{end}}</div>
   {{end}}
   {{if not .Groups}}<div class="banner"><p>Nothing to publish: production already has what Local has.</p></div>{{end}}
 </main>
@@ -316,11 +323,19 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
         if (on && !picked) recTodo++;
       }
       const badge = rec.querySelector('[data-decide-badge]');
-      if (badge) { badge.textContent = recTodo ? `${recTodo} to decide` : 'decided'; badge.classList.toggle('decide', recTodo > 0); }
+      if (badge) { badge.textContent = recTodo ? `${recTodo} to decide` : 'decided'; badge.classList.toggle('decide', recTodo > 0); badge.classList.toggle('hidden', !on); }
       rec.dataset.todo = recTodo;
       if (on) { records++; values += rec.querySelectorAll('.chg[data-change]').length; todo += recTodo; }
     }
-    return { records, values, todo };
+    // A new file goes up with a ticked record that uses it.
+    const ticked = new Set(recs.filter((r) => r.querySelector('.inc input').checked).map((r) => r.dataset.key));
+    let files = 0;
+    for (const f of document.querySelectorAll('.files figure')) {
+      const goes = (f.dataset.users || '').split(' ').some((k) => ticked.has(k));
+      f.classList.toggle('off', !goes);
+      if (goes) files++;
+    }
+    return { records, values, todo, files };
   };
 
   const update = () => {
@@ -337,7 +352,10 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
         ? `<b>${s.todo}</b> ${s.todo === 1 ? 'value was' : 'values were'} changed on production too. Pick which side wins for each; nothing is published until you have.`
         : '<b>✓</b> Every value changed on production too has a side picked. You can still change them below.';
     }
+    const fchip = document.getElementById('chip-files');
+    if (fchip) fchip.innerHTML = `<b>${s.files}</b> ${s.files === 1 ? 'file' : 'files'} to upload`;
     let text = `Publishing <b>${s.records}</b> ${s.records === 1 ? 'record' : 'records'}, <b>${s.values}</b> ${s.values === 1 ? 'value' : 'values'}`;
+    if (s.files) text += `, <b>${s.files}</b> ${s.files === 1 ? 'file' : 'files'}`;
     if (s.todo) text += ` · <span class="todo">${s.todo} to decide first</span>`;
     if (!s.records) text = 'Nothing ticked to publish.';
     summary.innerHTML = text;
@@ -370,13 +388,15 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
     }
     document.querySelectorAll('main h2').forEach((h) => {
       let el = h.nextElementSibling, any = false;
+      const note = el && el.classList.contains('note') ? el : null;
+      if (note) el = el.nextElementSibling;
       if (el && el.classList.contains('files')) { // the files: shown with everything only
-        h.classList.toggle('hidden', filter !== 'all' || q !== '');
-        el.classList.toggle('hidden', filter !== 'all' || q !== '');
+        for (const x of [h, note, el]) if (x) x.classList.toggle('hidden', filter !== 'all' || q !== '');
         return;
       }
       while (el && el.tagName === 'ARTICLE') { if (!el.classList.contains('hidden')) any = true; el = el.nextElementSibling; }
       h.classList.toggle('hidden', !any && (filter !== 'all' || q !== ''));
+      if (note) note.classList.toggle('hidden', !any && (filter !== 'all' || q !== ''));
     });
   };
   document.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => {
@@ -405,9 +425,8 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
   const confirmDlg = document.getElementById('confirm');
   publish.addEventListener('click', () => {
     const s = update();
-    const files = {{len .Files}};
     document.getElementById('confirm-what').textContent =
-      `${s.records} ${s.records === 1 ? 'record' : 'records'} and ${s.values} ${s.values === 1 ? 'value' : 'values'}` + (files ? `, with ${files} ${files === 1 ? 'file' : 'files'}.` : '.');
+      `${s.records} ${s.records === 1 ? 'record' : 'records'} and ${s.values} ${s.values === 1 ? 'value' : 'values'}` + (s.files ? `, with ${s.files} ${s.files === 1 ? 'file' : 'files'}.` : '.');
     confirmDlg.showModal();
   });
   document.getElementById('confirm-no').addEventListener('click', () => confirmDlg.close());

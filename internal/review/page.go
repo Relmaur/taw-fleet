@@ -38,6 +38,7 @@ type Page struct {
 // Group is records of one kind: pages, posts, a custom type, menus…
 type Group struct {
 	Title   string   `json:"title"`
+	Note    string   `json:"note,omitempty"` // what ticking means here, when it isn't obvious
 	Records []Record `json:"records"`
 }
 
@@ -49,7 +50,8 @@ type Record struct {
 	What      string   `json:"what"` // "page · about/team"
 	Op        string   `json:"op"`   // new, update, delete
 	EditURL   string   `json:"edit_url,omitempty"`
-	Include   bool     `json:"include"` // ticked by default (a delete isn't)
+	File      string   `json:"file,omitempty"` // a picture's path under uploads
+	Include   bool     `json:"include"`        // ticked by default (a delete and a picture's details aren't)
 	Conflicts int      `json:"conflicts"`
 	Changes   []Change `json:"changes"`
 }
@@ -86,12 +88,18 @@ type MediaView struct {
 	Image    bool   `json:"image"`
 }
 
-// File is one file the publish uploads.
+// File is one new file the publish can upload: it goes with a ticked record
+// that uses it, or when its own key is in the decisions.
 type File struct {
+	Key   string `json:"key"`  // media:<path>
+	Hash  string `json:"hash"` // its media record's
 	Path  string `json:"path"` // under uploads
 	Name  string `json:"name"`
 	Size  string `json:"size"`
 	Image bool   `json:"image"`
+	// UsedBy: the records that use it (their keys), and their titles.
+	UsedBy []string `json:"used_by"`
+	Users  []string `json:"users,omitempty"`
 }
 
 // Decisions are what the person chose: the records to publish (with the
@@ -114,18 +122,36 @@ type Result struct {
 // shortLimit is the longest one-line value shown as a word diff.
 const shortLimit = 400
 
-// Build makes the review from production's plan.
-func Build(siteSlug, name, production, made, base string, plan companion.PublishPlan) Page {
+// mediaGroup is where pictures' details are reviewed.
+const mediaGroup = "Pictures and files"
+
+// Build makes the review from production's plan. users is which records use
+// which media (MediaUsers of the change-set the plan was made from).
+func Build(siteSlug, name, production, made, base string, plan companion.PublishPlan, users map[string][]string) Page {
 	p := Page{Site: siteSlug, Name: name, Production: production, Made: made, State: "review", Base: base, MediaBase: "media/",
 		Warnings: append(append([]string{}, plan.Plan.RegistryDrift...), plan.Plan.Warnings...)}
+	creates := map[string]companion.PlanRecord{}
+	titles := map[string]string{}
+	for _, r := range plan.Plan.Records {
+		titles[r.Key] = r.Title
+		if r.Kind == "media" && r.Op == "create" {
+			creates[r.Name] = r
+		}
+	}
 	for _, f := range plan.Media.Needed {
-		p.Files = append(p.Files, File{Path: f.File, Name: path.Base(f.File), Size: size(f.Bytes), Image: isImage(f.File)})
+		mr := creates[f.File]
+		file := File{Key: "media:" + f.File, Hash: mr.Hash, Path: f.File, Name: path.Base(f.File), Size: size(f.Bytes), Image: isImage(f.File)}
+		for _, k := range users[file.Key] {
+			file.UsedBy = append(file.UsedBy, k)
+			file.Users = append(file.Users, titleOr(titles[k], k))
+		}
+		p.Files = append(p.Files, file)
 	}
 	groups := map[string]*Group{}
 	var order []string
 	for _, r := range plan.Plan.Records {
-		if r.Kind == "media" {
-			continue // files go up with the records that use them
+		if r.Kind == "media" && r.Op == "create" {
+			continue // a new file: it goes up with the records that use it (Files)
 		}
 		rec := record(r, base != "")
 		if len(rec.Changes) == 0 && rec.Op != "delete" {
@@ -135,6 +161,9 @@ func Build(siteSlug, name, production, made, base string, plan companion.Publish
 		g, ok := groups[title]
 		if !ok {
 			g = &Group{Title: title}
+			if title == mediaGroup {
+				g.Note = "A picture's alt text, title, caption and description. Each is published only when it's ticked; unticked, production keeps its own."
+			}
 			groups[title] = g
 			order = append(order, title)
 		}
@@ -159,6 +188,54 @@ func Build(siteSlug, name, production, made, base string, plan companion.Publish
 	return p
 }
 
+func titleOr(title, key string) string {
+	if title != "" {
+		return title
+	}
+	return key
+}
+
+// Going is the files that go up: with the decisions (the saved copy), or
+// with what's ticked by default.
+func (p Page) Going() []File {
+	if p.Decisions != nil {
+		return p.FilesFor(*p.Decisions)
+	}
+	in := map[string]bool{}
+	for _, g := range p.Groups {
+		for _, r := range g.Records {
+			if r.Include {
+				in[r.Key] = true
+			}
+		}
+	}
+	return p.filesFor(in)
+}
+
+// FilesFor is the files that go up with these decisions: each one used by an
+// approved record, or approved itself.
+func (p Page) FilesFor(d Decisions) []File {
+	in := map[string]bool{}
+	for _, a := range d.Approved {
+		in[a.Key] = true
+	}
+	return p.filesFor(in)
+}
+
+func (p Page) filesFor(in map[string]bool) []File {
+	var out []File
+	for _, f := range p.Files {
+		goes := in[f.Key]
+		for _, k := range f.UsedBy {
+			goes = goes || in[k]
+		}
+		if goes {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 func record(r companion.PlanRecord, withBase bool) Record {
 	rec := Record{Key: r.Key, Hash: r.Hash, Title: r.Title, EditURL: r.EditURL, Include: true}
 	switch {
@@ -178,6 +255,9 @@ func record(r companion.PlanRecord, withBase bool) Record {
 		rec.What = strings.TrimSpace(typeName(r.Type) + " · " + where)
 	case "term":
 		rec.What = r.Type + " · " + r.Slug
+	case "media":
+		rec.What, rec.File, rec.Include = r.Name, r.Name, false // its own choice: never along with a page
+		rec.Title = path.Base(r.Name)
 	default:
 		rec.What = r.Name
 	}
@@ -340,6 +420,8 @@ func groupTitle(r companion.PlanRecord) string {
 		return "Menus"
 	case "theme_mod":
 		return "Logo and menu places"
+	case "media":
+		return mediaGroup
 	}
 	return "Other"
 }
@@ -358,6 +440,8 @@ func groupRank(title string) int {
 		return 9
 	case "Logo and menu places":
 		return 10
+	case mediaGroup:
+		return 11
 	}
 	return 5
 }
@@ -415,6 +499,12 @@ func (p Page) Decide(include []string, sides map[string]map[string]string) (Deci
 				}
 			}
 			delete(in, r.Key)
+		}
+	}
+	for _, f := range p.Files { // a new file on its own: it goes up even if nothing ticked uses it
+		if in[f.Key] {
+			d.Approved = append(d.Approved, companion.Approval{Key: f.Key, Hash: f.Hash})
+			delete(in, f.Key)
 		}
 	}
 	for k := range in {

@@ -35,14 +35,17 @@ func newPublishCmd(d Deps, g *globals) *cobra.Command {
 			"production what publishing it would change, and opens the review in your browser: every\n" +
 			"change by its field (Fieldset › Label), production's value beside Local's, a value production\n" +
 			"changed too marked for you to decide, and a tick per record. Nothing is written until you press\n" +
-			"Publish there. Files go up by their bytes; production keeps a rollback copy and undo puts it\n" +
-			"back (taw-fleet publish undo). Users, comments and site settings are never published.\n\n" +
-			"Production needs taw/core 1.98+, taw/hub-companion 0.5+, its key pinned (taw-fleet live trust),\n" +
-			"and publishing enabled in the theme: \"extra\": {\"taw-companion\": {\"publish\": true}} in\n" +
-			"composer.json, deployed.\n\n" +
+			"Publish there. A new file goes up only with a ticked record that uses it; a picture's details\n" +
+			"(alt text, title…) are a record of their own (media:<path>), unticked until you tick them.\n" +
+			"Files go up by their bytes; production keeps a rollback copy and undo puts it back\n" +
+			"(taw-fleet publish undo). Users, comments and site settings are never published.\n\n" +
+			"Production needs taw/core 1.98+ (1.99.1+ when pictures change), taw/hub-companion 0.5+, its\n" +
+			"key pinned (taw-fleet live trust), and publishing enabled in the theme:\n" +
+			"\"extra\": {\"taw-companion\": {\"publish\": true}} in composer.json, deployed.\n\n" +
 			"Without a browser: --no-review prints the review; with --yes it publishes as reviewed (every\n" +
-			"record but deletes; a value only production changed stays production's), refusing while a value\n" +
-			"both sides changed is undecided; --decisions <file> says what to publish and which side wins:\n" +
+			"record but deletes and pictures' details; a value only production changed stays production's),\n" +
+			"refusing while a value both sides changed is undecided; --decisions <file> says what to publish\n" +
+			"and which side wins:\n" +
 			"{\"include\": [\"post:page:about\"], \"sides\": {\"post:page:about\": {\"fields.hero_heading\": \"take\"}}}.",
 		Example: "  taw-fleet publish acme-bakery\n  taw-fleet publish acme-bakery --no-review\n  taw-fleet publish acme-bakery --no-review --json\n" +
 			"  taw-fleet publish acme-bakery --no-review --decisions choices.json --yes\n  taw-fleet publish undo acme-bakery\n  taw-fleet publish history acme-bakery",

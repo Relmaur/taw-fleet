@@ -38,6 +38,14 @@ func (pr *Prober) PublishPlan(ctx context.Context, t Target, changeSet []byte) (
 	if plan.ID == "" || plan.Token == "" {
 		return plan, errors.New("production answered no publish id or token")
 	}
+	// Which taw/core made it: what it does with media depends on it.
+	if h, err := pr.publishCall(ctx, t, fileTimeout, func(c *companion.Client, s companion.Site) (companion.Response, error) {
+		return c.Get(ctx, s, "health", nil)
+	}); err == nil {
+		if health, err := companion.Decode[companion.Health](h); err == nil {
+			plan.TawCore = health.TawCoreVersion
+		}
+	}
 	return plan, nil
 }
 
