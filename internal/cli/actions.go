@@ -349,6 +349,7 @@ func newConfigCmd(d Deps) *cobra.Command {
 				return err
 			},
 		},
+		newOpenAtLoginCmd(d),
 	)
 	return cmd
 }
@@ -401,6 +402,9 @@ func renderConfig(cmd *cobra.Command, d Deps, a *actions.Actions) error {
 		claude = muted.Render("not installed (handoff --launch needs it; --copy works without)")
 	}
 	b.WriteString(" " + key.Render("claude") + " " + claude + "\n")
+	if la, err := d.loginAgent(); err == nil {
+		b.WriteString(" " + key.Render("at login") + " " + loginState(a.Config.OpenAtLogin, la) + "\n")
+	}
 	if len(a.Config.Sites) > 0 {
 		b.WriteString("\n " + muted.Render("sites") + "\n")
 		slugs := make([]string, 0, len(a.Config.Sites))

@@ -49,6 +49,9 @@ func (m Model) onPaletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if skills {
 			return m.runSkill(*it.skill)
 		}
+		if it.setting != "" {
+			return m.runSetting(it.setting), nil
+		}
 		m.remember(it.key)
 		return m.onKey(pressOf(it.key))
 	}
