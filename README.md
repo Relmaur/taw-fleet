@@ -402,6 +402,7 @@ starter; `taw-fleet config show` shows what's in effect and which apps were foun
 editor = "Cursor"        # or "code", "PhpStorm"…
 terminal = "Ghostty"
 window = false           # the dashboard in the current terminal (default: a new window)
+open_at_login = true     # the dashboard opens in its own window when you log in (taw-fleet config open-at-login on)
 icons = "nerd"           # Nerd Font icons (default "symbols": plain Unicode, any font)
 
 [create]                 # defaults for taw-fleet create / n (all optional)
@@ -430,6 +431,12 @@ shows under each; untagged sites come last, and the TAW ecosystem is always its 
 `prefix:` grouping (`client:` → by client) appears in `=`'s list once a tag uses that prefix. Set
 tags with `T` (or `#`) in the dashboard, `taw-fleet tag`, or Claude's `set_tags`; `list --tag` and `list_sites`
 show them.
+
+**Open at login.** `taw-fleet config open-at-login on` sets `open_at_login = true` and adds a login
+agent (`~/Library/LaunchAgents/com.relmaur.taw-fleet.login.plist`) that opens the dashboard in a new
+window of your terminal each time you log in to the Mac; `off` removes it, and with no value it says
+whether it's on. In the dashboard, `:` → "Open at login" toggles it. Set by hand in the file, the dashboard's next start adds or removes the agent to
+match. macOS may show a "Background Items Added" notice the first time.
 
 **Icons.** `taw-fleet config icons nerd` switches to Nerd Font icons and `taw-fleet config icons
 symbols` back; it changes that one line and keeps the rest of the file. The terminal needs a Nerd

@@ -142,6 +142,11 @@ type Deps struct {
 	// new one there (=). See groups.go.
 	GroupBy     string
 	SaveGroupBy func(string) error
+	// OpenAtLogin is the settings' open_at_login; SaveOpenAtLogin sets it
+	// and adds or removes the login agent (the : menu's Settings). nil =
+	// read-only.
+	OpenAtLogin     bool
+	SaveOpenAtLogin func(bool) error
 	// HasBot says whether the site's bot is in the Keychain (never reading
 	// the password). nil = unknown.
 	HasBot func(ctx context.Context, slug string) bool
@@ -214,13 +219,14 @@ type Model struct {
 	flashErr   bool
 	filterHint string // the filter's terms it didn't understand
 
-	entries  []entry         // the list as shown: the visible rows, under group headers when grouped
-	groupBy  string          // "" | tag | kind | production | prefix:<p> (=)
-	folded   map[string]bool // group key → folded (←/→)
-	popup    *popup          // the = or T popup, over the list
-	tagInput textinput.Model // the tag popup's line for new tags
-	flashTip bool            // a hint, not a result: muted, no ✓
-	flashAt  time.Time
+	entries     []entry         // the list as shown: the visible rows, under group headers when grouped
+	groupBy     string          // "" | tag | kind | production | prefix:<p> (=)
+	openAtLogin bool            // open_at_login (the : menu's Settings)
+	folded      map[string]bool // group key → folded (←/→)
+	popup       *popup          // the = or T popup, over the list
+	tagInput    textinput.Model // the tag popup's line for new tags
+	flashTip    bool            // a hint, not a result: muted, no ✓
+	flashAt     time.Time
 
 	confirm string                             // question on screen; "" = none
 	onYes   func(Model) (tea.Model, tea.Cmd)   // what "yes" does
@@ -298,6 +304,7 @@ func New(ctx context.Context, d Deps) Model {
 	m.tagInput = textinput.New()
 	m.tagInput.Placeholder = "type tags, then enter"
 	m.groupBy = d.GroupBy
+	m.openAtLogin = d.OpenAtLogin
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	m.help = help.New()
 	m.setDark(d.Dark)

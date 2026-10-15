@@ -86,6 +86,7 @@ type globals struct {
 	window   bool
 	inWindow bool   // started by openWindow: draw inline, the window is ours
 	site     string // open the dashboard on this site (a notification's click)
+	atLogin  bool   // the login agent's run: a window, if open_at_login still says so
 }
 
 func (d Deps) github(g *globals) *github.Client {
@@ -219,6 +220,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	// (piped, redirected, CI).
 	root.Args = cobra.NoArgs
 	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		if g.atLogin {
+			return d.atLogin(cmd, g)
+		}
 		if !d.Interactive {
 			if g.site != "" { // a notification's click: no terminal here
 				if d.openWindow(cmd, g, true) {
@@ -297,6 +301,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 				return err
 			}
 			deps.HasBot = wpremote.Store{Exec: d.Runner}.Has
+			d.syncLogin(cmd, cfg)
+			deps.OpenAtLogin = cfg.OpenAtLogin
+			deps.SaveOpenAtLogin = func(on bool) error { return d.setOpenAtLogin(cmd, on) }
 			if exe, err := d.exePath(); err == nil {
 				// The terminal goes to the wizard while the dashboard waits (tea.ExecProcess
 				// needs an *exec.Cmd: the one place the dashboard starts a process itself).
@@ -318,6 +325,8 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.Flags().BoolVar(&g.window, "window", true, "open the dashboard in a new terminal window (config: window)")
 	root.Flags().BoolVar(&g.inWindow, "in-window", false, "")
 	_ = root.Flags().MarkHidden("in-window")
+	root.Flags().BoolVar(&g.atLogin, "at-login", false, "")
+	_ = root.Flags().MarkHidden("at-login")
 	root.Flags().StringVar(&g.site, "site", "", "open the dashboard on this site, its details showing")
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)

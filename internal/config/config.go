@@ -20,7 +20,10 @@ type Config struct {
 	Editor   string `toml:"editor"`   // e.g. "Cursor", "code", "PhpStorm"; "" = first installed
 	Terminal string `toml:"terminal"` // e.g. "Ghostty", "iTerm2"; "" = first installed
 	Window   *bool  `toml:"window"`   // the dashboard in its own window; nil = true
-	Icons    string `toml:"icons"`    // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
+	// OpenAtLogin opens the dashboard in its own window when the owner logs
+	// in to the Mac (a launchd agent; taw-fleet config open-at-login).
+	OpenAtLogin bool   `toml:"open_at_login"`
+	Icons       string `toml:"icons"` // "symbols" (default) or "nerd" (a Nerd Font in the terminal)
 	// RestoreKeep is how many restore points taw-fleet keeps per site; nil
 	// = 5, 0 = none are made.
 	RestoreKeep *int `toml:"restore_keep"`
@@ -214,6 +217,11 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # same as taw-fleet --window=false).
 # window = false
 
+# Open the dashboard in its own window when you log in to this Mac (a login
+# agent in ~/Library/LaunchAgents). taw-fleet config open-at-login on (or off)
+# sets it and adds or removes the agent.
+# open_at_login = true
+
 # The icons: "symbols" (plain Unicode, any font: the default) or "nerd" (Nerd
 # Font icons, for a terminal set to a Nerd Font, such as one installed with
 # brew install --cask font-jetbrains-mono-nerd-font). taw-fleet config icons nerd
@@ -271,6 +279,15 @@ const Template = `# taw-fleet settings. Everything here is optional.
 // line is replaced, or its commented example, or it's added above the first
 // table. A missing file is created from the template first.
 func SetTop(p paths.Paths, key, value string) (string, error) {
+	return setTop(p, key, fmt.Sprintf("%s = %q", key, value))
+}
+
+// SetTopBool is SetTop for a true/false key.
+func SetTopBool(p paths.Paths, key string, value bool) (string, error) {
+	return setTop(p, key, fmt.Sprintf("%s = %t", key, value))
+}
+
+func setTop(p paths.Paths, key, line string) (string, error) {
 	f := File(p)
 	if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
 		if _, err := Init(p); err != nil {
@@ -281,7 +298,6 @@ func SetTop(p paths.Paths, key, value string) (string, error) {
 	if err != nil {
 		return f, err
 	}
-	line := fmt.Sprintf("%s = %q", key, value)
 	lines := strings.Split(string(data), "\n")
 	set, firstTable := regexp.MustCompile(`^\s*`+regexp.QuoteMeta(key)+`\s*=`), -1
 	example := regexp.MustCompile(`^#\s*` + regexp.QuoteMeta(key) + `\s*=`)

@@ -31,6 +31,7 @@ type paletteItem struct {
 	extra    []string
 	disabled string // why it can't run now ("" = it can)
 	skill    *actions.Skill
+	setting  string // a settings entry enter toggles (settings.go); "" = none
 }
 
 // actionDoc is the : menu's catalog: every action, its group and what it does.
@@ -83,7 +84,7 @@ var actionDocs = []actionDoc{
 }
 
 // paletteGroups is the : menu's group order.
-var paletteGroups = []string{"Recent", "Site · Local", "Site · Production", "Site · Feedback", "Theme · Code", "Theme · Update", "Theme · Git & GitHub", "App"}
+var paletteGroups = []string{"Recent", "Site · Local", "Site · Production", "Site · Feedback", "Theme · Code", "Theme · Update", "Theme · Git & GitHub", "App", "Settings"}
 
 // actionItems are the : menu's entries, each with why it can't run now.
 func (m Model) actionItems() []paletteItem {
@@ -106,7 +107,7 @@ func (m Model) actionItems() []paletteItem {
 		}
 		out = append(out, it)
 	}
-	return out
+	return append(out, m.settingItems()...)
 }
 
 // unavailable says why an action can't run on the selected theme now.
