@@ -69,7 +69,7 @@ func (a *Actions) RestoreTask(ctx context.Context, s site.Site, t site.Theme, p 
 	if pl.Moved {
 		ask += " Commits made since stay."
 	}
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title: "Restore " + s.Slug + ": " + p.Label(), Writes: true, Ask: ask, Target: s.ID + "/" + t.Dir,
 		Info: []string{s.Slug + "  ·  " + t.Dir + "  ·  " + PointContents(p)},
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
@@ -82,5 +82,5 @@ func (a *Actions) RestoreTask(ctx context.Context, s site.Site, t site.Theme, p 
 				lines = append(lines, "note: "+orBlank(p.Branch, "the branch")+" has commits since the point; they're still there")
 			}
 			return Summary{Headline: "Restored " + s.Slug + " to " + p.Label(), Lines: lines}, nil
-		}}, nil
+		}}), nil
 }

@@ -134,6 +134,7 @@ func (a *Actions) siteContext(s site.Site, t site.Theme, findings []site.Finding
 			fmt.Fprintf(&b, "  - %s (%s)\n", f.Message, f.Code)
 		}
 	}
+	b.WriteString(a.notesContext(s.Slug))
 	return b.String()
 }
 

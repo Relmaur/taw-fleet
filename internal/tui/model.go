@@ -31,6 +31,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/handoff"
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/notes"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/report"
 	"github.com/Relmaur/taw-fleet/internal/restore"
@@ -147,6 +148,10 @@ type Deps struct {
 	// read-only.
 	OpenAtLogin     bool
 	SaveOpenAtLogin func(bool) error
+	// Notes reads a site's notes, newest first; AddNote writes one from the
+	// person (N). nil = none.
+	Notes   func(slug string) ([]notes.Entry, error)
+	AddNote func(slug, text string) error
 	// HasBot says whether the site's bot is in the Keychain (never reading
 	// the password). nil = unknown.
 	HasBot func(ctx context.Context, slug string) bool
@@ -225,6 +230,7 @@ type Model struct {
 	folded      map[string]bool // group key → folded (←/→)
 	popup       *popup          // the = or T popup, over the list
 	tagInput    textinput.Model // the tag popup's line for new tags
+	noteInput   textinput.Model // the note popup's line (N)
 	flashTip    bool            // a hint, not a result: muted, no ✓
 	flashAt     time.Time
 
@@ -253,6 +259,7 @@ type Model struct {
 	merges        map[string]*mergeState // M, by "siteID/themeDir": running, or ended lately
 
 	restores map[string][]restore.Point // restore points by site slug, newest first
+	notes    map[string][]notes.Entry   // each site's notes, newest first (N, NOTES)
 	reports  map[string][]report.Saved  // saved monthly reports by site slug, newest first
 	// publishes are each production site's publishes, newest first.
 	publishes map[string][]actions.Published
@@ -303,6 +310,10 @@ func New(ctx context.Context, d Deps) Model {
 	m.filter.Placeholder = "words, -word, #tag, is:behind, has:comments, kind:block, core:<1.95 (all must match)"
 	m.tagInput = textinput.New()
 	m.tagInput.Placeholder = "type tags, then enter"
+	m.noteInput = textinput.New()
+	m.noteInput.Prompt = "note: "
+	m.noteInput.Placeholder = "what happened, what was decided; enter saves"
+	m.noteInput.CharLimit = notes.MaxText
 	m.groupBy = d.GroupBy
 	m.openAtLogin = d.OpenAtLogin
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
@@ -531,8 +542,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.fetchRepos(false)
 			m, cmds = model.(Model), append(cmds, cmd)
 		}
-		cmds = append(cmds, m.loadRestores(), m.loadReports(), m.loadBots(), m.loadPublishes())
+		cmds = append(cmds, m.loadRestores(), m.loadReports(), m.loadBots(), m.loadPublishes(), m.loadNotes())
 		return m, tea.Batch(cmds...)
+
+	case notesMsg:
+		m.notes = msg
+		return m, nil
 
 	case restoresMsg:
 		m.restores = msg
@@ -652,7 +667,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listenMerge(msg.ch)
 
 	case mergeDoneMsg:
-		return m.onMergeDone(msg)
+		model, cmd := m.onMergeDone(msg)
+		return model, tea.Batch(cmd, model.(Model).loadNotes()) // the merge noted itself
 
 	case chatStartedMsg:
 		return m.onChatStarted(msg)
@@ -687,6 +703,8 @@ func (m Model) onPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 		}
 	case m.popup != nil && m.popup.kind == popTags:
 		m.tagInput, cmd = m.tagInput.Update(msg)
+	case m.popup != nil && m.popup.kind == popNote:
+		m.noteInput, cmd = m.noteInput.Update(msg)
 	case m.filtering:
 		m.filter, cmd = m.filter.Update(msg)
 		m.applyFilter()
@@ -956,6 +974,9 @@ func (m Model) taskKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return m.askReport(), nil, true
 	case key.Matches(msg, k.Restore):
 		model, cmd := m.askRestore()
+		return model, cmd, true
+	case key.Matches(msg, k.Note):
+		model, cmd := m.openNote()
 		return model, cmd, true
 	case key.Matches(msg, k.SiteBranch):
 		model, cmd := m.askSiteBranch()

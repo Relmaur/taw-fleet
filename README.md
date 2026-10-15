@@ -422,6 +422,16 @@ tags = ["retainer", "es", "client:awesome"]   # # in the dashboard, taw-fleet ta
 `group_by = "tag"` (top level; also `"kind"`, `"production"`, `"prefix:client"`, `"none"`) is how the
 dashboard groups the list; `=` picks it and saves it here.
 
+#### Site notes
+
+Each site keeps notes, so whoever works on it next (you, or Claude) knows what happened: `N` in the
+dashboard adds one, `taw-fleet notes <site> ["text"]` shows or adds them, and the details' NOTES
+section shows the newest. Claude reads them (`site_notes`, `show_site`, a skill's first message) and
+adds its own with `add_note`, without asking: it only writes the notes file. taw-fleet notes what it
+did to a site itself: updates, merges, publishes, undos, content pulls, restores, scaffold applies,
+deploy setups, new repositories. They live in `~/TAW Fleet/sites/<site>/notes.md`, newest first,
+plain Markdown you can edit; never in the theme or its repository.
+
 #### Tags and groups
 
 Tags organise a bigger fleet: lower case letters, digits, `:`, `_` and `-` (`retainer`, `es`,

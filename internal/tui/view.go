@@ -584,7 +584,7 @@ func (m Model) detailContent(width int) string {
 		return ""
 	}
 	return m.mergeSection(s.ID+"/"+t.Dir, width) + m.updateSection(s.ID+"/"+t.Dir, width) + render.Site(m.pal, m.deps.Paths, s, m.findings[s.ID], m.now, width) +
-		m.reportSection(s, width) + m.publishSection(s, width) + m.restoreSection(s, width) + m.setupSection(s, t, width)
+		m.notesSection(s, width) + m.reportSection(s, width) + m.publishSection(s, width) + m.restoreSection(s, width) + m.setupSection(s, t, width)
 }
 
 // detailPane is the right-hand pane on wide terminals.

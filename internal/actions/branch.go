@@ -17,7 +17,7 @@ import (
 // tracks another repository (a local copy of the scaffold's, say) is deleted
 // afterwards when it has nothing of its own; the site's other branches are
 // kept. Uncommitted changes refuse it: a switch would carry them along.
-func (a *Actions) SiteBranchTask(_ site.Site, t site.Theme) (Task, error) {
+func (a *Actions) SiteBranchTask(s site.Site, t site.Theme) (Task, error) {
 	g := t.Git
 	switch {
 	case g == nil:
@@ -35,7 +35,7 @@ func (a *Actions) SiteBranchTask(_ site.Site, t site.Theme) (Task, error) {
 	if drop {
 		ask += fmt.Sprintf(" Then delete the local branch %s (it tracks %s), unless it has commits of its own.", from, g.ForeignUpstream)
 	}
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  "Back to " + def + ": " + t.Dir,
 		Writes: true,
 		Ask:    ask,
@@ -77,5 +77,5 @@ func (a *Actions) SiteBranchTask(_ site.Site, t site.Theme) (Task, error) {
 			sum.Lines = append(sum.Lines, "deleted the local branch "+from+" (a copy of "+g.Upstream+", nothing of its own)")
 			return sum, nil
 		},
-	}, nil
+	}), nil
 }

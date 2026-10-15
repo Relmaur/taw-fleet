@@ -300,7 +300,7 @@ func reviewLines(p review.Page) []string {
 // person decides there. The browser is the question: pressing Publish is
 // the yes.
 func (a *Actions) publishBrowser(s site.Site, prod string, plan companion.PublishPlan, page review.Page, folder string) Task {
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:     "Publish review: " + s.Slug + " → " + hostOf(prod),
 		Stoppable: true,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
@@ -326,16 +326,16 @@ func (a *Actions) publishBrowser(s site.Site, prod string, plan companion.Publis
 			case <-ctx.Done():
 				srv.SetStatus(review.Status{State: "cancelled", Message: "Closed from taw-fleet: nothing was published."})
 				a.saveReview(page, folder, "cancelled", nil, nil, s)
-				return Summary{Headline: "Review closed: nothing was published"}, nil
+				return Summary{Headline: "Review closed: nothing was published", Unnoted: true}, nil
 			}
 			if d.Cancel {
 				a.saveReview(page, folder, "cancelled", nil, nil, s)
-				return Summary{Headline: "Cancelled in the review: nothing was published"}, nil
+				return Summary{Headline: "Cancelled in the review: nothing was published", Unnoted: true}, nil
 			}
 			// Decided: stopping the wait no longer stops what was decided.
 			return a.publish(context.WithoutCancel(ctx), out, s, prod, plan, page, folder, d.Decisions, srv.SetStatus)
 		},
-	}
+	})
 }
 
 // publishApply publishes with decisions made outside the browser (the CLI,
@@ -356,14 +356,14 @@ func (a *Actions) publishApply(s site.Site, prod string, plan companion.PublishP
 		ask += fmt.Sprintf(" %d %s %s up with it.", n, plural(n, "file", "files"), plural(n, "goes", "go"))
 	}
 	ask += " Production keeps a rollback copy first; undo puts it back."
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  "Publish: " + s.Slug + " → " + hostOf(prod),
 		Writes: true,
 		Ask:    ask,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 			return a.publish(ctx, out, s, prod, plan, page, folder, d, func(review.Status) {})
 		},
-	}
+	})
 }
 
 // publish uploads the files, applies the decisions, keeps what happened in
@@ -644,7 +644,7 @@ func (a *Actions) PublishUndoTask(s site.Site, journal string) (Task, error) {
 			}
 			up := UndoPreview{Journal: *pick, Result: pre}
 			if pre.Restored+pre.Deleted+pre.Recreated > 0 {
-				up.Apply = Task{
+				up.Apply = a.noted(s.Slug, Task{
 					Title: "Undo: " + to, Writes: true,
 					Ask: fmt.Sprintf("Undo the publish of %s on %s? It would %s%s.", when, to, what,
 						map[bool]string{true: "; values edited since stay", false: ""}[len(pre.Kept) > 0]),
@@ -665,7 +665,7 @@ func (a *Actions) PublishUndoTask(s site.Site, journal string) (Task, error) {
 						return Summary{Headline: fmt.Sprintf("Undone on %s: %d %s put back, %d deleted, %d recreated", to, res.Restored,
 							plural(res.Restored, "value", "values"), res.Deleted, res.Recreated), Lines: lines}, nil
 					},
-				}
+				})
 			}
 			return Summary{Headline: head, Lines: lines, Report: up}, nil
 		},

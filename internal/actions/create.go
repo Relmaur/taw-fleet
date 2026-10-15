@@ -8,6 +8,7 @@ import (
 
 	"github.com/Relmaur/taw-fleet/internal/create"
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/notes"
 	"github.com/Relmaur/taw-fleet/internal/render"
 )
 
@@ -29,7 +30,11 @@ func (a *Actions) CreateTask(r create.Request) (Task, error) {
 		if err != nil {
 			return Summary{Report: res}, err
 		}
-		return summarizeCreate(a, res), nil
+		sum := summarizeCreate(a, res)
+		if err := a.AddNote(res.Slug, notes.TawFleet, fmt.Sprintf("Created this site: %s, %s", res.URL, res.Kind.Scaffold())); err != nil {
+			sum.Lines = append(sum.Lines, "note: the site's notes weren't written: "+err.Error())
+		}
+		return sum, nil
 	}}, nil
 }
 

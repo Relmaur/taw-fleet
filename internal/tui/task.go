@@ -115,7 +115,7 @@ func (m Model) onTaskEvent(ev taskEventMsg) (tea.Model, tea.Cmd) {
 	} else {
 		m.setFlash(ev.sum.Headline, ev.sum.Failed)
 	}
-	var cmds []tea.Cmd
+	cmds := []tea.Cmd{m.loadNotes()} // a task notes what it did
 	if pr, ok := ev.sum.Report.(actions.PublishReview); ok && ev.err == nil && pr.Browser.Run != nil {
 		// The review opens in the browser; pressing Publish there is the yes.
 		model, cmd := m.startTask(pr.Browser)

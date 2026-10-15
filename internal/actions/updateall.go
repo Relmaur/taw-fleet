@@ -124,6 +124,7 @@ func (a *Actions) UpdateAllTask(plan FleetPlan) (Task, error) {
 				}
 				it := UpdateItemOutcome{UpdateOutcome: UpdateOutcome{Site: j.e.Site, Theme: j.e.Theme, Report: rep}, Target: j.item.Target, Err: err}
 				res.Items = append(res.Items, it)
+				a.noteUpdate(ctx, j.e.Site, j.e.Theme, rep, err)
 				end := BatchEnd + j.item.Target + " " + rep.Status
 				switch {
 				case err != nil:

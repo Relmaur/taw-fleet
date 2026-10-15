@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,10 @@ var Tools = []ToolDoc{
 		"For a site in production: HTTPS, http:// moving to https://, the certificate, search engines let in (no noindex), the last deploy, the companion (verified, the same taw/core, plugins, security), PageSpeed mobile and desktop (up to a minute, unless no_speed), watch, BugSmash and the SETUP checklist; what's left for the person, with how. Saves ~/TAW Fleet/sites/<site>/launch.html (and .md) with PageSpeed's pictures of production beside the Local build's from build/. Production is only read."},
 	{"publish_history", "A site's publishes", "taw-fleet publish history <site> --json", "PUBLISHED section",
 		"The site's publishes to production, newest first: when, published or cancelled, what changed, and where each review is kept."},
+	{"site_notes", "A site's notes", "taw-fleet notes <site> --json", "NOTES section, N",
+		"What happened on the site, newest first: notes the owner wrote, Claude wrote (add_note) and taw-fleet wrote itself after an update, a merge, a publish, an undo, a content pull or a restore. Read them before working on a site, to know what was decided and what's in flight; show_site carries the newest 5. last limits them to the newest N."},
+	{"add_note", "Add a note to a site", "taw-fleet notes <site> --by claude <text>", "N",
+		"Adds a note to the site's notes, for whoever looks at it next (the owner, or Claude in another session): what you did, found or decided, a problem left open, something to watch. One to three plain sentences, no secrets. It only writes taw-fleet's notes file (~/TAW Fleet/sites/<site>/notes.md), never the theme, its repository or production, so it doesn't ask. taw-fleet already notes its own updates, merges and publishes: don't repeat those, add what they don't say."},
 	{"bugsmash_projects", "BugSmash projects", "taw-fleet comments projects --json", "FB column",
 		"Every BugSmash project the stored key sees, with its id and review page: for link_bugsmash."},
 	{"taw", "A theme's own command", "taw @<theme> <command…>", "a terminal in the theme (t)",
@@ -72,6 +77,10 @@ var Tools = []ToolDoc{
 			strings.Join(readOnlyTaw, ", ") + " (sync and upgrade without --apply). Any other command may change files or the database, so it asks first: " +
 			"called without confirm it returns the question and a token; ask the user, then call again with the same arguments and confirm."},
 }
+
+// notesWrite is the one tool that writes without asking: it only adds to
+// taw-fleet's own notes for a site (the owner's decision).
+const notesWrite = "add_note"
 
 // readOnlyTaw are the theme commands the taw tool runs at once: they report,
 // never write. Any other asks first (ADR-0002, decision 5).
@@ -90,9 +99,12 @@ func tool(name string) *sdk.Tool {
 	d := doc(name)
 	no := false
 	a := &sdk.ToolAnnotations{Title: d.Title, ReadOnlyHint: true, DestructiveHint: &no, IdempotentHint: true}
-	if name == "taw" { // read-only commands at once, others after asking
+	switch name {
+	case "taw": // read-only commands at once, others after asking
 		yes := true
 		a = &sdk.ToolAnnotations{Title: d.Title, DestructiveHint: &yes}
+	case notesWrite: // writes taw-fleet's own notes file only: no question
+		a = &sdk.ToolAnnotations{Title: d.Title, DestructiveHint: &no}
 	}
 	return &sdk.Tool{
 		Name:        d.Name,
@@ -124,6 +136,14 @@ type (
 		Month    string `json:"month,omitempty" jsonschema:"the month, like 2026-09; empty for this month so far"`
 		Language string `json:"language,omitempty" jsonschema:"en or es; empty for the site's setting"`
 		Speed    bool   `json:"speed,omitempty" jsonschema:"also measure PageSpeed (mobile and desktop; up to a minute)"`
+	}
+	notesIn struct {
+		Site string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Last int    `json:"last,omitempty" jsonschema:"only the newest N notes; 0 for all"`
+	}
+	addNoteIn struct {
+		Site string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
+		Text string `json:"text" jsonschema:"the note: what happened, was found or decided, in one to three plain sentences"`
 	}
 	launchIn struct {
 		Site    string `json:"site" jsonschema:"the site: its Local folder, name, domain or a theme folder"`
@@ -196,6 +216,26 @@ func NewServer(d Deps) *sdk.Server {
 			return nil, nil, errors.New("site is required (list_sites shows them)")
 		}
 		return run(ctx, d, []string{"publish", "history", in.Site, "--json"})
+	})
+	sdk.AddTool(s, tool("site_notes"), func(ctx context.Context, _ *sdk.CallToolRequest, in notesIn) (*sdk.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Site) == "" {
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		}
+		args := []string{"notes", in.Site, "--json"}
+		if in.Last > 0 {
+			args = append(args, "--last", strconv.Itoa(in.Last))
+		}
+		return run(ctx, d, args)
+	})
+	sdk.AddTool(s, tool(notesWrite), func(ctx context.Context, _ *sdk.CallToolRequest, in addNoteIn) (*sdk.CallToolResult, any, error) {
+		text := strings.TrimSpace(in.Text)
+		switch {
+		case strings.TrimSpace(in.Site) == "":
+			return nil, nil, errors.New("site is required (list_sites shows them)")
+		case text == "" || text == "-":
+			return nil, nil, errors.New("text is required: the note")
+		}
+		return run(ctx, d, []string{"notes", in.Site, "--by", "claude", "--json", "--", text})
 	})
 	sdk.AddTool(s, tool("bugsmash_projects"), func(ctx context.Context, _ *sdk.CallToolRequest, _ struct{}) (*sdk.CallToolResult, any, error) {
 		return run(ctx, d, []string{"comments", "projects", "--json"})

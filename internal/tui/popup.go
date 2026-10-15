@@ -22,6 +22,7 @@ type popKind int
 const (
 	popGroup popKind = iota
 	popTags
+	popNote // N: a note for the site (notes.go)
 )
 
 type popup struct {
@@ -100,6 +101,9 @@ func (m Model) openTags() (tea.Model, tea.Cmd) {
 // onPopupKey moves, picks, ticks, types or closes.
 func (m Model) onPopupKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	pp := m.popup
+	if pp.kind == popNote {
+		return m.onNoteKey(msg)
+	}
 	k := msg.String()
 	switch k {
 	case "esc":
@@ -215,10 +219,18 @@ func (m Model) popupBox() string {
 	inner := w - 4
 	var lines []string
 	title := "Group the list by"
-	if pp.kind == popTags {
+	switch pp.kind {
+	case popTags:
 		title = "Tags · " + pp.site
+	case popNote:
+		title = noteTitle(pp.site)
 	}
 	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Render(title), "")
+	if pp.kind == popNote {
+		lines = append(lines, m.notePopup(inner)...)
+		return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Accent).Padding(0, 1).Width(w).
+			Render(strings.Join(lines, "\n"))
+	}
 	if pp.kind == popTags && len(pp.items) == 0 {
 		lines = append(lines, muted.Render("No tags in the fleet yet: type some below."))
 	}
@@ -270,6 +282,12 @@ type popupKeys struct {
 }
 
 func (k popupKeys) ShortHelp() []key.Binding {
+	if k.kind == popNote {
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "save the note")),
+			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+		}
+	}
 	if k.kind == popGroup {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "move")),

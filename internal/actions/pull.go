@@ -120,7 +120,7 @@ func (a *Actions) applyPull(s site.Site, t site.Theme, file, from string, pv Pul
 		ask += fmt.Sprintf(" %d would be deleted.", pv.Delete)
 	}
 	ask += " A rollback snapshot is saved first."
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  "Pull: " + from + " → " + s.Slug,
 		Writes: true,
 		Ask:    ask,
@@ -148,7 +148,7 @@ func (a *Actions) applyPull(s site.Site, t site.Theme, file, from string, pv Pul
 			}
 			return Summary{Headline: head, Lines: lines}, nil
 		},
-	}
+	})
 }
 
 func hostOf(u string) string {

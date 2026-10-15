@@ -41,6 +41,10 @@ type Summary struct {
 	Report   any      // the raw result (sync report, update result)
 	Secret   string   // something to copy once and not keep (a new site's password)
 	Failed   bool     // it ran, and what it did failed or was refused (Lines say why)
+	// Note is the line for the site's notes when it isn't Headline;
+	// Unnoted: nothing happened worth a note (see noted).
+	Note    string
+	Unnoted bool
 }
 
 func (a *Actions) taw(s site.Site) taw.Runner {
@@ -66,7 +70,7 @@ func (a *Actions) SyncTask(s site.Site, t site.Theme, apply bool) (Task, error) 
 		title = "Sync (apply Tier 1): " + t.Dir
 	}
 	r := a.taw(s)
-	return Task{Title: title, Writes: apply, Run: func(ctx context.Context, out io.Writer) (Summary, error) {
+	task := Task{Title: title, Writes: apply, Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 		rep, err := r.Sync(ctx, t, apply, out)
 		if err != nil {
 			return Summary{}, err
@@ -80,8 +84,14 @@ func (a *Actions) SyncTask(s site.Site, t site.Theme, apply bool) (Task, error) 
 			}
 			taw.SaveDrift(a.Paths.CacheDir, s.Slug, t.Dir, d)
 		}
-		return summarizeSync(t, rep, apply), nil
-	}}, nil
+		sum := summarizeSync(t, rep, apply)
+		sum.Unnoted = len(rep.Applied) == 0
+		return sum, nil
+	}}
+	if apply {
+		return a.noted(s.Slug, task), nil // a check only reads
+	}
+	return task, nil
 }
 
 func summarizeSync(t site.Theme, rep taw.SyncReport, apply bool) Summary {
@@ -182,7 +192,7 @@ func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 	}
 	r := a.taw(s)
 	bridge := taw.NeedsBridge(t)
-	return Task{Title: "Update " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
+	return a.noted(s.Slug, Task{Title: "Update " + t.Dir, Writes: true, Ask: UpdateQuestion(t, pol),
 		Steps: taw.UpdatePlan(t, pol, bridge), Info: updateInfo(s, t, pol), Target: s.ID + "/" + t.Dir,
 		Run: func(ctx context.Context, out io.Writer) (Summary, error) {
 			if err := a.checkpoint(ctx, s, t, restore.BeforeUpdate, "before updating "+t.Dir, out); err != nil {
@@ -194,8 +204,9 @@ func (a *Actions) UpdateTask(s site.Site, t site.Theme) (Task, error) {
 			}
 			sum := summarizeUpdate(t, rep)
 			sum.Report = UpdateOutcome{Site: s, Theme: t, Report: rep}
+			sum.Unnoted = rep.Status == "up-to-date"
 			return sum, nil
-		}}, nil
+		}}), nil
 }
 
 // updateInfo is the update's header: the site, the versions, and the

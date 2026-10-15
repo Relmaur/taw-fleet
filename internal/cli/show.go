@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Relmaur/taw-fleet/internal/doctor"
+	"github.com/Relmaur/taw-fleet/internal/notes"
 	"github.com/Relmaur/taw-fleet/internal/render"
 	"github.com/Relmaur/taw-fleet/internal/scan"
 	"github.com/Relmaur/taw-fleet/internal/site"
@@ -35,20 +36,36 @@ func newShowCmd(d Deps, g *globals) *cobra.Command {
 				return err
 			}
 			findings := doctor.Run(scan.Report{Sites: []site.Site{*s}}, d.doctorOptions())
+			es, _ := notes.Read(d.notesFile(s.Slug)) // notes are extra: a broken file doesn't stop show
+			if len(es) > showNotes {
+				es = es[:showNotes]
+			}
 			if asJSON {
+				if es == nil {
+					es = []notes.Entry{}
+				}
 				return writeJSON(cmd.OutOrStdout(), struct {
 					Site     site.Site         `json:"site"`
 					Findings []site.Finding    `json:"findings"`
 					Latest   map[string]string `json:"latest,omitempty"`
-				}{*s, nonNil(findings), rep.Latest})
+					Notes    []notes.Entry     `json:"notes"`
+				}{*s, nonNil(findings), rep.Latest, es})
 			}
-			_, err = lipgloss.Fprint(cmd.OutOrStdout(), "\n"+render.Site(d.palette(), d.Paths, *s, findings, time.Now(), 0))
+			p := d.palette()
+			out := "\n" + render.Site(p, d.Paths, *s, findings, time.Now(), 0)
+			if len(es) > 0 {
+				out += "\n" + render.Section(p, p.I.Notes+" NOTES", p.Accent, "taw-fleet notes "+s.Slug, 0) + renderNotes(d, es, time.Now())
+			}
+			_, err = lipgloss.Fprint(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return cmd
 }
+
+// showNotes is how many of the newest notes show (and show --json) carry.
+const showNotes = 5
 
 func nonNil(fs []site.Finding) []site.Finding {
 	if fs == nil {

@@ -67,7 +67,7 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 	}
 	res := MergeResult{Repo: st.Repo, Number: pr.Number, Production: prod, Deploys: st.Deploy != nil}
 
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  fmt.Sprintf("Merge #%d: %s", pr.Number, t.Dir),
 		Writes: true,
 		Ask:    ask,
@@ -108,9 +108,10 @@ func (a *Actions) MergeTask(s site.Site, t site.Theme, pr site.PullRequest) (Tas
 			case res.Deploys:
 				head += "; the " + st.Deploy.Workflow + " workflow runs next"
 			}
-			return Summary{Headline: head, Lines: lines, Report: res}, nil
+			mergeNote := fmt.Sprintf("Merged #%d (%s) into %s", pr.Number, pr.Title, st.Default) + strings.TrimPrefix(head, fmt.Sprintf("Merged #%d into %s", pr.Number, st.Default))
+			return Summary{Headline: head, Lines: lines, Report: res, Note: mergeNote}, nil
 		},
-	}, nil
+	}), nil
 }
 
 // CacheAfterDeploy is taw/core's own reminder (TAW\Update\Report::CACHE_AFTER_DEPLOY):

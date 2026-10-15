@@ -86,7 +86,7 @@ func (a *Actions) DeployTask(s site.Site, t site.Theme, target deploy.Target) (T
 	if def == "" {
 		def = "main"
 	}
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  "Deploy setup: " + s.Slug,
 		Writes: true,
 		Ask: fmt.Sprintf("Set up %s's deploy to %s? It stores the deploy key and settings in %s (a secret and variables), "+
@@ -191,7 +191,7 @@ func (a *Actions) DeployTask(s site.Site, t site.Theme, target deploy.Target) (T
 			sum.Lines = append(sum.Lines, "after the first deploy: taw-fleet live trust "+s.Slug+", then I for the rest of the SETUP checklist")
 			return sum, nil
 		},
-	}, nil
+	}), nil
 }
 
 func withSite(sites map[string]config.Site, slug, url string) map[string]config.Site {
