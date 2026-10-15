@@ -23,6 +23,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/github"
 	"github.com/Relmaur/taw-fleet/internal/live"
 	"github.com/Relmaur/taw-fleet/internal/local"
+	"github.com/Relmaur/taw-fleet/internal/notes"
 	"github.com/Relmaur/taw-fleet/internal/pagespeed"
 	"github.com/Relmaur/taw-fleet/internal/paths"
 	"github.com/Relmaur/taw-fleet/internal/scan"
@@ -275,6 +276,10 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			}
 		}
 		deps.ReportDir = d.reportDir()
+		deps.Notes = func(slug string) ([]notes.Entry, error) { return notes.Read(d.notesFile(slug)) }
+		deps.AddNote = func(slug, text string) error {
+			return notes.Add(d.notesFile(slug), slug, notes.Entry{At: time.Now(), By: notes.You, Text: text})
+		}
 		deps.ReportTask = func(s site.Site, month string) actions.Task {
 			return d.reportTask(g, s, month)
 		}
@@ -331,7 +336,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
-	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newTagCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
+	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newTagCmd(d, g), newNotesCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),

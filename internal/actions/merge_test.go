@@ -11,6 +11,7 @@ import (
 	"github.com/Relmaur/taw-fleet/internal/config"
 	"github.com/Relmaur/taw-fleet/internal/exec"
 	"github.com/Relmaur/taw-fleet/internal/github"
+	"github.com/Relmaur/taw-fleet/internal/notes"
 	"github.com/Relmaur/taw-fleet/internal/site"
 )
 
@@ -77,6 +78,10 @@ func TestMergeTask(t *testing.T) {
 	}
 	if !slices.Contains(sum.Lines, CacheAfterDeploy) {
 		t.Errorf("no page-cache reminder: %q", sum.Lines)
+	}
+	// The merge is in the site's notes, with the pull request's title.
+	if es, _ := notes.Read(a.NotesFile(s.Slug)); len(es) != 1 || es[0].By != notes.TawFleet || es[0].Text != "Merged #12 (Update taw/core) into main; deploying lsmexico.mx" {
+		t.Errorf("notes = %+v", es)
 	}
 }
 

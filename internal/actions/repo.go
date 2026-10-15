@@ -64,7 +64,7 @@ func (a *Actions) RepoTask(s site.Site, t site.Theme, owner, name string) (Task,
 	if g.Branch != "" && g.Branch != def {
 		pushes += " and " + g.Branch
 	}
-	return Task{
+	return a.noted(s.Slug, Task{
 		Title:  "GitHub repository: " + t.Dir,
 		Writes: true,
 		Ask: fmt.Sprintf("Create the private repository %s on %s and push %s? Merging into %s will then require the dump check (%s).",
@@ -124,7 +124,7 @@ func (a *Actions) RepoTask(s site.Site, t site.Theme, owner, name string) (Task,
 			sum.Lines = append(sum.Lines, "https://github.com/"+repo)
 			return sum, nil
 		},
-	}, nil
+	}), nil
 }
 
 // requireDumpCheck adds the ruleset the fleet's repositories have: the dump

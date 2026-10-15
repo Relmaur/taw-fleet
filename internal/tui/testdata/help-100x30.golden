@@ -15,6 +15,7 @@
    │  x   undo publish     C      pull content        F comments          X resolve comments   │    
    │  I   set up next      p      publish             m monthly report    > chat with Claude   │    
    │  q   quit             a      ask Claude…         T tags              = group by           │    
+   │                                                  N add a note                             │    
    │                                                                                           │    
    │  Symbols                                                                                  │    
    │                                                                                           │    
@@ -25,6 +26,5 @@
    │  main ≠  tracks another repository (the scaffold's, say): what's shown isn't the site's   │    
    │  — ✓ ▲2 ✗  sync: not checked, matches taw-theme, Tier 1 paths differ, check failed        │    
    │  ● ◐ ✗ —  live: verified, answering but unverified, refused or down, no production URL    │    
-   │  3 2 0 ?  FB: open BugSmash comments, one waiting over 2 days, none open, check failed    │    
 
  enter details • > chat • t terminal • U update all • : all actions • / filter • ? help • q quit

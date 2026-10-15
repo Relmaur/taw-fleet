@@ -104,6 +104,9 @@ func TestToolsNameTheirCommandAndWritesAreMarked(t *testing.T) {
 			t.Errorf("%s: its description doesn't name the command a person runs", tl.Name)
 		}
 		switch {
+		case tl.Name == notesWrite && (a == nil || a.ReadOnlyHint || a.DestructiveHint == nil || *a.DestructiveHint || !strings.Contains(tl.Description, "doesn't ask")):
+			t.Errorf("%s only adds a note: not read-only, not destructive, says it doesn't ask: %+v", tl.Name, a)
+		case tl.Name == notesWrite:
 		case writes[tl.Name] && (a == nil || a.ReadOnlyHint || !strings.Contains(tl.Description, "confirm")):
 			t.Errorf("%s writes: it must not be read-only, and must say it asks: %+v", tl.Name, a)
 		case !writes[tl.Name] && (a == nil || !a.ReadOnlyHint):
@@ -139,6 +142,9 @@ func TestToolsRunTheCommands(t *testing.T) {
 		{"launch_report", map[string]any{"site": "acme-bakery", "theme": "acme", "no_speed": true}, "launch-report acme-bakery --json --theme acme --no-speed"},
 		{"bugsmash_projects", map[string]any{}, "comments projects --json"},
 		{"publish_history", map[string]any{"site": "acme-bakery"}, "publish history acme-bakery --json"},
+		{"site_notes", map[string]any{"site": "acme-bakery"}, "notes acme-bakery --json"},
+		{"site_notes", map[string]any{"site": "acme-bakery", "last": 3}, "notes acme-bakery --json --last 3"},
+		{"add_note", map[string]any{"site": "acme-bakery", "text": " -n Client OK'd the new hero. "}, "notes acme-bakery --by claude --json -- -n Client OK'd the new hero."},
 	} {
 		c.fleet = nil
 		r, out := call(t, cs, tc.tool, tc.args)

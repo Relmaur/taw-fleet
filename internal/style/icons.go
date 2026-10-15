@@ -10,7 +10,7 @@ type Icons struct {
 	Waiting, Done, Failed, Branch, PR       string
 	Site, Theme, Code, Production, Claude   string
 	App, Editor, Terminal, Deploy, Report   string
-	Restore                                 string
+	Restore, Notes                          string
 }
 
 // SymbolIcons are plain Unicode symbols: they render with any font.
@@ -20,7 +20,7 @@ var SymbolIcons = Icons{
 	Waiting: "◷", Done: "✓", Failed: "✗", Branch: "⎇", PR: "⇡",
 	Site: "⌂", Theme: "◧", Code: "⎇", Production: "◎", Claude: "✦",
 	App: "⚙", Editor: "✎", Terminal: "❯", Deploy: "⇪", Report: "≡",
-	Restore: "↺",
+	Restore: "↺", Notes: "¶",
 }
 
 // NerdIcons are Nerd Font glyphs (Font Awesome and Devicons, in the Basic
@@ -31,7 +31,7 @@ var NerdIcons = Icons{
 	Waiting: "", Done: "", Failed: "", Branch: "", PR: "",
 	Site: "", Theme: "", Code: "", Production: "", Claude: "",
 	App: "", Editor: "", Terminal: "", Deploy: "", Report: "",
-	Restore: "",
+	Restore: "", Notes: "",
 }
 
 // IconSets are the config's "icons" values.

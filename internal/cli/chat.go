@@ -55,8 +55,9 @@ func (d Deps) chatMCP() (string, error) {
 	return path, os.WriteFile(path, b, 0o600)
 }
 
-// chatReadTools are taw-fleet's tools that only read: they never ask. The
-// taw tool isn't one (it asks before a command that writes).
+// chatReadTools are taw-fleet's tools that never ask: those that only read,
+// and add_note (it only adds to the site's notes). The taw tool isn't one
+// (it asks before a command that writes).
 func chatReadTools() []string {
 	var out []string
 	for _, t := range mcp.Tools {
