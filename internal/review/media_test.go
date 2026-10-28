@@ -41,6 +41,26 @@ func TestMediaUsers(t *testing.T) {
 	}
 }
 
+// A featured image named by its path (taw/core 1.100, schema 1.9) uses that
+// file, not another of the same name in another month folder.
+func TestFeaturedImageByPath(t *testing.T) {
+	cs := `{"media":[
+	  {"id":20,"filename":"g.jpg","url":"http://x.local/wp-content/uploads/2026/06/g.jpg"},
+	  {"id":21,"filename":"g.jpg","url":"http://x.local/wp-content/uploads/2026/08/g.jpg"},
+	  {"id":22,"filename":"h.jpg","url":"https://cdn.example/h.jpg","file":"2026/07/h.jpg"}],
+	 "operations":[
+	  {"op":"update","target":{"kind":"post","type":"post","slug":"a"},"post":{"featured_media":"2026/06/g.jpg"}},
+	  {"op":"update","target":{"kind":"post","type":"post","slug":"b"},"post":{"featured_media":"2026/07/h.jpg"}}]}`
+	got := MediaUsers([]byte(cs))
+	want := map[string][]string{
+		"media:2026/06/g.jpg": {"post:post:a"},
+		"media:h.jpg":         {"post:post:b"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("users\n got %v\nwant %v", got, want)
+	}
+}
+
 func TestPicturesDetailsAreTheirOwnChoice(t *testing.T) {
 	pl, no := plan(t), false
 	pl.Plan.Records = append(pl.Plan.Records, companion.PlanRecord{Key: "media:2026/09/old.webp", Hash: "h1", Kind: "media", Name: "2026/09/old.webp",

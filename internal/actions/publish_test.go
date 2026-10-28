@@ -318,6 +318,24 @@ func TestPublishRefusesATawCoreThatPublishesEveryPicture(t *testing.T) {
 	}
 }
 
+// A featured image named by its path (taw/core 1.100) isn't sent to a
+// production that would look it up by name.
+func TestPublishRefusesATawCoreThatFindsFeaturedImagesByName(t *testing.T) {
+	a, _, prod, s, th := publishSetup(t)
+	prod.plan.TawCore = "1.99.2"
+	prod.plan.Plan.Records = append(prod.plan.Plan.Records, companion.PlanRecord{Key: "post:post:a", Kind: "post", Type: "post", Slug: "a", Title: "A", Op: "update",
+		Changes: map[string]companion.Change{"featured_media": {Status: "changed", Old: json.RawMessage(`"g.jpg"`), New: json.RawMessage(`"2026/06/g.jpg"`)}}})
+	task, _ := a.PublishTask(s, th, nil)
+	if _, err := task.Run(context.Background(), io.Discard); err == nil || !strings.Contains(err.Error(), "taw/core 1.99.2") || !strings.Contains(err.Error(), "1.100.0 or newer") {
+		t.Errorf("refused, with what to do: %v", err)
+	}
+	prod.plan.TawCore = "1.100.0"
+	task, _ = a.PublishTask(s, th, nil)
+	if _, err := task.Run(context.Background(), io.Discard); err != nil {
+		t.Errorf("1.100.0 publishes: %v", err)
+	}
+}
+
 // When production needs a file taw-fleet's check didn't tie to a ticked
 // record, it sends the file and applies again, once, and says so.
 func TestPublishSendsWhatProductionStillNeeds(t *testing.T) {
