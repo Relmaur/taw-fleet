@@ -39,9 +39,9 @@ func newPublishCmd(d Deps, g *globals) *cobra.Command {
 			"(alt text, title…) are a record of their own (media:<path>), unticked until you tick them.\n" +
 			"Files go up by their bytes; production keeps a rollback copy and undo puts it back\n" +
 			"(taw-fleet publish undo). Users, comments and site settings are never published.\n\n" +
-			"Production needs taw/core 1.98+ (1.99.1+ when pictures change), taw/hub-companion 0.5+, its\n" +
-			"key pinned (taw-fleet live trust), and publishing enabled in the theme:\n" +
-			"\"extra\": {\"taw-companion\": {\"publish\": true}} in composer.json, deployed.\n\n" +
+			"Production needs taw/core 1.98+ (1.99.1+ when pictures change, 1.100+ for featured images),\n" +
+			"taw/hub-companion 0.5+, its key pinned (taw-fleet live trust), and publishing enabled in the\n" +
+			"theme: \"extra\": {\"taw-companion\": {\"publish\": true}} in composer.json, deployed.\n\n" +
 			"Without a browser: --no-review prints the review; with --yes it publishes as reviewed (every\n" +
 			"record but deletes and pictures' details; a value only production changed stays production's),\n" +
 			"refusing while a value both sides changed is undecided; --decisions <file> says what to publish\n" +

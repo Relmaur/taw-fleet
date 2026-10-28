@@ -171,6 +171,9 @@ func (a *Actions) PublishTask(s site.Site, t site.Theme, op SiteOp) (Task, error
 			if err := mediaSafe(plan, to); err != nil {
 				return Summary{}, err
 			}
+			if err := featuredSafe(plan, to); err != nil {
+				return Summary{}, err
+			}
 			baseLabel := ""
 			if withBase {
 				baseLabel = meta.SavedAt.Local().Format("2 Jan 2006, 15:04")
@@ -213,6 +216,29 @@ func mediaSafe(plan companion.PublishPlan, to string) error {
 			return fmt.Errorf("%s runs taw/core %s, which would publish every picture's details and new file along with any record you pick. "+
 				"Update its taw/core to %s or newer (u, then merge and deploy), then publish again. Nothing was published",
 				to, strings.TrimPrefix(plan.TawCore, "v"), strings.TrimPrefix(mediaFirst, "v"))
+		}
+	}
+	return nil
+}
+
+// pathsFirst is the first taw/core that finds a featured image by its path
+// under uploads (schema 1.9). Before it, production looks the path up by its
+// file name and can pick another picture of that name.
+const pathsFirst = "v1.100.0"
+
+// featuredSafe refuses a plan that sets featured images by path on a
+// production whose taw/core would find them by name.
+func featuredSafe(plan companion.PublishPlan, to string) error {
+	core := "v" + strings.TrimPrefix(plan.TawCore, "v")
+	if plan.TawCore == "" || !semver.IsValid(core) || semver.Compare(core, pathsFirst) >= 0 {
+		return nil
+	}
+	for _, r := range plan.Plan.Records {
+		var ref string
+		if c, ok := r.Changes["featured_media"]; ok && json.Unmarshal(c.New, &ref) == nil && strings.Contains(ref, "/") {
+			return fmt.Errorf("%s runs taw/core %s, which finds a featured image by its file name and can pick another picture of that name. "+
+				"Update its taw/core to %s or newer (u, then merge and deploy), then publish again. Nothing was published",
+				to, strings.TrimPrefix(plan.TawCore, "v"), strings.TrimPrefix(pathsFirst, "v"))
 		}
 	}
 	return nil

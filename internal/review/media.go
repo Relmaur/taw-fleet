@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Which records use which media, as production decides it (taw/core 1.99.1:
+// Which records use which media, as production decides it (taw/core 1.99.1+:
 // ChangeSet::referencedMedia, Publish::mediaFor). A new file goes up only
 // with a ticked record that uses it; a picture's details (alt, title…) only
 // when its own media record is ticked.
@@ -83,11 +83,23 @@ func referenced(media []map[string]any, op map[string]any) []map[string]any {
 	for _, e := range media {
 		id := intOf(e["id"])
 		name := str(first(e, "filename", "ref"))
-		if (id > 0 && ids[id]) || (name != "" && names[name]) || urlIn(str(e["url"]), text) {
+		if (id > 0 && ids[id]) || (name != "" && names[name]) || byPath(e, names) || urlIn(str(e["url"]), text) {
 			out = append(out, e)
 		}
 	}
 	return out
+}
+
+// byPath reports whether a record names the entry by its path under uploads,
+// as a featured image does since taw/core 1.100 (schema 1.9): the URL's path
+// or the original's (`file`), so two files of one name stay apart.
+func byPath(e map[string]any, names map[string]bool) bool {
+	for _, p := range []string{uploadsPath(str(e["url"])), strings.TrimPrefix(str(e["file"]), "/")} {
+		if p != "" && names[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // scan collects a record's strings, and the integers under fields (and an
@@ -142,14 +154,22 @@ func isWordOrDash(c byte) bool {
 // mediaPath is a media entry's path under uploads, as its record key has it
 // (Publish::mediaFor): from its URL, else its file name.
 func mediaPath(e map[string]any) string {
-	u := str(e["url"])
+	if p := uploadsPath(str(e["url"])); p != "" {
+		return p
+	}
+	return str(first(e, "filename", "ref"))
+}
+
+// uploadsPath is a URL's path under the uploads folder, "" when it isn't
+// there (MediaResolver::uploadsPath).
+func uploadsPath(u string) string {
 	if i := strings.IndexAny(u, "?#"); i >= 0 {
 		u = u[:i]
 	}
 	if m := uploadsRE.FindStringSubmatch(u); m != nil {
 		return m[1]
 	}
-	return str(first(e, "filename", "ref"))
+	return ""
 }
 
 // keyOf is an operation's record key (Importer::keyOf).
