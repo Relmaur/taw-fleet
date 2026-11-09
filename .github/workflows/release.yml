@@ -21,6 +21,13 @@ jobs:
           go-version-file: go.mod
       - name: Test
         run: go test ./...
+      # The self-signed "TAW Fleet Code Signing" certificate (docs/signing.md):
+      # every release signed with it keeps the privacy permissions macOS gave the last.
+      - name: Signing keychain
+        run: scripts/macos-sign.sh ci-keychain
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_P12_PASSWORD: ${{ secrets.MACOS_SIGN_P12_PASSWORD }}
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

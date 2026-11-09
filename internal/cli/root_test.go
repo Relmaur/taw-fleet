@@ -458,6 +458,44 @@ func TestDashboardOpensInItsOwnWindow(t *testing.T) {
 	}
 }
 
+// TAW Fleet.app opened from Finder has no terminal either: the dashboard opens
+// in a window. Without the app's variable, no terminal still means the list.
+func TestOpeningTheAppOpensTheDashboardWindow(t *testing.T) {
+	p := fixture(t)
+	p.Applications = []string{filepath.Join(p.Home, "Applications")}
+	if err := os.MkdirAll(filepath.Join(p.Home, "Applications", "Terminal.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := func(app bool) (string, *exec.FakeRunner, error) {
+		p := p
+		p.Getenv = func(k string) string {
+			if app && k == AppEnv {
+				return "1"
+			}
+			return ""
+		}
+		var out bytes.Buffer
+		r := &exec.FakeRunner{}
+		d := Deps{Paths: p, Runner: r, Out: &out, Err: &out, GitHub: fakeGitHub(t),
+			Executable: func() (string, error) { return "/Applications/TAW Fleet.app/Contents/MacOS/taw-fleet", nil }}
+		root := NewRoot(BuildInfo{Version: "1.2.3"}, d)
+		root.SetArgs([]string{"--offline"})
+		err := root.ExecuteContext(context.Background())
+		return out.String(), r, err
+	}
+
+	out, r, err := run(true)
+	if err != nil || !strings.Contains(out, "new Terminal window") {
+		t.Fatalf("app: err=%v out=%q", err, out)
+	}
+	if script, _ := os.ReadFile(r.Calls()[0].Args[2]); !strings.Contains(string(script), "'/Applications/TAW Fleet.app/Contents/MacOS/taw-fleet' '--window=false' '--in-window'") {
+		t.Errorf("script:\n%s", script)
+	}
+	if out, _, _ := run(false); strings.Contains(out, "new Terminal window") {
+		t.Errorf("piped without the app's variable must print the list, not open a window: %q", out)
+	}
+}
+
 // leftoverRunner answers like a Mac where an orphaned php-fpm worker (501,
 // parent launchd, Local's program) holds acme's PHP socket.
 func leftoverRunner(p paths.Paths) *exec.FakeRunner {

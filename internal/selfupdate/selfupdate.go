@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -240,23 +241,38 @@ func checksum(sums []byte, name string) (string, error) {
 	return "", fmt.Errorf("checksums.txt has no line for %s", name)
 }
 
-// extract returns the file called name from a .tar.gz.
+// extract returns the file called name from a .tar.gz: the one at the top of
+// the archive, else the first one by that name in a folder. Since v1.35 the
+// archive also holds TAW Fleet.app/Contents/MacOS/taw-fleet, signed for the
+// bundle; the top-level one is the one signed to run on its own.
 func extract(archive []byte, name string) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
 		return nil, err
 	}
 	tr := tar.NewReader(gz)
+	var nested []byte
 	for {
 		h, err := tr.Next()
 		if errors.Is(err, io.EOF) {
+			if nested != nil {
+				return nested, nil
+			}
 			return nil, fmt.Errorf("no %s in the archive", name)
 		}
 		if err != nil {
 			return nil, err
 		}
-		if h.Typeflag == tar.TypeReg && filepath.Base(h.Name) == name {
+		if h.Typeflag != tar.TypeReg || filepath.Base(h.Name) != name {
+			continue
+		}
+		if path.Clean(h.Name) == name {
 			return io.ReadAll(io.LimitReader(tr, maxDownload))
+		}
+		if nested == nil {
+			if nested, err = io.ReadAll(io.LimitReader(tr, maxDownload)); err != nil {
+				return nil, err
+			}
 		}
 	}
 }
