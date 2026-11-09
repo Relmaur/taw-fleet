@@ -20,7 +20,10 @@ brew install Relmaur/tap/taw-fleet     # update with: brew upgrade taw-fleet
 ```
 
 It installs two commands: `taw-fleet`, and `taw`, which runs a theme's own `vendor/bin/taw` (see
-[The `taw` command](#the-taw-command)).
+[The `taw` command](#the-taw-command)). Since v1.35 `taw-fleet` lives inside
+`/Applications/TAW Fleet.app`: one signed app, so macOS asks for access to Documents once and
+remembers it across updates ([docs/signing.md](docs/signing.md)). Opening the app opens the
+dashboard in a terminal window.
 
 Without Homebrew, download `taw-fleet_<version>_darwin_<arm64|amd64>.tar.gz` from the
 [releases](https://github.com/Relmaur/taw-fleet/releases), put `taw-fleet` on your `PATH`

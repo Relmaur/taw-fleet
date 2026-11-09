@@ -216,3 +216,25 @@ func TestApplyInstallsTawBesideIt(t *testing.T) {
 		t.Errorf("taw beside taw-fleet: %q %v", got, err)
 	}
 }
+
+// Since v1.35 the archive also holds TAW Fleet.app: the top-level taw-fleet
+// (signed to run on its own) wins, wherever the app's copy sits.
+func TestApplyTakesTheTopLevelBinaryOverTheApps(t *testing.T) {
+	for _, appFirst := range []bool{true, false} {
+		app := "TAW Fleet.app/Contents/MacOS/taw-fleet"
+		var archive []byte
+		if appFirst {
+			archive = tarball(t, app, []byte("APP COPY"), "taw-fleet", "NEW BINARY")
+		} else {
+			archive = tarball(t, "taw-fleet", []byte("NEW BINARY"), app, "APP COPY")
+		}
+		got, err := extract(archive, "taw-fleet")
+		if err != nil || string(got) != "NEW BINARY" {
+			t.Errorf("appFirst=%v: %q %v", appFirst, got, err)
+		}
+	}
+	// An archive with only the app's copy still updates.
+	if got, err := extract(tarball(t, "TAW Fleet.app/Contents/MacOS/taw-fleet", []byte("APP COPY")), "taw-fleet"); err != nil || string(got) != "APP COPY" {
+		t.Errorf("app only: %q %v", got, err)
+	}
+}

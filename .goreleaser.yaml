@@ -21,6 +21,11 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }}
     mod_timestamp: "{{ .CommitTimestamp }}"
+    # One signing identity for every build, and TAW Fleet.app around this binary,
+    # so macOS keeps one privacy entry across upgrades (docs/signing.md).
+    hooks:
+      post:
+        - cmd: scripts/macos-sign.sh app "{{ .Path }}" "{{ .Version }}" "dist/app/{{ .Arch }}"
   # taw: runs a theme's own vendor/bin/taw with its site's PHP (cmd/taw).
   - id: taw
     main: ./cmd/taw
@@ -33,12 +38,29 @@ builds:
     ldflags:
       - -s -w
     mod_timestamp: "{{ .CommitTimestamp }}"
+    hooks:
+      post:
+        - cmd: scripts/macos-sign.sh binary "{{ .Path }}" com.relmaur.taw
 
 archives:
   # taw-fleet_0.7.0_darwin_arm64.tar.gz: the name self-update looks for.
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [README.md, LICENSE*]
+    # The top-level taw-fleet stays (self-update and `go install` users); the
+    # cask installs TAW Fleet.app and links its copy.
+    files:
+      - README.md
+      - LICENSE*
+      # The bundle's three files, one by one: a ** glob skips Contents/Info.plist.
+      - src: "dist/app/{{ .Arch }}/TAW Fleet.app/Contents/Info.plist"
+        dst: "TAW Fleet.app/Contents"
+        strip_parent: true
+      - src: "dist/app/{{ .Arch }}/TAW Fleet.app/Contents/MacOS/taw-fleet"
+        dst: "TAW Fleet.app/Contents/MacOS"
+        strip_parent: true
+      - src: "dist/app/{{ .Arch }}/TAW Fleet.app/Contents/_CodeSignature/CodeResources"
+        dst: "TAW Fleet.app/Contents/_CodeSignature"
+        strip_parent: true
 
 checksum:
   name_template: checksums.txt
@@ -69,7 +91,12 @@ homebrew_casks:
     directory: Casks
     homepage: https://github.com/Relmaur/taw-fleet
     description: The TAW sites on this Mac (Local by Flywheel) in one terminal dashboard, and the taw command
-    binaries: [taw-fleet, taw]
+    # taw-fleet is linked from the app (custom_block): /Applications/TAW Fleet.app
+    # is the one identity macOS keeps permissions for (docs/signing.md).
+    binaries: [taw]
+    custom_block: |
+      app "TAW Fleet.app"
+      binary "#{appdir}/TAW Fleet.app/Contents/MacOS/taw-fleet"
     # taw-fleet watch's notifications open the dashboard when clicked through it.
     dependencies:
       - formula: terminal-notifier
@@ -84,4 +111,5 @@ homebrew_casks:
           if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/taw-fleet"]
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/taw"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/TAW Fleet.app"]
           end

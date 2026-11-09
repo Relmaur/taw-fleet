@@ -56,7 +56,11 @@ Releases: `.goreleaser.yaml` + `.github/workflows/release.yml` on `v*` tags. The
 `selfupdate.ArchiveName`; change both together. The cask goes to `Relmaur/homebrew-tap` with the
 `HOMEBREW_TAP_GITHUB_TOKEN` secret. Create the release notes (`gh release create`) first: GoReleaser
 runs with `mode: keep-existing` and only adds the files. Check a config change with
-`goreleaser release --snapshot --clean`.
+`goreleaser release --snapshot --clean`. Every build is signed with one self-signed identity
+and taw-fleet ships inside `TAW Fleet.app` (`com.relmaur.taw-fleet`), so macOS keeps one privacy
+entry across releases: `scripts/macos-sign.sh` (GoReleaser's build hooks, `dev` for a dev build),
+`packaging/macos/Info.plist`, secrets `MACOS_SIGN_P12`/`MACOS_SIGN_P12_PASSWORD`; see
+`docs/signing.md`. The archive keeps the top-level `taw-fleet` (self-update takes that one).
 
 Local's API (probed on Local 10.1.2): `Authorization: Bearer <authToken>` from
 `graphql-connection-info.json`; introspection is disabled, so operations come from Local's

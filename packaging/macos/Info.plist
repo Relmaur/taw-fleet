@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- TAW Fleet.app (scripts/macos-sign.sh app; docs/signing.md). One bundle identifier and one
+     signature for every build, so macOS keeps one privacy entry for taw-fleet. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.relmaur.taw-fleet</string>
+	<key>CFBundleName</key>
+	<string>TAW Fleet</string>
+	<key>CFBundleDisplayName</key>
+	<string>TAW Fleet</string>
+	<key>CFBundleExecutable</key>
+	<string>taw-fleet</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__VERSION__</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
+	<!-- No Dock icon: opening the app opens the dashboard in a terminal window and quits. -->
+	<key>LSUIElement</key>
+	<true/>
+	<!-- Set only when macOS opens the app (Finder, Spotlight, open): never for the launchd agents. -->
+	<key>LSEnvironment</key>
+	<dict>
+		<key>TAW_FLEET_APP</key>
+		<string>1</string>
+	</dict>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>taw-fleet reads your sites' themes and git repositories, which can live in Documents (the TAW themes are linked from there).</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>taw-fleet reads your sites' themes and git repositories when they live on the Desktop.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>taw-fleet places and closes the terminal windows it opens for the dashboard and Claude Code.</string>
+</dict>
+</plist>

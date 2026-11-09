@@ -207,6 +207,11 @@ func (d Deps) openWindow(cmd *cobra.Command, g *globals, force bool) bool {
 	return false
 }
 
+// AppEnv is set to "1" by TAW Fleet.app's Info.plist (LSEnvironment), which
+// macOS applies only when it opens the app: Finder, Spotlight, `open`. The
+// launchd agents run the same binary without it (docs/signing.md).
+const AppEnv = "TAW_FLEET_APP"
+
 // NewRoot builds the command tree.
 func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	d.active = &scan.ActiveTheme{Paths: d.Paths, Runner: d.Runner}
@@ -225,7 +230,9 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 			return d.atLogin(cmd, g)
 		}
 		if !d.Interactive {
-			if g.site != "" { // a notification's click: no terminal here
+			// A notification's click, or TAW Fleet.app opened from Finder or Spotlight
+			// (its Info.plist sets AppEnv): no terminal here.
+			if g.site != "" || d.Paths.Getenv(AppEnv) == "1" {
 				if d.openWindow(cmd, g, true) {
 					return nil
 				}
