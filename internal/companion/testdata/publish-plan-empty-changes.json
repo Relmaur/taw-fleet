@@ -1,0 +1,22 @@
+{
+  "publish_id": "6691384f7834c077",
+  "token": "2bcb3f70a13852f2f6b040204f3c2e46",
+  "expires_at": "2026-11-10T10:33:16+00:00",
+  "plan": {
+    "registry_drift": [],
+    "records": [
+      {"kind": "post", "type": "page", "slug": "privacy-policy", "op": "create", "title": "Privacy policy",
+        "changes": {"title": {"status": "new", "new": "Privacy policy", "label": "Title"}},
+        "record_key": "post:page:privacy-policy", "hash": "a1"},
+      {"kind": "post", "type": "event_invite", "slug": "a1b2c3d4e5", "match_key": "", "op": "would-delete", "title": "Jane Doe & John Seed",
+        "edit_url": "", "conflict": null, "changes": [], "record_key": "post:event_invite:a1b2c3d4e5", "hash": "d1"},
+      {"kind": "option", "key": "_taw_cta_label", "op": "would-delete", "title": "_taw_cta_label", "conflict": false,
+        "changes": [], "record_key": "option:_taw_cta_label", "hash": "d2"},
+      {"kind": "option", "key": "_taw_cta_link", "op": "would-delete", "changes": null, "record_key": "option:_taw_cta_link", "hash": "d3"},
+      {"kind": "option", "key": "_taw_footer_links", "op": "would-delete", "changes": {}, "record_key": "option:_taw_footer_links", "hash": "d4"}
+    ],
+    "warnings": []
+  },
+  "media": {"needed": []},
+  "limits": {"max_file_bytes": 33554432, "max_total_bytes": 536870912, "max_files": 500, "ttl": 3600}
+}
