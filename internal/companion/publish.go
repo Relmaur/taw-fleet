@@ -1,6 +1,10 @@
 package companion
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+)
 
 // The publish routes' shapes (companion 0.5, ADR-0006; the work is taw/core
 // 1.98's Content\Publish). Values stay raw JSON: a field's value can be text,
@@ -28,23 +32,55 @@ type PublishPlan struct {
 // PlanRecord is one record the publish would change: a post, term, option,
 // menu, theme mod, or a file to upload (kind "media").
 type PlanRecord struct {
-	Key      string            `json:"record_key"`
-	Hash     string            `json:"hash"`
-	Kind     string            `json:"kind"`
-	Type     string            `json:"type,omitempty"`
-	Slug     string            `json:"slug,omitempty"`
-	Path     string            `json:"path,omitempty"`
-	Name     string            `json:"key,omitempty"` // an option's or menu's own name, a file's path
-	Title    string            `json:"title,omitempty"`
-	EditURL  string            `json:"edit_url,omitempty"`
-	Op       string            `json:"op"` // create, update, would-delete, missing
-	Conflict *bool             `json:"conflict,omitempty"`
-	Changes  map[string]Change `json:"changes"`
+	Key      string  `json:"record_key"`
+	Hash     string  `json:"hash"`
+	Kind     string  `json:"kind"`
+	Type     string  `json:"type,omitempty"`
+	Slug     string  `json:"slug,omitempty"`
+	Path     string  `json:"path,omitempty"`
+	Name     string  `json:"key,omitempty"` // an option's or menu's own name, a file's path
+	Title    string  `json:"title,omitempty"`
+	EditURL  string  `json:"edit_url,omitempty"`
+	Op       string  `json:"op"` // create, update, would-delete, missing
+	Conflict *bool   `json:"conflict,omitempty"`
+	Changes  Changes `json:"changes"`
 	// A file to upload (kind "media").
 	File   string `json:"file,omitempty"`
 	SHA256 string `json:"sha256,omitempty"`
 	Bytes  int64  `json:"bytes,omitempty"`
 	Mime   string `json:"mime,omitempty"`
+}
+
+// Changes is a record's values by key. taw/core writes it as an object; older
+// taw/core (before 1.105.1) wrote a record with no changes, such as a delete,
+// as an empty array, which a plain map refuses. An empty array and null read
+// as no changes; anything else that isn't an object is still an error.
+type Changes map[string]Change
+
+// UnmarshalJSON reads an object, or an empty array or null as no changes.
+func (c *Changes) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		*c = Changes{}
+		return nil
+	}
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var list []json.RawMessage
+		if err := json.Unmarshal(trimmed, &list); err != nil {
+			return err
+		}
+		if len(list) > 0 {
+			return &json.UnmarshalTypeError{Value: "array", Type: reflect.TypeOf(Changes{})}
+		}
+		*c = Changes{}
+		return nil
+	}
+	m := map[string]Change{}
+	if err := json.Unmarshal(trimmed, &m); err != nil {
+		return err
+	}
+	*c = m
+	return nil
 }
 
 // Change is one value a record changes: production's (Old) and the incoming

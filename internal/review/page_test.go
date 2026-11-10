@@ -271,3 +271,26 @@ func TestWithin(t *testing.T) {
 		}
 	}
 }
+
+// A delete has no changes; taw/core before 1.105.1 wrote them as []. The
+// review still reads the plan, lists each delete unticked, and counts it.
+func TestDeletesWithEmptyChangesAreReviewed(t *testing.T) {
+	data, err := os.ReadFile("../companion/testdata/publish-plan-empty-changes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pl companion.PublishPlan
+	if err := json.Unmarshal(data, &pl); err != nil {
+		t.Fatalf("the plan isn't readable: %v", err)
+	}
+	p := Build("acme", "Acme Studio", "https://prod.test", "now", "base", pl, nil)
+	if p.Records != 5 {
+		t.Errorf("records = %d, want 5 (1 new page, 4 deletes)", p.Records)
+	}
+	for _, key := range []string{"post:event_invite:a1b2c3d4e5", "option:_taw_cta_label", "option:_taw_cta_link", "option:_taw_footer_links"} {
+		r := find(t, p, key)
+		if r.Op != "delete" || r.Include || len(r.Changes) != 0 {
+			t.Errorf("%s: op %q, include %v, %d changes; want an unticked delete with none", key, r.Op, r.Include, len(r.Changes))
+		}
+	}
+}
