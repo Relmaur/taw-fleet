@@ -332,3 +332,19 @@ func TestAgent(t *testing.T) {
 		t.Errorf("uninstall twice: %v", err)
 	}
 }
+
+func TestMovedSiteIsQuiet(t *testing.T) {
+	st, _ := Check(State{}, fleet(nil), t0)
+	moved := fleet(func(s *site.Site) {
+		s.Moved = &site.Moved{To: "Laravel on Forge"}
+		s.Themes[0].GitHub.Deploy.Failed = &site.Run{SHA: "bbbbbbb2222"}
+		s.Feedback.Comments = append(s.Feedback.Comments, site.Comment{ID: "c2", Number: 2, Text: "new"})
+	})
+	st, events := Check(st, moved, t0.Add(5*time.Minute))
+	if len(events) != 0 {
+		t.Fatalf("a moved site told %s", kinds(events))
+	}
+	if _, ok := st.Sites["ls-mxico"]; ok {
+		t.Errorf("a moved site keeps no state: %+v", st.Sites)
+	}
+}

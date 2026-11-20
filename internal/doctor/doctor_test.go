@@ -263,3 +263,19 @@ func TestSkillsMissing(t *testing.T) {
 		t.Errorf("finding = %+v", got)
 	}
 }
+
+func TestMovedSiteIsOneNote(t *testing.T) {
+	th := clean()
+	th.Core.Latest, th.Core.Behind = "v1.80.0", true // would be core.behind
+	th.Git.Dirty = 3                                 // would be git.dirty
+	prod := site.Production{URL: "https://acme.example", ErrorKind: "signature"}
+	s := site.Site{ID: "s1", Slug: "acme-bakery", Themes: []site.Theme{th}, Production: &prod,
+		Moved: &site.Moved{To: "Laravel on Forge", URL: "https://acme.example/"}}
+	fs := Run(scan.Report{Sites: []site.Site{s}}, Options{})
+	if len(fs) != 1 || fs[0].Code != "site.moved" || fs[0].Severity != site.Info {
+		t.Fatalf("findings = %+v", fs)
+	}
+	if !strings.Contains(fs[0].Message, "Laravel on Forge (acme.example)") || !strings.Contains(fs[0].Fix, "taw-fleet moved acme-bakery --clear") {
+		t.Errorf("finding = %+v", fs[0])
+	}
+}

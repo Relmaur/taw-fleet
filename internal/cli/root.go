@@ -111,15 +111,21 @@ func (d Deps) accounts() scan.Accounts {
 	return a
 }
 
-// tags puts each site's tags from the settings on the scanned sites, read
-// fresh on every scan (a tag set from the dashboard or the CLI shows at once).
+// tags puts each site's tags (and moved_to) from the settings on the scanned
+// sites, read fresh on every scan (a tag set from the dashboard or the CLI
+// shows at once).
 func (d Deps) tags(sites []site.Site) {
 	cfg, err := config.Load(d.Paths)
 	if err != nil {
 		return
 	}
 	for i := range sites {
-		sites[i].Tags = cfg.Sites[sites[i].Slug].Tags
+		c := cfg.Sites[sites[i].Slug]
+		sites[i].Tags = c.Tags
+		sites[i].Moved = nil
+		if c.Moved() {
+			sites[i].Moved = &site.Moved{To: c.MovedTo, URL: c.MovedURL}
+		}
 	}
 }
 
@@ -343,7 +349,7 @@ func NewRoot(info BuildInfo, d Deps) *cobra.Command {
 	root.PersistentFlags().BoolVar(&g.offline, "offline", false, "don't ask GitHub for the newest versions (use the cache)")
 	root.SetOut(d.Out)
 	root.SetErr(d.Err)
-	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newTagCmd(d, g), newNotesCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
+	root.AddCommand(newVersionCmd(info), newListCmd(d, g), newTagCmd(d, g), newMovedCmd(d, g), newNotesCmd(d, g), newShowCmd(d, g), newDoctorCmd(d, g),
 		newOpenCmd(d, g), newHandoffCmd(d, g), newConfigCmd(d),
 		newSiteOpCmd(d, g, local.Start), newSiteOpCmd(d, g, local.Stop), newSiteOpCmd(d, g, local.Restart), newUnstickCmd(d, g), newWPRemoteCmd(d, g),
 		newWPCmd(d, g), newSyncCmd(d, g), newUpdateCmd(d, g), newInspectCmd(d, g),

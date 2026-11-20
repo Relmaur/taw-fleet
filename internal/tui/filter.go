@@ -31,7 +31,7 @@ type filterFacts struct {
 
 // conditions are the is: and has: names, with what each means (the help line).
 var conditions = map[string][]string{
-	"is":  {"behind", "dirty", "unpushed", "running", "stopped", "live", "down", "failing", "deploying", "undeployed", "vite", "other"},
+	"is":  {"behind", "dirty", "unpushed", "running", "stopped", "live", "down", "failing", "deploying", "undeployed", "vite", "other", "moved"},
 	"has": {"comments", "prs", "findings", "errors"},
 }
 
@@ -204,6 +204,7 @@ func (m Model) filterFactsOf(s site.Site, t site.Theme) filterFacts {
 		set("unpushed", !g.HasUpstream() || g.Ahead > 0)
 	}
 	set("live", m.deps.Production[s.Slug])
+	set("moved", s.Moved != nil)
 	if p, ok := m.live[s.Slug]; ok {
 		set("down", !p.Reachable || !p.Verified)
 	}

@@ -56,6 +56,9 @@ func newReadyCmd(d Deps, g *globals) *cobra.Command {
 			bots := wpremote.Store{Exec: d.Runner}
 			var out []readyTheme
 			for _, s := range sites {
+				if s.Moved != nil { // it left WordPress: nothing to set up
+					continue
+				}
 				for _, t := range s.TAWThemes() {
 					if handoff.IsUmbrella(t) { // the TAW ecosystem's own themes aren't client sites
 						continue
@@ -66,6 +69,9 @@ func newReadyCmd(d Deps, g *globals) *cobra.Command {
 					}
 					out = append(out, readyTheme{Site: s.Slug, Theme: t.Dir, Steps: setup.Steps(in)})
 				}
+			}
+			if len(out) == 0 && len(args) == 1 && sites[0].Moved != nil {
+				return errors.New(sites[0].Slug + " moved to " + sites[0].Moved.To + ": nothing to set up on WordPress")
 			}
 			if len(out) == 0 && len(args) == 1 {
 				return errors.New(args[0] + " has no client TAW theme")

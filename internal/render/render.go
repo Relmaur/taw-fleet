@@ -27,7 +27,11 @@ func Site(p style.Palette, ps paths.Paths, s site.Site, findings []site.Finding,
 	b.WriteString(Header(p, ps, s, width))
 	b.WriteString("\n")
 	b.WriteString(Cards(p, ps, s, now, width))
-	if s.Production != nil {
+	if s.Moved != nil {
+		b.WriteString("\n")
+		b.WriteString(Section(p, p.I.Live+" MOVED", p.Warn, "off WordPress · moved_to", width))
+		b.WriteString(Moved(p, s, width))
+	} else if s.Production != nil {
 		b.WriteString("\n")
 		b.WriteString(Section(p, p.I.Live+" LIVE", p.Brand, "production · companion", width))
 		b.WriteString(Production(p, s.Production, now, width))
@@ -375,6 +379,22 @@ func pagePath(u string) string {
 		return u
 	}
 	return pu.Path
+}
+
+// Moved is the block of a site that left WordPress: what it is now, where it
+// answers, and what taw-fleet stopped doing for it.
+func Moved(p style.Palette, s site.Site, width int) string {
+	muted := p.Fg(p.Muted)
+	head := " " + p.Fg(p.Warn).Render("→") + " " + lipgloss.NewStyle().Bold(true).Render(s.Moved.To)
+	if s.Moved.URL != "" {
+		head += "  " + p.Fg(p.Brand).Render(s.Moved.URL)
+	}
+	lines := []string{head,
+		"   " + muted.Render("no live check, watch, reports, publish, deploys or updates"),
+		"   " + muted.Render("the Local site and theme stay until you delete them in Local"),
+		"   " + muted.Render("taw-fleet moved "+s.Slug+" --clear undoes it"),
+	}
+	return fit(lines, width)
 }
 
 // Production is the live site's block: what its companion said.

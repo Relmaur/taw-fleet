@@ -61,6 +61,10 @@ func (a *Actions) PlanFleet(ctx context.Context, sites []site.Site) FleetPlan {
 			if !handoff.Needs(t) {
 				continue
 			}
+			if s.Moved != nil { // it left WordPress: nothing to update
+				plan.Skipped = append(plan.Skipped, handoff.FleetSkip{Site: s.Slug, Theme: t.Dir, Reason: "moved to " + s.Moved.To})
+				continue
+			}
 			if reason := handoff.Skip(t); reason != "" {
 				plan.Skipped = append(plan.Skipped, handoff.FleetSkip{Site: s.Slug, Theme: t.Dir, Reason: reason})
 				continue

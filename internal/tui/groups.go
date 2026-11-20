@@ -82,6 +82,9 @@ func (m Model) groupsOf(r row) []string {
 		}
 		return []string{string(t.Kind)}
 	case g == "production":
+		if s.Moved != nil {
+			return []string{"\x7emoved"} // after local only
+		}
 		if m.deps.Production[s.Slug] {
 			return []string{"live"}
 		}

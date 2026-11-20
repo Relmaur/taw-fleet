@@ -1039,11 +1039,13 @@ func (m *Model) applyScan(rep scan.Report, err error) {
 			}
 		}
 	}
-	// Live sites first, the TAW ecosystem last; otherwise the scan's order
-	// (by name).
+	// Live sites first, then local-only ones, then sites that left
+	// WordPress, the TAW ecosystem last; otherwise the scan's order (by name).
 	rank := func(r row) int {
 		switch s := rep.Sites[r.site]; {
 		case ecosystem(s.Themes[r.theme]):
+			return 3
+		case s.Moved != nil:
 			return 2
 		case m.deps.Production[s.Slug]:
 			return 0

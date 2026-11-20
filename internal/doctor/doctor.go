@@ -72,6 +72,15 @@ func checkSite(s site.Site, opts Options) []site.Finding {
 	if !s.IsTAW() {
 		return out
 	}
+	if m := s.Moved; m != nil { // nothing else to maintain on WordPress
+		msg := "moved off WordPress: " + m.To
+		if m.URL != "" {
+			msg += " (" + strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(m.URL, "https://"), "http://"), "/") + ")"
+		}
+		add(site.Info, "site.moved", "", msg+"; taw-fleet no longer checks or updates it",
+			"when you no longer need the WordPress copy, delete the site in Local; taw-fleet moved "+s.Slug+" --clear puts it back in the fleet")
+		return out
+	}
 	if opts.PHPAvailable != nil && s.PHPVersion != "" && !opts.PHPAvailable(s.PHPVersion) {
 		add(site.Warn, "tools.php-missing", "", "Local doesn't have PHP "+s.PHPVersion+" for this site",
 			"open the site in Local once so it downloads PHP "+s.PHPVersion)
