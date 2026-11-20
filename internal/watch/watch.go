@@ -156,6 +156,9 @@ func Check(prev State, sites []site.Site, now time.Time) (State, []Event) {
 	next := State{Checked: now, Sites: map[string]SiteState{}, Uptime: prev.Uptime}
 	var events []Event
 	for _, s := range sites {
+		if s.Moved != nil { // it left WordPress: nothing to tell (marked again, it starts a new baseline)
+			continue
+		}
 		ps, seen := prev.Sites[s.Slug]
 		ns := SiteState{Themes: map[string]ThemeState{}}
 		add := func(e Event) {

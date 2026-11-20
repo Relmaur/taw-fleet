@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
 
@@ -69,7 +70,20 @@ type Site struct {
 	// Tags organise the fleet: shown on the card, filtered (tag:x) and
 	// grouped by. Lower case letters, digits, ":", "_" and "-".
 	Tags []string `toml:"tags"`
+
+	// MovedTo says the site left WordPress, and what it is now ("Laravel on
+	// Forge"). taw-fleet then treats it as having no WordPress production:
+	// Load moves production_url to MovedURL, so live checks, watch, reports,
+	// publish, deploy and wp-remote leave it alone. The Local site and the
+	// theme stay listed until the owner removes them.
+	MovedTo string `toml:"moved_to"`
+	// MovedURL is where the moved site answers now: production_url as the
+	// file has it. Never in the file itself.
+	MovedURL string `toml:"-"`
 }
+
+// MaxMovedTo is how long moved_to can be.
+const MaxMovedTo = 60
 
 // MaxTags is how many tags a site can have.
 const MaxTags = 12
@@ -84,6 +98,25 @@ func CheckTag(t string) error {
 	}
 	return nil
 }
+
+// CheckMovedTo says what's wrong with a moved_to value, or nil ("" = not
+// moved).
+func CheckMovedTo(v string) error {
+	switch {
+	case v == "":
+		return nil
+	case strings.TrimSpace(v) != v:
+		return fmt.Errorf("moved_to %q: no spaces at the start or end", v)
+	case strings.ContainsAny(v, "\n\r\t"):
+		return fmt.Errorf("moved_to: one line, no tabs")
+	case utf8.RuneCountInString(v) > MaxMovedTo:
+		return fmt.Errorf("moved_to: %d characters at most", MaxMovedTo)
+	}
+	return nil
+}
+
+// Moved reports whether the site left WordPress (moved_to is set).
+func (s Site) Moved() bool { return s.MovedTo != "" }
 
 // CheckGroupBy says what's wrong with a group_by value, or nil.
 func CheckGroupBy(g string) error {
@@ -160,6 +193,13 @@ func Load(p paths.Paths) (Config, error) {
 			if err := CheckTag(t); err != nil {
 				return c, fmt.Errorf("%s: sites.%s.%w", File(p), slug, err)
 			}
+		}
+		if err := CheckMovedTo(s.MovedTo); err != nil {
+			return c, fmt.Errorf("%s: sites.%s.%w", File(p), slug, err)
+		}
+		if s.MovedTo != "" {
+			s.MovedURL, s.ProductionURL = s.ProductionURL, ""
+			c.Sites[slug] = s
 		}
 	}
 	if err := CheckGroupBy(c.GroupBy); err != nil {
@@ -272,6 +312,11 @@ const Template = `# taw-fleet settings. Everything here is optional.
 # Tags organise the fleet: shown on the card, filtered with tag:retainer (or
 # #retainer) and grouped by (= in the dashboard). taw-fleet tag <site> sets them.
 # tags = ["retainer", "es", "client:ls"]
+# A site that left WordPress (rebuilt on another stack): what it is now. taw-fleet
+# stops checking, reporting on, publishing to and updating it, and the card says
+# where it went; production_url is where it answers now. taw-fleet moved <site>
+# sets it.
+# moved_to = "Laravel on Forge"
 `
 
 // SetTop sets a top-level key (one before any [table]) to a string value in

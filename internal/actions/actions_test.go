@@ -463,6 +463,18 @@ func TestPlanFleetPicksAndSkips(t *testing.T) {
 	}
 }
 
+func TestPlanFleetSkipsMovedSites(t *testing.T) {
+	a, _ := setup(t, config.Config{})
+	a.CoreLatest = func(context.Context) (string, error) { return "v1.78.0", nil }
+	s, th := fixture() // behind on the scan's v1.76.1
+	s.Themes = []site.Theme{th}
+	s.Moved = &site.Moved{To: "Laravel on Forge"}
+	plan := a.PlanFleet(context.Background(), []site.Site{s})
+	if len(plan.Themes) != 0 || len(plan.Skipped) != 1 || plan.Skipped[0].Reason != "moved to Laravel on Forge" {
+		t.Errorf("plan = %+v", plan)
+	}
+}
+
 func TestLaunchFleetWritesPromptsAndAddsDirs(t *testing.T) {
 	a, f := setup(t, config.Config{})
 	mustWrite(t, filepath.Join(a.Paths.Home, ".local", "bin", "claude"))

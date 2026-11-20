@@ -40,7 +40,7 @@ func (m Model) loadBots() tea.Cmd {
 // setupSteps is the SETUP checklist for a site's theme; nil for the TAW
 // ecosystem's own themes, which aren't client sites.
 func (m Model) setupSteps(s site.Site, t site.Theme) []setup.Step {
-	if ecosystem(t) || !t.IsTAW {
+	if ecosystem(t) || !t.IsTAW || s.Moved != nil {
 		return nil
 	}
 	in := setup.Input{Site: s, Theme: t, Bot: m.bots[s.Slug]}
@@ -109,6 +109,9 @@ func (m Model) setupNext() (tea.Model, tea.Cmd) {
 	next, ok := setup.Next(steps)
 	live := m.deps.LaunchTask != nil && m.deps.Settings != nil && m.deps.Settings(s.Slug).ProductionURL != ""
 	switch {
+	case steps == nil && s.Moved != nil:
+		m.setFlash(s.Slug+" moved to "+s.Moved.To+": nothing to set up on WordPress", false)
+		return m, nil
 	case steps == nil:
 		m.setFlash(t.Dir+" is the TAW ecosystem's own theme, not a client site", false)
 		return m, nil

@@ -120,6 +120,9 @@ func renderList(w io.Writer, p style.Palette, rep scan.Report, hidden int) error
 			dot, name, domain := "", "", ""
 			if i == 0 {
 				dot, name, domain = p.Dot(s.Status), s.Slug, s.Domain
+				if s.Moved != nil {
+					domain += "  " + p.Fg(p.Warn).Render("moved → "+s.Moved.To)
+				}
 				if len(s.Tags) > 0 {
 					domain += "  #" + strings.Join(s.Tags, " #")
 				}

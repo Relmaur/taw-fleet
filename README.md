@@ -52,7 +52,7 @@ terminal. When it can't open a window, or the output isn't a terminal, it stays 
 |---|---|
 | `↑`/`↓` or `k`/`j`, `pgup`/`pgdn`, `home`/`end` | move |
 | `enter` | the selected site in full (scroll with `↑`/`↓`, `esc` back) |
-| `/` | filter: words (all must match), `-word` to leave out, and conditions: `is:behind\|dirty\|unpushed\|running\|stopped\|live\|down\|failing\|deploying\|undeployed\|vite\|other`, `has:comments\|prs\|findings\|errors`, `kind:classic\|block`, `core:<1.95` (also `<=`, `>`, `>=`, `=`, or `core:1.97` for any 1.97.x), `#retainer` or `tag:retainer` (`tag:client:` = any client tag). The footer counts the matches and names a term it didn't understand |
+| `/` | filter: words (all must match), `-word` to leave out, and conditions: `is:behind\|dirty\|unpushed\|running\|stopped\|live\|down\|failing\|deploying\|undeployed\|vite\|other\|moved`, `has:comments\|prs\|findings\|errors`, `kind:classic\|block`, `core:<1.95` (also `<=`, `>`, `>=`, `=`, or `core:1.97` for any 1.97.x), `#retainer` or `tag:retainer` (`tag:client:` = any client tag). The footer counts the matches and names a term it didn't understand |
 | `T` | the selected site's tags, in a popup: the fleet's tags to tick (`space`), new ones typed below; `enter` saves them in the settings, `esc` cancels. `#` opens it too (see [Tags and groups](#tags-and-groups)) |
 | `=` | group the list, picked in a popup (`↑`/`↓` and `enter`, or a digit): none, by tag (a site with several shows under each), kind, production, or a tag prefix (`client:` groups by client); remembered in the settings (`group_by`). `←` folds a group, `→` opens it, `enter` on a header does either |
 | `w` | work on it: start the site (when stopped), open the theme in your editor, run Vite (`npm run dev`) in its own window and open the site once Vite answers (asks first). On a theme whose Vite is running (`vite` after its name), `w` stops Vite and the site |
@@ -119,6 +119,7 @@ taw-fleet doctor awesome-company # the same for one site
 taw-fleet list --all      # also sites and themes that aren't TAW
 taw-fleet list --tag retainer   # only the sites with that tag (repeatable; client: = any client tag)
 taw-fleet tag awesome-company retainer es client:awesome   # set a site's tags (--add, --remove, --clear; asks first)
+taw-fleet moved awesome-company "Laravel on Forge"   # the site left WordPress: stop checking and updating it (--clear undoes; asks first)
 taw-fleet open <site>     # theme in your editor (see Shortcuts)
 taw-fleet handoff <site>  # agent prompt for the theme's update (see below)
 taw-fleet work <site>     # site, editor, Vite and browser in one go; --stop undoes it
@@ -420,6 +421,7 @@ production_url = "https://awesomecompany.com"
 notes = "Deploys from main."   # included in the handoff prompt
 bugsmash_project = "00000000-0000-4000-8000-000000000000"   # its BugSmash project (taw-fleet comments projects)
 tags = ["retainer", "es", "client:awesome"]   # # in the dashboard, taw-fleet tag; see Tags and groups
+moved_to = "Laravel on Forge"   # only for a site that left WordPress; see Sites that left WordPress
 ```
 
 `group_by = "tag"` (top level; also `"kind"`, `"production"`, `"prefix:client"`, `"none"`) is how the
@@ -444,6 +446,21 @@ shows under each; untagged sites come last, and the TAW ecosystem is always its 
 `prefix:` grouping (`client:` → by client) appears in `=`'s list once a tag uses that prefix. Set
 tags with `T` (or `#`) in the dashboard, `taw-fleet tag`, or Claude's `set_tags`; `list --tag` and `list_sites`
 show them.
+
+#### Sites that left WordPress
+
+When a client site is rebuilt on another stack (Laravel on Forge, say) its domain stops answering from
+WordPress, and taw-fleet would report the production as broken (`live.signature`). Mark it moved:
+`taw-fleet moved <site> "Laravel on Forge"` sets `moved_to` (asks first and writes a site note). The
+Local site and the theme stay in the list, sorted after the others, with `moved` on the card
+(`moved → Laravel on Forge` when there's room), a MOVED section in the details, `is:moved` in the
+filter and a `moved` group in `=` by production. taw-fleet stops everything aimed at its WordPress
+production: the live check, watch's notifications (GitHub ones included), the monthly reports,
+publishing, content pulls, deploys, `wp-remote`, the SETUP checklist (`I`, `ready`) and `U`/update-all,
+which lists it as skipped. doctor gives one note, `site.moved`, instead of the theme's findings.
+`production_url` stays in the file as where the site answers now. `list --json` and Claude's
+`list_sites`/`show_site` carry `"moved": {"to", "url"}`. When you no longer need the WordPress copy,
+delete the site in Local; `taw-fleet moved <site> --clear` puts it back in the fleet instead.
 
 **Open at login.** `taw-fleet config open-at-login on` sets `open_at_login = true` and adds a login
 agent (`~/Library/LaunchAgents/com.relmaur.taw-fleet.login.plist`) that opens the dashboard in a new
@@ -479,6 +496,7 @@ Font" in the terminal's settings (Terminal: Settings → Profiles → Text → F
 | `comments.open` | note, warning | open BugSmash comments; a warning once the oldest waited over two days |
 | `comments.unreachable` | warning | the BugSmash project is gone (re-created?), the key was refused, or BugSmash didn't answer |
 | `comments.no-key` | note | a site has `bugsmash_project` but no API key is stored |
+| `site.moved` | note | the site left WordPress (`moved_to`): taw-fleet no longer checks or updates it, and it gets no other findings |
 | `skills.missing` | note | the theme's taw/core ships site skills its `.claude/skills/` lacks (`S`, or `php bin/taw skills:sync --apply`) |
 
 The codes are stable: filter `doctor --json` on them. `doctor` only reads; it never changes

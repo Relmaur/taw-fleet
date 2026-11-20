@@ -81,6 +81,7 @@ type Site struct {
 	Tags        []string `json:"tags,omitempty"`         // the owner's tags for it, from the settings
 
 	Production *Production `json:"production,omitempty"` // the live site, through its companion (nil = not checked)
+	Moved      *Moved      `json:"moved,omitempty"`      // the site left WordPress (moved_to in the settings); nil = it didn't
 	Feedback   *Feedback   `json:"feedback,omitempty"`   // open comments in its BugSmash project (nil = not checked)
 
 	Hosts  []HostConnection `json:"hosts,omitempty"`
@@ -114,6 +115,14 @@ type Theme struct {
 	Dev      string       `json:"dev_server,omitempty"` // the running Vite dev server's URL; "" = not running
 	GitHub   *RepoState   `json:"github,omitempty"`     // open PRs and deploys (nil = not checked)
 	Account  string       `json:"account,omitempty"`    // the GitHub account, when it isn't one of the owner's
+}
+
+// Moved is a site that left WordPress: what it is now and where it answers.
+// taw-fleet keeps listing the Local site but no longer checks, reports on,
+// publishes to or updates it.
+type Moved struct {
+	To  string `json:"to"`            // "Laravel on Forge"
+	URL string `json:"url,omitempty"` // where it answers now (the old production_url)
 }
 
 // Production is what the live site's companion said.

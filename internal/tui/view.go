@@ -367,6 +367,13 @@ func (m Model) subline(s site.Site, t site.Theme, sel, host bool) string {
 		out += p.Fg(p.Accent).Render(" vite")
 	}
 	out += "  " + p.Kind(t.Kind)
+	if mv := s.Moved; mv != nil { // left WordPress: say where it went instead of a host
+		out += "  " + p.Fg(p.Warn).Render("moved")
+		if host {
+			out += p.Fg(p.Muted).Render(" → " + mv.To)
+		}
+		return out
+	}
 	if h := prodHost(s); host && h != "" {
 		out += "  " + p.Fg(p.Brand).Render(h)
 	}

@@ -226,3 +226,57 @@ func TestTagsAndGroupByAreChecked(t *testing.T) {
 		t.Errorf("load: %v", err)
 	}
 }
+
+func TestMovedToHidesTheProduction(t *testing.T) {
+	p := paths.ForHome(t.TempDir(), nil)
+	write(t, p, `
+[sites.acme-bakery]
+production_url = "https://acme.example"
+moved_to = "Laravel on Forge"
+[sites.jane-doe]
+production_url = "https://jane.example"
+`)
+	c, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved := c.Site("acme-bakery")
+	if !moved.Moved() || moved.ProductionURL != "" || moved.MovedURL != "https://acme.example" || moved.MovedTo != "Laravel on Forge" {
+		t.Errorf("moved = %+v", moved)
+	}
+	if s := c.Site("jane-doe"); s.Moved() || s.ProductionURL != "https://jane.example" || s.MovedURL != "" {
+		t.Errorf("not moved = %+v", s)
+	}
+	// SetSite edits the file, not the loaded values: production_url stays there.
+	if _, err := SetSite(p, "acme-bakery", "notes", "rebuilt"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(File(p))
+	if !strings.Contains(string(data), `production_url = "https://acme.example"`) {
+		t.Errorf("production_url went missing:\n%s", data)
+	}
+	if _, err := SetSiteList(p, "acme-bakery", "moved_to", nil); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := Load(p); c.Site("acme-bakery").Moved() || c.Site("acme-bakery").ProductionURL != "https://acme.example" {
+		t.Errorf("cleared = %+v", c.Site("acme-bakery"))
+	}
+}
+
+func TestMovedToIsChecked(t *testing.T) {
+	for _, bad := range []string{" Laravel", "Laravel\non Forge", strings.Repeat("x", MaxMovedTo+1)} {
+		if CheckMovedTo(bad) == nil {
+			t.Errorf("%q passed", bad)
+		}
+	}
+	for _, good := range []string{"", "Laravel on Forge", "Next.js · Vercel", strings.Repeat("é", MaxMovedTo)} {
+		if err := CheckMovedTo(good); err != nil {
+			t.Errorf("%q: %v", good, err)
+		}
+	}
+	p := paths.ForHome(t.TempDir(), nil)
+	write(t, p, "[sites.x]\nmoved_to = \" spaced \"\n")
+	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "sites.x.moved_to") {
+		t.Errorf("err = %v", err)
+	}
+}
